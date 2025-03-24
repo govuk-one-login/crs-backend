@@ -1,14 +1,9 @@
-name: backend pull request
+name: Backend pull request
 on:
   # Triggers the workflow on pull request events for all branches
   pull_request:
     branches:
       - main
-    types:
-      - opened
-      - reopened
-      - ready_for_review
-      - synchronize
     paths:
       - "backend/**"
       - ".github/workflows/pull-request.yml"
@@ -25,13 +20,13 @@ jobs:
         working-directory: backend
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: true
           fetch-depth: 0
 
       - name: Setup nodeJS v20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.3.0
         with:
           node-version-file: backend/.nvmrc
           cache: npm
@@ -50,8 +45,7 @@ jobs:
         run: npm run test
 
       - name: Validate SAM template
-        run: |
-          echo 'sam validate --lint'
+        run: echo 'sam validate --lint'
 
       - name: Run SonarCloud Scan
         uses: sonarsource/sonarqube-scan-action@0303d6b62e310685c0e34d0b9cde218036885c4d # v5.0.0
