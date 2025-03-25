@@ -93,7 +93,7 @@ jobs:
         role-to-assume: ${{ secrets.DEV_GH_ACTIONS_ROLE_ARN }}
 
     - name: Login to Amazon ECR
-      uses: aws-actions/amazon-ecr-login@b06ccd195086ba5254c95c627ee1cbeab86c7432 #main
+      uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
     - name: Build test image
       run: docker build -t $DEV_TEST_IMAGE_REPOSITORY:$IMAGE_TAG . 
