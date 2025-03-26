@@ -45,13 +45,14 @@ jobs:
       - name: Run Tests
         run: npm run test
 
-      - name: Run SonarCloud Scan
-        uses: sonarsource/sonarqube-scan-action@0303d6b62e310685c0e34d0b9cde218036885c4d # v5.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          projectBaseDir: backend
+# This step will be reinstated when our projects are created in Sonar which is currently blocked
+      # - name: Run SonarCloud Scan
+      #   uses: sonarsource/sonarqube-scan-action@0303d6b62e310685c0e34d0b9cde218036885c4d # v5.0.0
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      #   with:
+      #     projectBaseDir: backend
 
   build-and-push-to-dev:
     name: 'Push test image and SAM artifact to dev'
