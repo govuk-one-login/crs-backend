@@ -1,0 +1,27 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "place holder",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo 'testing to be set up'",
+    "lint": "echo 'linting to be set up'",
+    "format:check": "echo 'formatting to be set up'"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/govuk-one-login/mobile-status-list-backend.git"
+  },
+  "author": "ayeshakhan",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/govuk-one-login/mobile-status-list-backend/issues"
+  },
+  "homepage": "https://github.com/govuk-one-login/mobile-status-list-backend#readme",
+  "devDependencies": {
+    "@eslint/js": "^9.22.0",
+    "eslint": "^9.22.0",
+    "globals": "^16.0.0",
+    "typescript-eslint": "^8.27.0"
+  }
+}

@@ -1,0 +1,66 @@
+name: Backend pull request
+on:
+  # Triggers the workflow on pull request events for all branches
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - ".github/workflows/pull-request.yml"
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  ci-checks:
+    name: Run CI checks
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+        working-directory: backend
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Setup nodeJS v20
+        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.3.0
+        with:
+          node-version-file: backend/.nvmrc
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm clean-install
+
+      - name: Linting
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Run tests
+        run: npm run test
+
+      - name: Validate SAM template
+        run: echo 'sam validate --lint'
+
+      # These steps will be reinstated when our projects are created in Sonar which is currently blocked
+      # - name: Run SonarCloud Scan
+      #   uses: sonarsource/sonarqube-scan-action@0303d6b62e310685c0e34d0b9cde218036885c4d # v5.0.0
+      #   env:
+      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   with:
+      #     projectBaseDir: backend
+
+      # - name: SonarQube Quality Gate check
+      #   uses: SonarSource/sonarqube-quality-gate-action@d304d050d930b02a896b0f85935344f023928496 # v1.1.0
+      #   # Force to fail step after specific time
+      #   timeout-minutes: 5
+      #   env:
+      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      #   with:
+      #     scanMetadataReportFile: backend/.scannerwork/report-task.txt
