@@ -1,0 +1,39 @@
+Resources:
+  StatusListTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+            - 
+              AttributeName: "uri" 
+              AttributeType: "S"
+            - 
+              AttributeName: "idx"
+              AttributeType: "N"
+            - 
+              AttributeName: "clientId"
+              AttributeType: "S"
+            - 
+              AttributeName: "issuedAt"
+              AttributeType: "N"
+            - 
+              AttributeName: "revokedAt"
+              AttributeType: "N"
+            - 
+              AttributeName: "exp"
+              AttributeType: "N"
+            - 
+              AttributeName: "issuer"
+              AttributeType: "S"
+            - 
+              AttributeName: "listType"
+              AttributeType: "S"
+      KeySchema:
+            - 
+              AttributeName: "uri"
+              KeyType: "HASH"
+            - 
+              AttributeName: "idx"
+              KeyType: "RANGE"
+      PointInTimeRecoverySpecification: true
+      RecoveryPeriodInDays: 7
+
