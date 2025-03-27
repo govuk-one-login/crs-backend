@@ -3,7 +3,12 @@ Resources:
   FindAvailableSlots:
     Type: AWS::Lambda::Function
     Properties:
-      Handler: findAvailableSlotsHandler.handler
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          export function handler(): void {
+            console.log("Reached lambda function");
+          }
       Role: !GetAtt LambdaExecutionRole.Arn
       Runtime: nodejs20.x
       LoggingConfig:
