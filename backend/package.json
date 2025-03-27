@@ -6,7 +6,10 @@
   "scripts": {
     "test": "echo 'testing to be set up'",
     "lint": "echo 'linting to be set up'",
-    "format:check": "echo 'formatting to be set up'"
+    "format:check": "echo 'formatting to be set up'",
+    "prebuild": "rm -rf dist",
+    "build": "esbuild findAvailableSlotsHandler.ts --bundle --minify --sourcemap --platform=node --target=es2020 --outfile=dist/index.js",
+    "postbuild": "cd dist && zip -r index.zip index.js*"
   },
   "repository": {
     "type": "git",
@@ -24,4 +27,5 @@
     "globals": "^16.0.0",
     "typescript-eslint": "^8.27.0"
   }
+  
 }
