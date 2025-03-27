@@ -10,14 +10,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/govuk-one-login/mobile-status-list-backend.git"
+    "url": "git+https://github.com/govuk-one-login/crs-backend.git"
   },
   "author": "ayeshakhan",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/govuk-one-login/mobile-status-list-backend/issues"
+    "url": "https://github.com/govuk-one-login/crs-backend/issues"
   },
-  "homepage": "https://github.com/govuk-one-login/mobile-status-list-backend#readme",
+  "homepage": "https://github.com/govuk-one-login/crs-backend#readme",
   "devDependencies": {
     "@eslint/js": "^9.22.0",
     "eslint": "^9.22.0",
