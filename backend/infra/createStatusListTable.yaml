@@ -34,6 +34,10 @@ Resources:
             - 
               AttributeName: "idx"
               KeyType: "RANGE"
-      PointInTimeRecoverySpecification: true
-      RecoveryPeriodInDays: 7
+      PointInTimeRecoverySpecification: 
+            PointInTimeRecoveryEnabled: true
+            RecoveryPeriodInDays: 7
+      ProvisionedThroughput:
+        ReadCapacityUnits: 100
+        WriteCapacityUnits: 100
 
