@@ -1,5 +1,29 @@
 AWSTemplateFormatVersion: "2010-09-09"
 
+Parameters:
+  Environment:
+    Description: The name of the environment to deploy to
+    Type: String
+    AllowedValues:
+      - dev
+      - build
+      - staging
+      - integration
+      - production
+    Default: dev
+
+  PermissionsBoundary:
+    Description: |
+      The ARN of the permissions boundary to apply to any role created by the template
+    Type: String
+    Default: none
+
+Conditions:
+  UsePermissionsBoundary: !Not
+    - !Equals
+      - !Ref PermissionsBoundary
+      - none
+
 Resources:
   FindAvailableSlots:
     Type: AWS::Lambda::Function
@@ -12,6 +36,9 @@ Resources:
           }
       Role: !GetAtt LambdaExecutionRole.Arn
       Runtime: nodejs20.x
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
 
   LambdaSchedule:
     Type: AWS::Events::Rule
@@ -47,3 +74,7 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: '*'
+      PermissionsBoundary: !If
+        - UsePermissionsBoundary
+        - !Ref PermissionsBoundary
+        - !Ref AWS::NoValue
