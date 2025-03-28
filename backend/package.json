@@ -7,6 +7,7 @@
     "test": "echo 'testing to be set up'",
     "lint": "echo 'linting to be set up'",
     "format:check": "echo 'formatting to be set up'",
+    "infra:format": "rain fmt --write template.yaml",
     "prebuild": "rm -rf dist",
     "build": "esbuild findAvailableSlotsHandler.ts --bundle --minify --sourcemap --platform=node --target=es2020 --outfile=dist/index.js",
     "postbuild": "cd dist && zip -r index.zip index.js*"

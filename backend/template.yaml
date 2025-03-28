@@ -1,5 +1,4 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Transform: AWS::Serverless-2016-10-31
 
 Description: Scheduled Lambda Function with esbuild Build
 
@@ -27,14 +26,16 @@ Conditions:
       - !Ref PermissionsBoundary
       - none
 
+Transform: AWS::Serverless-2016-10-31
+
 Resources:
   FindAvailableSlotsFunction:
-    Type: 'AWS::Serverless::Function'
+    Type: AWS::Serverless::Function
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: 'es2022'
+        Target: es2022
         EntryPoints:
           - src/functions/findAvailableSlotsHandler.ts
     Properties:
@@ -46,7 +47,7 @@ Resources:
         ScheduledEvent:
           Type: Schedule
           Properties:
-            Schedule: 'rate(1 minute)'
+            Schedule: rate(1 minute)
       PermissionsBoundary: !If
         - UsePermissionsBoundary
         - !Ref PermissionsBoundary
