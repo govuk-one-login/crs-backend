@@ -41,26 +41,38 @@ jobs:
       - name: Check formatting
         run: npm run format:check
 
+      - name: Install rain
+        run: |
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          brew install rain
+
+      - name: Check infra formatting
+        run: |
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          npm run infra:format:check
+
       - name: Run tests
         run: npm run test
 
       - name: Validate SAM template
-        run: echo 'sam validate --lint'
+        run: sam validate --lint
 
-      # These steps will be reinstated when our projects are created in Sonar which is currently blocked
-      # - name: Run SonarCloud Scan
-      #   uses: sonarsource/sonarqube-scan-action@0303d6b62e310685c0e34d0b9cde218036885c4d # v5.0.0
-      #   env:
-      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #   with:
-      #     projectBaseDir: backend
+      - name: Validate SAM build
+        run: sam build --parallel
 
-      # - name: SonarQube Quality Gate check
-      #   uses: SonarSource/sonarqube-quality-gate-action@d304d050d930b02a896b0f85935344f023928496 # v1.1.0
-      #   # Force to fail step after specific time
-      #   timeout-minutes: 5
-      #   env:
-      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      #   with:
-      #     scanMetadataReportFile: backend/.scannerwork/report-task.txt
+      - name: Run SonarCloud Scan
+        uses: sonarsource/sonarqube-scan-action@0303d6b62e310685c0e34d0b9cde218036885c4d # v5.0.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectBaseDir: backend
+
+      - name: SonarQube Quality Gate check
+        uses: SonarSource/sonarqube-quality-gate-action@d304d050d930b02a896b0f85935344f023928496 # v1.1.0
+        # Force to fail step after specific time
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          scanMetadataReportFile: backend/.scannerwork/report-task.txt
