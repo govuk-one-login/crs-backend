@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="1" failures="0" errors="0" time="0.712">
-  <testsuite name="testing handler setup correctly" errors="0" failures="0" skipped="0" timestamp="2025-03-28T12:28:48" time="0.675" tests="1">
-    <testcase classname="testing handler setup correctly handler should return appropriate response" name="testing handler setup correctly handler should return appropriate response" time="0.001">
-    </testcase>
-  </testsuite>
-</testsuites>
