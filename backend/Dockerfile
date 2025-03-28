@@ -12,12 +12,17 @@ RUN npm install --ignore-scripts
 RUN apk upgrade && apk update; apk add --no-cache bash aws-cli && aws --version
 
 # Copy the test files and the configuration files
-COPY test ./tests
-COPY jest.config.ts tsconfig.json ./
+COPY test/api/ ./test/api/
+COPY babel.config.json jest.config.ts tsconfig.json ./
+
+RUN mkdir ./results/
+RUN chmod -R 007 ./results/
 
 # Give user, 'test', permissions to execute test script and switch the user to 'test'
 COPY run-tests.sh /
 RUN chmod 005 /run-tests.sh
+
+
 USER test
 
 ENTRYPOINT ["/run-tests.sh"]

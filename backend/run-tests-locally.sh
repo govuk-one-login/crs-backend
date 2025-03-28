@@ -1,6 +1,9 @@
 #!/bin/bash
 set -eu
 
+# This script intends to mock codeDeploy and run the tests in a similar environment to the pipeline.
+# The api tests require a deployed stack to run against
+
 BACKEND_STACK_NAME="${1:-crs}-backend"
 
 echo "Running test against ${BACKEND_STACK_NAME}"
