@@ -3,6 +3,11 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: Scheduled Lambda Function with esbuild Build
 
 Parameters:
+  CodeSigningConfigArn:
+    Description: The ARN of the Code Signing Config to use, provided by the deployment pipeline
+    Type: String
+    Default: none
+
   Environment:
     Description: The name of the environment to deploy to
     Type: String
@@ -20,13 +25,39 @@ Parameters:
     Type: String
     Default: none
 
+  VpcStackName:
+    Description: |
+      The stack name of the VPC where the Lambda functions will be deployed
+    Type: String
+    Default: devplatform-vpc
+
 Conditions:
   UsePermissionsBoundary: !Not
     - !Equals
       - !Ref PermissionsBoundary
       - none
 
+  UseCodeSigning: !Not
+    - !Equals
+      - !Ref CodeSigningConfigArn
+      - none
+
 Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  Function:
+    AutoPublishAlias: live
+    CodeSigningConfigArn: !If
+      - UseCodeSigning
+      - !Ref CodeSigningConfigArn
+      - !Ref AWS::NoValue
+    MemorySize: 512
+    PermissionsBoundary: !If
+      - UsePermissionsBoundary
+      - !Ref PermissionsBoundary
+      - !Ref AWS::NoValue
+    Runtime: nodejs22.x
+    Timeout: 3
 
 Resources:
   FindAvailableSlotsFunction:
@@ -39,18 +70,26 @@ Resources:
         EntryPoints:
           - src/functions/findAvailableSlotsHandler.ts
     Properties:
-      Runtime: nodejs20.x
+      FunctionName: !Sub ${AWS::StackName}-find-available-slots
       Handler: src/functions/findAvailableSlotsHandler.handler
       Policies:
         - AWSLambdaBasicExecutionRole
+        - AWSLambdaVPCAccessExecutionRole
       Events:
         ScheduledEvent:
           Type: Schedule
           Properties:
             Schedule: rate(1 minute)
-      PermissionsBoundary: !If
-        - UsePermissionsBoundary
-        - !Ref PermissionsBoundary
-        - !Ref AWS::NoValue
+      VpcConfig:
+        SecurityGroupIds:
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-AWSServicesEndpointSecurityGroupId
+        SubnetIds:
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-PrivateSubnetIdA
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-PrivateSubnetIdB
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
       Tags:
         Environment: !Ref Environment # This tag can be removed. Only here to appease cfn-lint and use the Environment parameter

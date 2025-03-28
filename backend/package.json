@@ -5,8 +5,9 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "JEST_JUNIT_OUTPUT_NAME=unit-report.xml ./node_modules/.bin/jest --testPathPattern=test --silent",
-    "test:unit": "JEST_JUNIT_OUTPUT_NAME=unit-report.xml ./node_modules/.bin/jest --testPathPattern=test/unit --silent",
+    "test": "     JEST_JUNIT_OUTPUT_NAME=test-report.xml ./node_modules/.bin/jest --testPathPattern=test/      --silent",
+    "test:unit": "JEST_JUNIT_OUTPUT_NAME=unit-report.xml ./node_modules/.bin/jest --testPathPattern=test/unit/ --silent",
+    "test:api": " JEST_JUNIT_OUTPUT_NAME=api-report.xml  ./node_modules/.bin/jest --testPathPattern=test/api/  --silent --coverage false",
     "lint": "echo 'linting to be set up'",
     "format:check": "echo 'formatting to be set up'",
     "infra:format": "rain fmt --write template.yaml",
