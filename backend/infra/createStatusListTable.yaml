@@ -4,22 +4,22 @@ Resources:
     Properties:
       TableName: "StatusListTable"
       AttributeDefinitions:
-            - 
-              AttributeName: "uri" 
-              AttributeType: "S"
-            - 
-              AttributeName: "idx"
-              AttributeType: "N"
+        - 
+          AttributeName: "uri" 
+          AttributeType: "S"
+        - 
+          AttributeName: "idx"
+          AttributeType: "N"
       KeySchema:
-            - 
-              AttributeName: "uri"
-              KeyType: "HASH"
-            - 
-              AttributeName: "idx"
-              KeyType: "RANGE"
+        - 
+          AttributeName: "uri"
+          KeyType: "HASH"
+        - 
+          AttributeName: "idx"
+          KeyType: "RANGE"
       PointInTimeRecoverySpecification: 
-            PointInTimeRecoveryEnabled: true
-            RecoveryPeriodInDays: 7
+        PointInTimeRecoveryEnabled: true
+        RecoveryPeriodInDays: 7
       ProvisionedThroughput:
         ReadCapacityUnits: 100
         WriteCapacityUnits: 100
