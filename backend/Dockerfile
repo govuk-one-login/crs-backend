@@ -1,6 +1,6 @@
 FROM node:iron-alpine
 
-WORKDIR /backend-api
+WORKDIR /backend
 
 # Create a new user 'test' to avoid running the app as a root
 RUN adduser --disabled-password test && chown test .
@@ -12,9 +12,12 @@ RUN npm install --ignore-scripts
 RUN apk upgrade && apk update; apk add --no-cache bash aws-cli && aws --version
 
 # Copy the test files and the configuration files
-# Currently no test files
+COPY test ./tests
+COPY jest.config.ts tsconfig.json ./
 
-COPY run-tests.sh ./
-RUN chmod +x run-tests.sh
+# Give user, 'test', permissions to execute test script and switch the user to 'test'
+COPY run-tests.sh /
+RUN chmod 005 /run-tests.sh
+USER test
 
 ENTRYPOINT ["./run-tests.sh"]
