@@ -25,6 +25,12 @@ Parameters:
     Type: String
     Default: none
 
+  VpcStackName:
+    Description: |
+      The stack name of the VPC where the Lambda functions will be deployed
+    Type: String
+    Default: devplatform-vpc
+
 Conditions:
   UsePermissionsBoundary: !Not
     - !Equals
@@ -64,6 +70,7 @@ Resources:
         EntryPoints:
           - src/functions/findAvailableSlotsHandler.ts
     Properties:
+      FunctionName: !Sub ${AWS::StackName}-find-available-slots
       Handler: src/functions/findAvailableSlotsHandler.handler
       Policies:
         - AWSLambdaBasicExecutionRole
@@ -72,5 +79,16 @@ Resources:
           Type: Schedule
           Properties:
             Schedule: rate(1 minute)
+      VpcConfig:
+        SecurityGroupIds:
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-AWSServicesEndpointSecurityGroupId
+        SubnetIds:
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-PrivateSubnetIdA
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-PrivateSubnetIdB
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
       Tags:
         Environment: !Ref Environment # This tag can be removed. Only here to appease cfn-lint and use the Environment parameter
