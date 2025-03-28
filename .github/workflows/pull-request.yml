@@ -41,8 +41,15 @@ jobs:
       - name: Check formatting
         run: npm run format:check
 
+      - name: Install rain
+        run: |
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          brew install rain
+
       - name: Check infra formatting
-        run: npm run infra:format:check
+        run: |
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          npm run infra:format:check
 
       - name: Run tests
         run: npm run test
