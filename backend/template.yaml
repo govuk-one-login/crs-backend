@@ -74,6 +74,7 @@ Resources:
       Handler: src/functions/findAvailableSlotsHandler.handler
       Policies:
         - AWSLambdaBasicExecutionRole
+        - AWSLambdaVPCAccessExecutionRole
       Events:
         ScheduledEvent:
           Type: Schedule
