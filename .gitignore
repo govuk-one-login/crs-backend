@@ -132,3 +132,5 @@ dist
 # AWS SAM
 .aws-sam/
 samconfig.toml
+
+backend/results
