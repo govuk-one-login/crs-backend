@@ -1,5 +1,3 @@
-export function handler(): void {
-
-    console.log("Reached lambda function");
-
+export function handler(): string {
+  return "Reached lambda function";
 }

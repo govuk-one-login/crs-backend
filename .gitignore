@@ -128,3 +128,11 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# AWS SAM
+.aws-sam/
+samconfig.toml
+
+backend/results
+cf-output.txt
+docker-vars.env

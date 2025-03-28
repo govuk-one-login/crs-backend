@@ -1,0 +1,95 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: Scheduled Lambda Function with esbuild Build
+
+Parameters:
+  CodeSigningConfigArn:
+    Description: The ARN of the Code Signing Config to use, provided by the deployment pipeline
+    Type: String
+    Default: none
+
+  Environment:
+    Description: The name of the environment to deploy to
+    Type: String
+    AllowedValues:
+      - dev
+      - build
+      - staging
+      - integration
+      - production
+    Default: dev
+
+  PermissionsBoundary:
+    Description: |
+      The ARN of the permissions boundary to apply to any role created by the template
+    Type: String
+    Default: none
+
+  VpcStackName:
+    Description: |
+      The stack name of the VPC where the Lambda functions will be deployed
+    Type: String
+    Default: devplatform-vpc
+
+Conditions:
+  UsePermissionsBoundary: !Not
+    - !Equals
+      - !Ref PermissionsBoundary
+      - none
+
+  UseCodeSigning: !Not
+    - !Equals
+      - !Ref CodeSigningConfigArn
+      - none
+
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  Function:
+    AutoPublishAlias: live
+    CodeSigningConfigArn: !If
+      - UseCodeSigning
+      - !Ref CodeSigningConfigArn
+      - !Ref AWS::NoValue
+    MemorySize: 512
+    PermissionsBoundary: !If
+      - UsePermissionsBoundary
+      - !Ref PermissionsBoundary
+      - !Ref AWS::NoValue
+    Runtime: nodejs22.x
+    Timeout: 3
+
+Resources:
+  FindAvailableSlotsFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        EntryPoints:
+          - src/functions/findAvailableSlotsHandler.ts
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-find-available-slots
+      Handler: src/functions/findAvailableSlotsHandler.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSLambdaVPCAccessExecutionRole
+      Events:
+        ScheduledEvent:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
+      VpcConfig:
+        SecurityGroupIds:
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-AWSServicesEndpointSecurityGroupId
+        SubnetIds:
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-PrivateSubnetIdA
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-PrivateSubnetIdB
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
+      Tags:
+        Environment: !Ref Environment # This tag can be removed. Only here to appease cfn-lint and use the Environment parameter
