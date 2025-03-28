@@ -53,5 +53,4 @@ Resources:
         - !Ref PermissionsBoundary
         - !Ref AWS::NoValue
       Tags:
-        - Key: Environment # This tag can be removed. Only here to appease cfn-lint and use the Environment parameter
-          Value: !Ref Environment
+        Environment: !Ref Environment # This tag can be removed. Only here to appease cfn-lint and use the Environment parameter
