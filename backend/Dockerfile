@@ -1,4 +1,4 @@
-FROM node:iron-alpine
+FROM node:jod-alpine
 
 WORKDIR /backend
 
@@ -20,4 +20,4 @@ COPY run-tests.sh /
 RUN chmod 005 /run-tests.sh
 USER test
 
-ENTRYPOINT ["./run-tests.sh"]
+ENTRYPOINT ["/run-tests.sh"]
