@@ -25,4 +25,4 @@ Resources:
         ScheduledEvent:
           Type: Schedule
           Properties:
-            Schedule: 'rate(7 days)' 
+            Schedule: 'rate(1 minute)' 
