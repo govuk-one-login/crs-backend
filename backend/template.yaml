@@ -132,7 +132,7 @@ Resources:
               SSEAlgorithm: AES256
 
   StatusListBucketPolicy:
-    Type: 'AWS::S3::BucketPolicy'
+    Type: AWS::S3::BucketPolicy
     Properties:
       Bucket: !Ref StatusListBucket
       PolicyDocument:
@@ -141,13 +141,13 @@ Resources:
             Action:
               - s3:GetObject
             Resource:
-              - !Sub "arn:aws:s3:::${StatusListBucket}/*"
+              - !Sub arn:aws:s3:::${StatusListBucket}/*
             Principal:
               Service: cloudfront.amazonaws.com
             Effect: Allow
             Condition:
               StringEquals:
-                "AWS:SourceArn": !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CredentialStatusCloudFrontDistribution}"
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${CredentialStatusCloudFrontDistribution}
 
   StatusListOriginAccessControl:
     Type: AWS::CloudFront::OriginAccessControl
@@ -177,21 +177,31 @@ Resources:
         DNSName: !GetAtt CredentialStatusCloudFrontDistribution.DomainName
         HostedZoneId: Z2FDTNDATAQYW2
 
-  # bal CloudFrontDistribution:
-  #     MaxTTL: 11 hours
-  #     StaleWhileRevalidate: 1 hour
-  #     StaleIfError: 7 days
-  #     Setup S3 buckets in AWS, in working order for dummy data to be added.
-  #         Naming convention:
-  #             Endpoints should contain a random hash (UUID) as a suffix (3B0F3BD087A7).
-  #             Total of 2 to be made (1 of each type).
+  CredentialStatusCloudFrontCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Comment: !Sub ${AWS::StackName} ${Environment} Credential Status
+        DefaultTTL: 7200 # 2 hours
+        MaxTTL: 39600 # 11 hours
+        MinTTL: 0
+        Name: !Sub ${AWS::StackName}-${Environment}-credential-status
+        ParametersInCacheKeyAndForwardedToOrigin:
+          CookiesConfig:
+            CookieBehavior: none
+          EnableAcceptEncodingGzip: false
+          EnableAcceptEncodingBrotli: false
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
 
   CredentialStatusCloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
       DistributionConfig:
         Enabled: true
-        Comment: !Sub ${AWS::StackName} CRL Cloudfront Distribution
+        Comment: !Sub ${AWS::StackName} ${Environment} Credential Status
         HttpVersion: http1.1
         Origins:
           - DomainName: !Sub ${StatusListBucket}.s3.${AWS::Region}.amazonaws.com
@@ -207,7 +217,7 @@ Resources:
             - GET
             - HEAD
           TargetOriginId: bucketOrigin
-          CachePolicyId: "658327ea-f89d-4fab-a63d-7e88639e58f6" # see https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html#managed-cache-policy-caching-disabled
+          CachePolicyId: !Ref CredentialStatusCloudFrontCachePolicy
           ViewerProtocolPolicy: allow-all
         PriceClass: PriceClass_All
         Logging:
@@ -219,7 +229,7 @@ Resources:
             - dnsPrefix: !If
                 - StackNameIsCrsBackend
                 - ""
-                - !Sub '${AWS::StackName}.'
+                - !Sub ${AWS::StackName}.
               dnsSuffix: !FindInMap
                 - EnvironmentVariables
                 - !Ref Environment
@@ -233,7 +243,7 @@ Resources:
               - CertificateArnV1UsEast1
             - !FindInMap
               - EnvironmentVariables
-              - "dev"
+              - dev
               - CertificateWildcardArnV1UsEast1
           MinimumProtocolVersion: TLSv1.1_2016
           SslSupportMethod: sni-only
