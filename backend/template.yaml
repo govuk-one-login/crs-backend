@@ -93,3 +93,17 @@ Resources:
             Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
       Tags:
         Environment: !Ref Environment # This tag can be removed. Only here to appease cfn-lint and use the Environment parameter
+
+  StatusListBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-${AWS::AccountId}-status-list"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
