@@ -60,6 +60,9 @@ Globals:
     Timeout: 3
 
 Resources:
+# CloudFront Resources
+
+# Lambda Resources
   FindAvailableSlotsFunction:
     Type: AWS::Serverless::Function
     Metadata:

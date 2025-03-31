@@ -1,0 +1,130 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Status List CloudFront Distribution and endpoints
+
+Parameters:
+  Environment:
+    Description: "The environment type"
+    Type: "String"
+    Default: dev
+    AllowedValues:
+      - "dev"
+      - "build"
+  
+  # Where is this actually created
+  CloudFrontCertArn:
+    Description: "ARN for ACM certificate to deploy to Cloudfront in eu-west-2"
+    Type: "String"
+  
+  # is this logging switch necessary/optimised 
+  StandardLoggingEnabled:
+    Description: Adds standard logging to an S3 bucket
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "false"
+  
+  Conditions:
+    AddStandardLogging: !Equals [true, !Ref StandardLoggingEnabled]
+
+# Where do the endpoint values go??
+# https://api.status-list.service.gov.uk/b/A671FED3E9AD
+# https://api.status-list.service.gov.uk/t/3B0F3BD087A7
+Resources:
+  CRSBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-${AWS::AccountId}-status"
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+  
+  CRSBucket1Policy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref CRSBucket1
+      PolicyDocument:
+        Statement:
+          - Sid: AllowPrivatePrincipalReadWrite
+            Action:
+              - s3:PutObject
+              - s3:PutObjectAcl
+              - s3:GetBucketAcl
+              - s3:GetBucketLocation
+            Effect: Allow
+            Resource:
+              - !Sub "arn:aws:s3:::${AWS::StackName}-${AWS::AccountId}-CRSBucket"
+              - !Sub "arn:aws:s3:::${AWS::StackName}-${AWS::AccountId}-CRSBucket/*"
+            Principal:
+              Service: acm-pca.amazonaws.com
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
+          - Sid: AllowCloudFrontServicePrincipalReadOnly
+            Action:
+              - s3:GetObject
+            Resource:
+              - !Sub "arn:aws:s3:::${AWS::StackName}-${AWS::AccountId}-CRSBucket/*"
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Effect: Allow
+            Condition:
+              StringEquals:
+                "AWS:SourceArn": !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CRSDistribution}"
+
+  CRSOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${AWS::StackName}-CRSBucket"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # CloudFront Distribution
+  CRSDistribution:
+    Type: 'AWS::CloudFront::Distribution'
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub "${AWS::StackName} CRS Cloudfront Distribution"
+        Origins:
+          - Id: CRSBucket1
+            DomainName: !Sub "${CRSBucket1}.s3.${AWS::Region}.amazonaws.com"
+            # Come back to configure origin access control
+            OriginAccessControlId: !Ref CRSOriginAccessControl
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          CachedMethods:
+            - GET
+          AllowedMethods:
+            - GET
+          TargetOriginId: CRSBucket # Default origin
+          ViewerProtocolPolicy: allow-all
+          # How do i make this two origins?
+          TargetOriginId: CRSBucket
+          CachePolicyId: "658327ea-f89d-4fab-a63d-7e88639e58f6"  # see https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html#managed-cache-policy-caching-disabled
+          ViewerProtocolPolicy: allow-all
+        PriceClass: PriceClass_All
+        # Adjust this!!
+        Logging: !If
+          - AddStandardLogging
+          - Bucket: "log-archive-cloudfront-logs-523017967436-eu-west-2.s3.amazonaws.com"
+            Prefix: !Sub "${AWS::AccountId}/${AWS::StackName}/"
+          - !Ref "AWS::NoValue"
+        Aliases:
+          - !Sub "${AWS::StackName}-crs.dev.account.gov.uk"
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CloudFrontCertArn
+          MinimumProtocolVersion: TLSv1.1_2016
+          SslSupportMethod: sni-only
+
+# verify whether we can see logs in splunk
