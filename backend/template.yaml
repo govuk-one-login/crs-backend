@@ -245,5 +245,5 @@ Resources:
               - EnvironmentVariables
               - dev
               - CertificateWildcardArnV1UsEast1
-          MinimumProtocolVersion: TLSv1.1_2016
+          MinimumProtocolVersion: TLSv1.2_2021
           SslSupportMethod: sni-only
