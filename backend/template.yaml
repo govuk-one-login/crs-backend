@@ -149,15 +149,6 @@ Resources:
               StringEquals:
                 AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${CredentialStatusCloudFrontDistribution}
 
-  StatusListOriginAccessControl:
-    Type: AWS::CloudFront::OriginAccessControl
-    Properties:
-      OriginAccessControlConfig:
-        Name: !Ref StatusListBucket
-        OriginAccessControlOriginType: s3
-        SigningBehavior: always
-        SigningProtocol: sigv4
-
   CredentialStatusRecordSet:
     Type: AWS::Route53::RecordSet
     Properties:
