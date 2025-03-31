@@ -59,26 +59,22 @@ Globals:
     Runtime: nodejs22.x
     Timeout: 3
 
-Resources:  
+Resources:
   StatusListTable:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: "StatusListTable"
       AttributeDefinitions:
-        - 
-          AttributeName: "uri" 
+        - AttributeName: "uri"
           AttributeType: "S"
-        - 
-          AttributeName: "idx"
+        - AttributeName: "idx"
           AttributeType: "N"
       KeySchema:
-        - 
-          AttributeName: "uri"
+        - AttributeName: "uri"
           KeyType: "HASH"
-        - 
-          AttributeName: "idx"
+        - AttributeName: "idx"
           KeyType: "RANGE"
-      PointInTimeRecoverySpecification: 
+      PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
         RecoveryPeriodInDays: 7
       ProvisionedThroughput:
