@@ -63,23 +63,24 @@ Resources:
   StatusListTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: "StatusListTable"
+      TableName: StatusListTable
       AttributeDefinitions:
-        - AttributeName: "uri"
-          AttributeType: "S"
-        - AttributeName: "idx"
-          AttributeType: "N"
+        - AttributeName: uri
+          AttributeType: S
+        - AttributeName: idx
+          AttributeType: N
       KeySchema:
-        - AttributeName: "uri"
-          KeyType: "HASH"
-        - AttributeName: "idx"
-          KeyType: "RANGE"
+        - AttributeName: uri
+          KeyType: HASH
+        - AttributeName: idx
+          KeyType: RANGE
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
         RecoveryPeriodInDays: 7
       ProvisionedThroughput:
         ReadCapacityUnits: 100
         WriteCapacityUnits: 100
+
   FindAvailableSlotsFunction:
     Type: AWS::Serverless::Function
     Metadata:
