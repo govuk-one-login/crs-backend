@@ -1,6 +1,18 @@
 AWSTemplateFormatVersion: "2010-09-09"
 
 Description: Scheduled Lambda Function with esbuild Build
+Mappings:
+  EnvironmentVariables:
+    dev:
+      CertificateArn: PLACEHOLDER
+    build:
+      CertificateArn: PLACEHOLDER
+    staging:
+      CertificateArn: PLACEHOLDER
+    integration:
+      CertificateArn: PLACEHOLDER
+    production:
+      CertificateArn: PLACEHOLDER
 
 Parameters:
   CodeSigningConfigArn:
@@ -97,7 +109,7 @@ Resources:
   StatusListBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "${AWS::StackName}-${AWS::AccountId}-status-list"
+      BucketName: !Sub "${AWS::StackName}-${Environment}-status-list"
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -107,3 +119,59 @@ Resources:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
+
+  StatusListOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Ref StatusListBucket
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  CredentialStatusRecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Name: !Sub "${AWS::StackName}.crl.mobile.dev.account.gov.uk."
+      Type: A
+      HostedZoneId: !Sub "{{resolve:ssm:/${Environment}/Platform/Route53/PrimaryZoneID}}"
+      AliasTarget:
+        DNSName: !GetAtt CredentialStatusCloudfrontDistribution.DomainName
+        HostedZoneId: "Z2FDTNDATAQYW2"
+
+  CredentialStatusCloudfrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub "${AWS::StackName} CRL Cloudfront Distribution"
+        DefaultRootObject: index.html
+        HttpVersion: http1.1
+        Origins:
+          - DomainName: !Sub "${CRLBucket}.s3.${AWS::Region}.amazonaws.com"
+            Id: bucketOrigin
+            OriginAccessControlId: !Ref CRLOriginAccessControl
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          CachedMethods:
+            - GET
+            - HEAD
+          AllowedMethods:
+            - GET
+            - HEAD
+          TargetOriginId: bucketOrigin
+          CachePolicyId: "4135ea2d-6df8-44a3-9df3-4b5a84be39ad" # see https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html#managed-cache-policy-caching-disabled
+          ViewerProtocolPolicy: allow-all
+        PriceClass: PriceClass_All
+        Logging: !If
+          - AddStandardLogging
+          - Bucket: "log-archive-cloudfront-logs-523017967436-eu-west-2.s3.amazonaws.com"
+            Prefix: !Sub "${AWS::AccountId}/${AWS::StackName}/"
+          - !Ref "AWS::NoValue"
+        Aliases:
+          - !Sub "${AWS::StackName}-crl.mobile.dev.account.gov.uk"
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CloudFrontCertArn
+          MinimumProtocolVersion: TLSv1.1_2016
+          SslSupportMethod: sni-only
