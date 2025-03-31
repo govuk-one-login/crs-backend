@@ -197,7 +197,7 @@ Resources:
         Origins:
           - DomainName: !Sub ${StatusListBucket}.s3.${AWS::Region}.amazonaws.com
             Id: bucketOrigin
-            OriginAccessControlId: !Ref StatusListOriginAccessControl
+            # OriginAccessControlId: !Ref StatusListOriginAccessControl
             S3OriginConfig:
               OriginAccessIdentity: ""
         DefaultCacheBehavior:
