@@ -1,2 +1,2 @@
 # crs-backend
-The backend code repo for the Status List team
+The backend code repo for the Credential Status (CRS) Team
