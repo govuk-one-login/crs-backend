@@ -114,8 +114,6 @@ Resources:
             Fn::Sub: ${VpcStackName}-PrivateSubnetIdB
           - !ImportValue
             Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
-      Tags:
-        Environment: !Ref Environment # This tag can be removed. Only here to appease cfn-lint and use the Environment parameter
 
   StatusListBucket:
     Type: AWS::S3::Bucket
@@ -148,6 +146,16 @@ Resources:
             Condition:
               StringEquals:
                 AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${CredentialStatusCloudFrontDistribution}
+
+  StatusListOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Ref StatusListBucket
+        Description: !Sub Ensure requests to ${StatusListBucket} are signed and thus allowed by the S3 resource policy
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
 
   CredentialStatusRecordSet:
     Type: AWS::Route53::RecordSet
@@ -197,8 +205,7 @@ Resources:
         Origins:
           - DomainName: !Sub ${StatusListBucket}.s3.${AWS::Region}.amazonaws.com
             Id: bucketOrigin
-
-            # OriginAccessControlId: !Ref StatusListOriginAccessControl
+            OriginAccessControlId: !Ref StatusListOriginAccessControl
             S3OriginConfig:
               OriginAccessIdentity: ""
         DefaultCacheBehavior:
