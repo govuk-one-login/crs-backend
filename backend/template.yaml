@@ -38,16 +38,16 @@ Mappings:
       CertificateWildcardArnV1UsEast1: arn:aws:acm:us-east-1:537124944731:certificate/c1f3daa3-fa88-4cb2-b3cc-0d5ca43d8d80
       dnsSuffix: crs.dev.account.gov.uk
     build:
-      CertificateArn: arn:aws:acm:us-east-1:881490088364:certificate/e913c6e7-1b41-4d5a-8731-6f026ea12b62
+      CertificateArnV1UsEast1: arn:aws:acm:us-east-1:881490088364:certificate/e913c6e7-1b41-4d5a-8731-6f026ea12b62
       dnsSuffix: crs.build.account.gov.uk
     staging:
-      CertificateArn: arn:aws:acm:us-east-1:253490791635:certificate/2a8b32c4-9893-476b-a57f-881029f00db0
+      CertificateArnV1UsEast1: arn:aws:acm:us-east-1:253490791635:certificate/2a8b32c4-9893-476b-a57f-881029f00db0
       dnsSuffix: crs.staging.account.gov.uk
     integration:
-      CertificateArn: PLACEHOLDER
+      CertificateArnV1UsEast1: PLACEHOLDER
       dnsSuffix: crs.integration.account.gov.uk
     production:
-      CertificateArn: PLACEHOLDER
+      CertificateArnV1UsEast1: PLACEHOLDER
       dnsSuffix: crs.account.gov.uk
 
 Conditions:
