@@ -83,6 +83,27 @@ Globals:
     Timeout: 3
 
 Resources:
+  StatusListTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: StatusListTable
+      AttributeDefinitions:
+        - AttributeName: uri
+          AttributeType: S
+        - AttributeName: idx
+          AttributeType: N
+      KeySchema:
+        - AttributeName: uri
+          KeyType: HASH
+        - AttributeName: idx
+          KeyType: RANGE
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+        RecoveryPeriodInDays: 7
+      ProvisionedThroughput:
+        ReadCapacityUnits: 100
+        WriteCapacityUnits: 100
+
   FindAvailableSlotsFunction:
     Type: AWS::Serverless::Function
     Metadata:
