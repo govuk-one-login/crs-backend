@@ -1,6 +1,5 @@
 import { writeFileSync } from "fs";
-import { SignJWT } from 'jose';
-import { generateKeyPair } from 'jose';
+import { SignJWT, generateKeyPair } from 'jose';
 import { sign } from 'cose-js';
 import cbor from 'cbor';
 
@@ -39,32 +38,28 @@ let tokenPayload = {
 }
 
 //Generates byte array, compresses with gzip and encodes into base 64, then encodes entire response into JWT
-compress(generateByteArray(numberOfRecords, allowedBytes).join(""), 'gzip').then
-    (
-        function (compressedString) {
-            bitStringPayload.credentialSubject.encodedList = btoa(String.fromCharCode.apply(null, new Uint8Array(compressedString)));
-            encodeMessageJWT(bitStringPayload).then
-                (
-                    function (encodedMessage) {
-                        createFile("A671FED3E9AD", encodedMessage);
-                    }
-                )
-        }
-    );
+compress(generateByteArray(numberOfRecords, allowedBytes).join(""), 'gzip').then(
+    function (compressedString) {
+        bitStringPayload.credentialSubject.encodedList = btoa(String.fromCharCode.apply(null, new Uint8Array(compressedString)));
+        encodeMessageJWT(bitStringPayload).then(
+            function (encodedMessage) {
+                createFile("A671FED3E9AD", encodedMessage);
+            }
+        )
+    }
+);
 
 //Generates byte array, compresses with deflate and encodes into base 64, then encodes entire response into CWT
-compress(generateByteArray(numberOfRecords, allowedBytes).join(""), 'deflate').then
-    (
-        function (compressedString) {
-            tokenPayload.status_list.lst = btoa(String.fromCharCode.apply(null, new Uint8Array(compressedString)));
-            encodeMessageCwt(tokenPayload).then
-                (
-                    function (encodedMessageCWT) {
-                        createFile("3B0F3BD087A7", encodedMessageCWT);
-                    }
-                )
-        }
-    );
+compress(generateByteArray(numberOfRecords, allowedBytes).join(""), 'deflate').then(
+    function (compressedString) {
+        tokenPayload.status_list.lst = btoa(String.fromCharCode.apply(null, new Uint8Array(compressedString)));
+        encodeMessageCwt(tokenPayload).then(
+            function (encodedMessageCWT) {
+                createFile("3B0F3BD087A7", encodedMessageCWT);
+            }
+        )
+    }
+);
 
 
 function generateByteArray(length: number, validValues: number[][]): ArrayBuffer[] {
@@ -75,7 +70,7 @@ function generateByteArray(length: number, validValues: number[][]): ArrayBuffer
 
     const result = new Array(length);
 
-    for (var i = 0; i < length; i++) {
+    for (let i = 0; i < length; i++) {
         const randomIndex = Math.floor(Math.random() * validValues.length);
         result[i] = validValues[randomIndex].join("");
     }
@@ -129,7 +124,7 @@ async function encodeMessageCwt(message: any): Promise<string> {
         key: {
             d: Buffer.from('6c1382765aec5358f117733d281c1c7bdc39884d04a45a1e6c67c858bc206c19', 'hex'),
             x: Buffer.from('143329cce7868e416927599cf65a34f3ce2ffda55a7eca69ed8919a394d42f0f', 'hex'),
-            y: Buffer.from('60f7f1a780d8a783bfb7a2dd6b2796e8128dbbcef9d3d168db9529971a36e7b9', 'hex'),  
+            y: Buffer.from('60f7f1a780d8a783bfb7a2dd6b2796e8128dbbcef9d3d168db9529971a36e7b9', 'hex'),
         }
     };
 
