@@ -12,7 +12,7 @@ let bitStringPayload = {
     type: ["VerifiableCredential", "BitstringStatusListCredential"],
     issuer: "did:example:12345",
     validFrom: "2025-01-05T14:00:00Z",
-    validUntil: "2021-04-05T02:00:00Z",
+    validUntil: "2030-04-05T02:00:00Z",
     credentialSubject: {
         id: "https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AD",
         type: "BitstringStatusList",
@@ -28,10 +28,10 @@ let bitStringPayload = {
 
 let tokenPayload = {
     exp: 2291720170,
-    iat: 1686920170,
+    iat: 1735988295,
     status_list: {
         bits: 2,
-        lst: "eNrbuRgAAhcBXQ"
+        lst: ""
     },
     sub: "https://douglast-backend.crs.dev.account.gov.uk/t/3B0F3BD087A7",
     ttl: 43200
@@ -125,7 +125,9 @@ async function encodeMessageCwt(message: any): Promise<string> {
 
     const signer = {
         key: {
-            d: Buffer.from('6c1382765aec5358f117733d281c1c7bdc39884d04a45a1e6c67c858bc206c19', 'hex')
+            d: Buffer.from('6c1382765aec5358f117733d281c1c7bdc39884d04a45a1e6c67c858bc206c19', 'hex'),
+            x: Buffer.from('143329cce7868e416927599cf65a34f3ce2ffda55a7eca69ed8919a394d42f0f', 'hex'),
+            y: Buffer.from('60f7f1a780d8a783bfb7a2dd6b2796e8128dbbcef9d3d168db9529971a36e7b9', 'hex'),  
         }
     };
 
