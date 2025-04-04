@@ -2,6 +2,7 @@ import { writeFileSync } from "fs";
 import { SignJWT } from 'jose';
 import { generateKeyPair } from 'jose';
 import { sign } from 'cose-js';
+import cbor from 'cbor';
 
 let allowedBytes = [[0x00, 0x01], [0x00, 0x00]];
 let numberOfRecords = 10;
@@ -115,6 +116,7 @@ async function encodeMessageJWT(message: any): Promise<string> {
 // Function to encode the token response object into a CWT using COSE
 async function encodeMessageCwt(message: any): Promise<string> {
 
+    const cborPayload = cbor.encode(message);
     const headers = {
         p: {
             alg: 'ES256',
@@ -131,7 +133,7 @@ async function encodeMessageCwt(message: any): Promise<string> {
         }
     };
 
-    const signedCWT = await sign.create(headers, message, signer);
+    const signedCWT = await sign.create(headers, cborPayload, signer);
     const cwt = signedCWT.toString('base64url');
 
     return cwt;
