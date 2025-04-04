@@ -1,4 +1,4 @@
-import { handler } from '../../../src/functions/findAvailableSlotsHandler';
+import { handler } from '../../../src/functions/findAvailableSlotsHandler.js';
 import { describe, test, expect } from '@jest/globals'
 
 describe('testing handler setup correctly', () => {
