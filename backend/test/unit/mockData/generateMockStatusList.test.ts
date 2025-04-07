@@ -1,5 +1,5 @@
 import { writeFileSync } from "fs";
-import { generateByteArray, compress, encodeMessageCwt, encodeMessageJWT, createFile } from '../../../src/mockData/generateMockStatusList.js';
+import { generateByteArray, compress, encodeMessageCwt, encodeMessageJWT, createFile } from '../../../src/mockData/generateMockStatusList';
 import { describe, test, expect } from '@jest/globals'
 import { SignJWT, generateKeyPair } from 'jose';
 import { sign } from 'cose-js';
