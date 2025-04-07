@@ -2,6 +2,7 @@ import { writeFileSync } from "fs";
 import { SignJWT, generateKeyPair } from 'jose';
 import { sign } from 'cose-js';
 import cbor from 'cbor';
+import { randomInt } from 'crypto';
 
 let allowedBytes = [[0x00, 0x01], [0x00, 0x00]];
 let numberOfRecords = 10;
@@ -80,7 +81,7 @@ export function generateByteArray(length: number, validValues: number[][]): Arra
     const result = new Array(length);
 
     for (let i = 0; i < length; i++) {
-        const randomIndex = Math.floor(Math.random() * validValues.length);
+        const randomIndex = randomInt(2);
         result[i] = validValues[randomIndex].join("");
     }
     return result;
