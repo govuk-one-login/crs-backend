@@ -44,11 +44,9 @@ generateBitStringJWTFile();
 //Generates byte array, compresses with deflate and encodes into base 64, then encodes entire response into CWT
 generateTokenCWTFile();
 
-
 function generateTokenCWTFile() {
     compress(generateByteArray(numberOfRecords, allowedBytes).join(""), 'deflate').then(
         function (compressedString) {
-            console.log(compressedString);
             tokenPayload.status_list.lst = btoa(String.fromCharCode.apply(null, new Uint8Array(compressedString)));
             encodeMessageCwt(tokenPayload).then(
                 function (encodedMessageCWT) {
