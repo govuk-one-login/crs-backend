@@ -25,6 +25,6 @@ export default {
     // By default, Babel ignores everything in node_modules when transforming to CommonJS. However, libraries that are
     // ESM-only must still be transformed to work correctly with Jest, unless experimental features are enabled. The
     // below regex ensures that all node modules except those requiring transformation are ignored.
-    '/node_modules/(?!mime).+\\.js$',
+    '/node_modules/(?!mime|cbor2).+\\.js$',
   ],
 }
