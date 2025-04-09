@@ -1,9 +1,6 @@
 import {
   generateByteArray,
   compress,
-  encodeMessageCwt,
-  encodeMessageJWT,
-  createFile,
 } from "../../../src/mockData/generateMockStatusList";
 import { describe, expect } from "@jest/globals";
 
