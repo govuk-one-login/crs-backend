@@ -5,6 +5,12 @@ export default {
     "default",
     ["jest-junit", { outputDirectory: "results", outputName: "report.xml" }],
   ],
+  collectCoverageFrom: [
+    "./**/*.ts",
+    "!./**/types/*.ts",
+    "!./test/**/*.ts",
+    "!./jest.config.ts",
+  ],
   collectCoverage: true,
   coverageDirectory: "coverage",
   coverageProvider: "ts-jest",
