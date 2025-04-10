@@ -198,7 +198,7 @@ Resources:
   AvailableSlotsSQS:
     Type: AWS::SQS::Queue
     Properties:
-      KmsMasterKeyID: !Ref AvailableSlotsKeyAlias
+      KmsMasterKeyId: !Ref AvailableSlotsKeyAlias
 
       # Below is 4 days, confirm
       MessageRetentionPeriod: 345600
