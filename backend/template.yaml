@@ -199,7 +199,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       KmsMasterKeyId: !Ref AvailableSlotsKeyAlias
-      MessageRetentionPeriod: 1,209,600 # 14 days
+      MessageRetentionPeriod: 1209600 # 14 days
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt AvailableSlotsQueueDLQ.Arn
         maxReceiveCount: 10
@@ -231,7 +231,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       KmsMasterKeyId: !Sub AvailableSlotsEncryptionKey
-      MessageRetentionPeriod: 604,800 # 7 days
+      MessageRetentionPeriod: 604800 # 7 days
 
       # CloudFront Set Up
   StatusListBucket:
