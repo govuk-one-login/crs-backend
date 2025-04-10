@@ -79,7 +79,6 @@ Conditions:
     - !Ref Environment
     - dev
 
-
   UsePermissionsBoundary: !Not
     - !Equals
       - !Ref PermissionsBoundary
@@ -168,7 +167,7 @@ Resources:
           - !ImportValue
             Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
 
-# Available Slots SQS Queue
+            # Available Slots SQS Queue
   AvailableSlotsEncryptionKey:
     Type: AWS::KMS::Key
     Properties:
@@ -177,7 +176,7 @@ Resources:
       KeyPolicy:
         Version: "2012-10-17"
         Statement:
-          - Action: 'kms:*'
+          - Action: kms:*
             Effect: Allow
             Principal:
               AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
@@ -189,7 +188,7 @@ Resources:
         - KMS
         - !Ref Environment
         - PendingDeletionInDays
-  
+
   AvailableSlotsKeyAlias:
     Type: AWS::KMS::Alias
     Properties:
@@ -200,12 +199,13 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       KmsMasterKeyID: !Ref AvailableSlotsKeyAlias
+
       # Below is 4 days, confirm
       MessageRetentionPeriod: 345600
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt AvailableSlotsQueueDLQ.Arn
         maxReceiveCount: 10
-  
+
   AvailableSlotsSQSPolicy:
     Type: AWS::SQS::QueuePolicy
     Properties:
@@ -213,17 +213,17 @@ Resources:
         Version: "2012-10-17"
         Statement:
           - Action:
-              - 'SQS:DeleteMessage'
-              - 'SQS:GetQueueAttributes'
-              - 'SQS:ChangeMessageVisibility'
-              - 'SQS:ReceiveMessage'
+              - SQS:DeleteMessage
+              - SQS:GetQueueAttributes
+              - SQS:ChangeMessageVisibility
+              - SQS:ReceiveMessage
             Effect: Allow
             Principal:
               AWS:
-              - !FindInMap
-                - AvailableSlots
-                - !Ref Environment
-                - AccountId
+                - !FindInMap
+                  - AvailableSlots
+                  - !Ref Environment
+                  - AccountId
             Resource:
               - !GetAtt AvailableSlotsSQS.Arn
       Queues:
@@ -235,7 +235,7 @@ Resources:
       KmsMasterKeyId: !Sub AvailableSlotsEncryptionKey
       MessageRetentionPeriod: 345600
 
-# CloudFront Set Up
+      # CloudFront Set Up
   StatusListBucket:
     Type: AWS::S3::Bucket
     Properties:
