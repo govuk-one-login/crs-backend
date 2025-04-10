@@ -167,7 +167,7 @@ Resources:
           - !ImportValue
             Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
 
-            # Available Slots SQS Queue
+# Available Slots SQS Queue
   AvailableSlotsEncryptionKey:
     Type: AWS::KMS::Key
     Properties:
@@ -199,9 +199,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       KmsMasterKeyId: !Ref AvailableSlotsKeyAlias
-
-      # Below is 4 days, confirm
-      MessageRetentionPeriod: 345600
+      MessageRetentionPeriod: 1,209,600 # 14 days
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt AvailableSlotsQueueDLQ.Arn
         maxReceiveCount: 10
@@ -233,9 +231,9 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       KmsMasterKeyId: !Sub AvailableSlotsEncryptionKey
-      MessageRetentionPeriod: 345600
-
-      # CloudFront Set Up
+      MessageRetentionPeriod: 604,800 # 7 days
+  
+# CloudFront Set Up
   StatusListBucket:
     Type: AWS::S3::Bucket
     Properties:
