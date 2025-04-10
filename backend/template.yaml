@@ -50,7 +50,36 @@ Mappings:
       CertificateArnV1UsEast1: PLACEHOLDER
       dnsSuffix: crs.account.gov.uk
 
+  AvailableSlots:
+    build:
+      AccountId: arn:aws:iam::881490088364:root
+    dev:
+      AccountId: arn:aws:iam::537124944731:root
+    integration:
+      AccountId: arn:aws:iam::605134474558:root
+    production:
+      AccountId: arn:aws:iam::528757826809:root
+    staging:
+      AccountId: arn:aws:iam::253490791635:root
+
+  KMS:
+    build:
+      PendingDeletionInDays: 30
+    dev:
+      PendingDeletionInDays: 7
+    integration:
+      PendingDeletionInDays: 30
+    production:
+      PendingDeletionInDays: 30
+    staging:
+      PendingDeletionInDays: 30
+
 Conditions:
+  IsDevEnvironment: !Equals
+    - !Ref Environment
+    - dev
+
+
   UsePermissionsBoundary: !Not
     - !Equals
       - !Ref PermissionsBoundary
@@ -86,7 +115,10 @@ Resources:
   StatusListTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: StatusListTable
+      TableName: !If
+        - IsDevEnvironment
+        - !Sub ${AWS::StackName}-StatusListTable
+        - StatusListTable
       AttributeDefinitions:
         - AttributeName: uri
           AttributeType: S
@@ -136,6 +168,74 @@ Resources:
           - !ImportValue
             Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
 
+# Available Slots SQS Queue
+  AvailableSlotsEncryptionKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: A KMS Key for encrypting the Available Slots SQS Queue
+      Enabled: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Action: 'kms:*'
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Resource: '*'
+      KeySpec: SYMMETRIC_DEFAULT
+      KeyUsage: ENCRYPT_DECRYPT
+      MultiRegion: false
+      PendingWindowInDays: !FindInMap
+        - KMS
+        - !Ref Environment
+        - PendingDeletionInDays
+  
+  AvailableSlotsKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/${AWS::StackName}-AvailableSlotsEncryptionKey
+      TargetKeyId: !Ref AvailableSlotsEncryptionKey
+
+  AvailableSlotsSQS:
+    Type: AWS::SQS::Queue
+    Properties:
+      KmsMasterKeyID: !Ref AvailableSlotsKeyAlias
+      # Below is 4 days, confirm
+      MessageRetentionPeriod: 345600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt AvailableSlotsQueueDLQ.Arn
+        maxReceiveCount: 10
+  
+  AvailableSlotsSQSPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - 'SQS:DeleteMessage'
+              - 'SQS:GetQueueAttributes'
+              - 'SQS:ChangeMessageVisibility'
+              - 'SQS:ReceiveMessage'
+            Effect: Allow
+            Principal:
+              AWS:
+              - !FindInMap
+                - AvailableSlots
+                - !Ref Environment
+                - AccountId
+            Resource:
+              - !GetAtt AvailableSlotsSQS.Arn
+      Queues:
+        - !Ref AvailableSlotsSQS
+
+  AvailableSlotsQueueDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      KmsMasterKeyId: !Sub AvailableSlotsEncryptionKey
+      MessageRetentionPeriod: 345600
+
+# CloudFront Set Up
   StatusListBucket:
     Type: AWS::S3::Bucket
     Properties:
