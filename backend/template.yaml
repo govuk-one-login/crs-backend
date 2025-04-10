@@ -167,7 +167,7 @@ Resources:
           - !ImportValue
             Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
 
-# Available Slots SQS Queue
+            # Available Slots SQS Queue
   AvailableSlotsEncryptionKey:
     Type: AWS::KMS::Key
     Properties:
@@ -232,8 +232,8 @@ Resources:
     Properties:
       KmsMasterKeyId: !Sub AvailableSlotsEncryptionKey
       MessageRetentionPeriod: 604,800 # 7 days
-  
-# CloudFront Set Up
+
+      # CloudFront Set Up
   StatusListBucket:
     Type: AWS::S3::Bucket
     Properties:
