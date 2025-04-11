@@ -51,10 +51,10 @@ Mappings:
       dnsSuffix: crs.account.gov.uk
 
   AvailableSlots:
-    build:
-      AccountId: arn:aws:iam::881490088364:root
     dev:
       AccountId: arn:aws:iam::537124944731:root
+    build:
+      AccountId: arn:aws:iam::881490088364:root
     integration:
       AccountId: arn:aws:iam::605134474558:root
     production:
@@ -63,10 +63,10 @@ Mappings:
       AccountId: arn:aws:iam::253490791635:root
 
   KMS:
+    dev:
+      PendingDeletionInDays: 7    
     build:
       PendingDeletionInDays: 30
-    dev:
-      PendingDeletionInDays: 7
     integration:
       PendingDeletionInDays: 30
     production:
