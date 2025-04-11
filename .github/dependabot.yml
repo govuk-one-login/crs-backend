@@ -22,6 +22,7 @@ updates:
       interval: weekly
       day: sunday
     versioning-strategy: increase
+    open-pull-requests-limit: 5
     groups:
       backend-versions:
         patterns:
