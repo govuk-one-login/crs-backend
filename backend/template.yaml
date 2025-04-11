@@ -64,7 +64,7 @@ Mappings:
 
   KMS:
     dev:
-      PendingDeletionInDays: 7    
+      PendingDeletionInDays: 7
     build:
       PendingDeletionInDays: 30
     integration:
