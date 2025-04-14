@@ -38,6 +38,7 @@ The service consists of the following components:
 - **Amazon S3 Bucket:** An S3 bucket stores the status list file, which contains the revocation status of credentials.
 - **Amazon CloudFront Distribution:** A CloudFront distribution serves the status list file from the S3 bucket with appropriate caching configurations.
 - **Amazon Route 53 Record Set:** A Route 53 record set maps a custom domain name to the CloudFront distribution, providing a publicly accessible endpoint for the credential status service.
+- **TxMA SQS Queue:** A queue which CRS will write to allowing the analytics team to audit our service activity. Includes a KMS Encryption Key, Key Alias, SQS Queue, DLQ (for managing failed SQS messages), and a SQS Queue Policy.
 
 ## Configuration
 

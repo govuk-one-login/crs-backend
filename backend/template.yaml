@@ -50,7 +50,7 @@ Mappings:
       CertificateArnV1UsEast1: PLACEHOLDER
       dnsSuffix: crs.account.gov.uk
 
-  AvailableSlots:
+  AccountAccess:
     dev:
       AccountId: arn:aws:iam::537124944731:root
     build:
@@ -188,6 +188,11 @@ Resources:
         - KMS
         - !Ref Environment
         - PendingDeletionInDays
+      Tags:
+        - Key: KeyType
+          Value: Encryption Key
+        - Key: Environment
+          Value: !Sub ${Environment}
 
   AvailableSlotsKeyAlias:
     Type: AWS::KMS::Alias
@@ -219,7 +224,7 @@ Resources:
             Principal:
               AWS:
                 - !FindInMap
-                  - AvailableSlots
+                  - AccountAccess
                   - !Ref Environment
                   - AccountId
             Resource:
@@ -233,7 +238,93 @@ Resources:
       KmsMasterKeyId: !Sub AvailableSlotsEncryptionKey
       MessageRetentionPeriod: 604800 # 7 days
 
-      # CloudFront Set Up
+      # TxMA SQS Queue
+  TxMAKMSEncryptionKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: A KMS Key for encrypting the SQS Queue for TxMA
+      Enabled: true
+      KeyPolicy:
+        Statement:
+          - Action:
+              - kms:*
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Resource:
+              - '*'
+          - Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:GenerateDataKey
+            Effect: Allow
+            Principal:
+              AWS: !FindInMap
+                - AccountAccess
+                - !Ref Environment
+                - AccountId
+            Resource:
+              - '*'
+        Version: "2012-10-17"
+      KeySpec: SYMMETRIC_DEFAULT
+      KeyUsage: ENCRYPT_DECRYPT
+      MultiRegion: false
+      PendingWindowInDays: !FindInMap
+        - KMS
+        - !Ref Environment
+        - PendingDeletionInDays
+      Tags:
+        - Key: KeyType
+          Value: Encryption Key
+        - Key: Environment
+          Value: !Sub ${Environment}
+
+  TxMAKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/${AWS::StackName}-TxMAKMSEncryptionKey
+      TargetKeyId: !Ref TxMAKMSEncryptionKey
+
+  TxMASQSQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      KmsMasterKeyId: !Ref TxMAKeyAlias
+      MessageRetentionPeriod: 604800 # 7 days
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TxMASQSQueueDeadLetterQueue.Arn
+        maxReceiveCount: 5
+      VisibilityTimeout: 60
+
+  TxMASQSQueueDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      KmsMasterKeyId: !Sub TxMAKMSEncryptionKey
+      MessageRetentionPeriod: 259200 # 3 days
+
+  TxMASQSQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - sqs:DeleteMessage
+              - sqs:GetQueueAttributes
+              - sqs:ChangeMessageVisibility
+              - sqs:ReceiveMessage
+            Effect: Allow
+            Principal:
+              AWS:
+                - !FindInMap
+                  - AccountAccess
+                  - !Ref Environment
+                  - AccountId
+            Resource:
+              - !GetAtt TxMASQSQueue.Arn
+        Version: "2012-10-17"
+      Queues:
+        - !Ref TxMASQSQueue
+
+        # CloudFront Set Up
   StatusListBucket:
     Type: AWS::S3::Bucket
     Properties:
