@@ -324,7 +324,7 @@ Resources:
       Queues:
         - !Ref TxMASQSQueue
 
-    # CloudFront Set Up
+        # CloudFront Set Up
   StatusListBucket:
     Type: AWS::S3::Bucket
     Properties:
