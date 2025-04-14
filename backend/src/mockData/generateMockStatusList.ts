@@ -1,7 +1,5 @@
 import { writeFileSync } from "fs";
 import { SignJWT, generateKeyPair } from "jose";
-import { sign } from "cose-js";
-import { encode } from "cbor2";
 import { randomInt } from "crypto";
 
 let allowedBytes = [
@@ -45,9 +43,9 @@ let tokenPayload = {
 generateBitStringJWTFile();
 
 //Generates byte array, compresses with deflate and encodes into base 64, then encodes entire response into CWT
-generateTokenCWTFile();
+generateTokenJWTFile();
 
-function generateTokenCWTFile() {
+function generateTokenJWTFile() {
   compress(
     generateByteArray(numberOfRecords, allowedBytes).join(""),
     "deflate",
@@ -55,8 +53,8 @@ function generateTokenCWTFile() {
     tokenPayload.status_list.lst = btoa(
       String.fromCharCode.apply(null, new Uint8Array(compressedString)),
     );
-    encodeMessageCwt(tokenPayload).then(function (encodedMessageCWT) {
-      createFile("3B0F3BD087A7", encodedMessageCWT);
+    encodeMessageJWT(tokenPayload, "application/statuslist+jwt").then(function (encodedMessageJWT) {
+      createFile("3B0F3BD087A7", encodedMessageJWT);
     });
   });
 }
@@ -69,7 +67,7 @@ function generateBitStringJWTFile() {
     bitStringPayload.credentialSubject.encodedList = btoa(
       String.fromCharCode.apply(null, new Uint8Array(compressedString)),
     );
-    encodeMessageJWT(bitStringPayload).then(function (encodedMessage) {
+    encodeMessageJWT(bitStringPayload, "application/vc-ld+jwt").then(function (encodedMessage) {
       createFile("A671FED3E9AD", encodedMessage);
     });
   });
@@ -108,49 +106,15 @@ export function createFile(fileName: string, text) {
 }
 
 // Function to encode the bitstring response object into a JWT using JOSE
-export async function encodeMessageJWT(message: any): Promise<string> {
+export async function encodeMessageJWT(message: any, headerType: string): Promise<string> {
   const { privateKey } = await generateKeyPair("ES256");
   const jwt = await new SignJWT(message)
     .setProtectedHeader({
       alg: "ES256",
       kid: "12",
-      typ: "vc+jwt",
+      typ: headerType,
     })
     .sign(privateKey);
 
   return jwt;
-}
-
-// Function to encode the token response object into a CWT using COSE
-export async function encodeMessageCwt(message: any): Promise<string> {
-  const cborPayload = encode(message);
-  const headers = {
-    p: {
-      alg: "ES256",
-      kid: "11",
-      content_type: "application/statuslist+cwt",
-    },
-  };
-
-  const signer = {
-    key: {
-      d: Buffer.from(
-        "6c1382765aec5358f117733d281c1c7bdc39884d04a45a1e6c67c858bc206c19",
-        "hex",
-      ),
-      x: Buffer.from(
-        "143329cce7868e416927599cf65a34f3ce2ffda55a7eca69ed8919a394d42f0f",
-        "hex",
-      ),
-      y: Buffer.from(
-        "60f7f1a780d8a783bfb7a2dd6b2796e8128dbbcef9d3d168db9529971a36e7b9",
-        "hex",
-      ),
-    },
-  };
-
-  const signedCWT = await sign.create(headers, cborPayload, signer);
-  const cwt = signedCWT.toString("base64url");
-
-  return cwt;
 }
