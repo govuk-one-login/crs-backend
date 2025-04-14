@@ -79,17 +79,6 @@ Conditions:
     - !Ref Environment
     - dev
 
-  IsNotDevOrBuild: !Or
-    - !Equals
-      - !Ref Environment
-      - staging
-    - !Equals
-      - !Ref Environment
-      - integration
-    - !Equals
-      - !Ref Environment
-      - production
-
   UsePermissionsBoundary: !Not
     - !Equals
       - !Ref PermissionsBoundary
@@ -334,7 +323,6 @@ Resources:
         Version: "2012-10-17"
       Queues:
         - !Ref TxMASQSQueue
-    Condition: IsNotDevOrBuild
 
     # CloudFront Set Up
   StatusListBucket:
