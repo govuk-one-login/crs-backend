@@ -5,7 +5,8 @@ export default {
   ],
   collectCoverage: true,
   coveragePathIgnorePatterns: ["/testUtils/", "/node-modules/"],
-  preset: "ts-jest",  testMatch: ["**/*.test.ts"],
+  preset: "ts-jest",
+  testMatch: ["**/*.test.ts"],
   testEnvironment: "node",
   clearMocks: true,
 };

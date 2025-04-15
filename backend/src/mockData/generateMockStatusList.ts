@@ -53,9 +53,11 @@ function generateTokenJWTFile() {
     tokenPayload.status_list.lst = btoa(
       String.fromCharCode.apply(null, new Uint8Array(compressedString)),
     );
-    encodeMessageJWT(tokenPayload, "application/statuslist+jwt").then(function (encodedMessageJWT) {
-      createFile("./src/mockData/3B0F3BD087A7", encodedMessageJWT);
-    });
+    encodeMessageJWT(tokenPayload, "application/statuslist+jwt").then(
+      function (encodedMessageJWT) {
+        createFile("./src/mockData/3B0F3BD087A7", encodedMessageJWT);
+      },
+    );
   });
 }
 
@@ -67,9 +69,11 @@ function generateBitStringJWTFile() {
     bitStringPayload.credentialSubject.encodedList = btoa(
       String.fromCharCode.apply(null, new Uint8Array(compressedString)),
     );
-    encodeMessageJWT(bitStringPayload, "application/vc-ld+jwt").then(function (encodedMessage) {
-      createFile("./src/mockData/A671FED3E9AD", encodedMessage);
-    });
+    encodeMessageJWT(bitStringPayload, "application/vc-ld+jwt").then(
+      function (encodedMessage) {
+        createFile("./src/mockData/A671FED3E9AD", encodedMessage);
+      },
+    );
   });
 }
 
@@ -106,7 +110,10 @@ export function createFile(fileName: string, text) {
 }
 
 // Function to encode the bitstring response object into a JWT using JOSE
-export async function encodeMessageJWT(message: any, headerType: string): Promise<string> {
+export async function encodeMessageJWT(
+  message: any,
+  headerType: string,
+): Promise<string> {
   const { privateKey } = await generateKeyPair("ES256");
   const jwt = await new SignJWT(message)
     .setProtectedHeader({
