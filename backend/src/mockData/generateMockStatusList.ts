@@ -54,7 +54,7 @@ function generateTokenJWTFile() {
       String.fromCharCode.apply(null, new Uint8Array(compressedString)),
     );
     encodeMessageJWT(tokenPayload, "application/statuslist+jwt").then(function (encodedMessageJWT) {
-      createFile("3B0F3BD087A7", encodedMessageJWT);
+      createFile("./src/mockData/3B0F3BD087A7", encodedMessageJWT);
     });
   });
 }
@@ -68,7 +68,7 @@ function generateBitStringJWTFile() {
       String.fromCharCode.apply(null, new Uint8Array(compressedString)),
     );
     encodeMessageJWT(bitStringPayload, "application/vc-ld+jwt").then(function (encodedMessage) {
-      createFile("A671FED3E9AD", encodedMessage);
+      createFile("./src/mockData/A671FED3E9AD", encodedMessage);
     });
   });
 }

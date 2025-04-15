@@ -5,9 +5,7 @@ export default {
   ],
   collectCoverage: true,
   coveragePathIgnorePatterns: ["/testUtils/", "/node-modules/"],
-  coverageDirectory: "coverage",
-  coverageProvider: "babel",
-  testMatch: ["**/*.test.ts"],
+  preset: "ts-jest",  testMatch: ["**/*.test.ts"],
   testEnvironment: "node",
   clearMocks: true,
 };
