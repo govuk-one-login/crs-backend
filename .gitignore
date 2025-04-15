@@ -136,3 +136,8 @@ samconfig.toml
 backend/results
 cf-output.txt
 docker-vars.env
+
+# Js files
+backend/src/*/*.js
+backend/test/*/*.js
+jest.config.js
