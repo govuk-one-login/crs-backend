@@ -6,5 +6,5 @@ describe("testing handler setup correctly", () => {
     expect(handler()).toBeInstanceOf(Response);
     expect(handler().status).toBe(501);
     expect(handler().statusText).toBe("Not Implemented");
-  })
+  });
 });
