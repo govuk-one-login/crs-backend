@@ -188,7 +188,7 @@ Resources:
       DestinationArn: arn:aws:logs:eu-west-2:885513274347:destination:csls_cw_logs_destination_prodpython-2
       FilterPattern: ""
       LogGroupName: !Ref IssueStatusListEntryAccessLogs
-      Condition: IsProdLikeEnvironment
+    Condition: IsProdLikeEnvironment
 
   FindAvailableSlotsFunction:
     Type: AWS::Serverless::Function
