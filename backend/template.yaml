@@ -93,6 +93,20 @@ Conditions:
     - !Ref AWS::StackName
     - crs-backend
 
+  IsProdLikeEnvironment: !Or
+    - !Equals
+      - !Ref Environment
+      - build
+    - !Equals
+      - !Ref Environment
+      - staging
+    - !Equals
+      - !Ref Environment
+      - integration
+    - !Equals
+      - !Ref Environment
+      - production
+
 Transform: AWS::Serverless-2016-10-31
 
 Globals:
@@ -134,6 +148,48 @@ Resources:
       ProvisionedThroughput:
         ReadCapacityUnits: 100
         WriteCapacityUnits: 100
+  
+  IssueStatusListEntryFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        EntryPoints:
+          - src/functions/issueStatusListEntryHandler.ts
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-issue-status-list-entry
+      Handler: src/functions/issueStatusListEntryHandler.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSLambdaVPCAccessExecutionRole
+      VpcConfig:
+        SecurityGroupIds:
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-AWSServicesEndpointSecurityGroupId
+        SubnetIds:
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-PrivateSubnetIdA
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-PrivateSubnetIdB
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
+
+  IssueStatusListEntryAccessLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/apigateway/${AWS::StackName}-issue-status-list-entry-access-logs
+      RetentionInDays: 30
+
+  CSLSIssueStatusListEntryFunctionSubscriptionFilter:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: 
+        arn:aws:logs:eu-west-2:885513274347:destination:csls_cw_logs_destination_prodpython-2
+      FilterPattern: ""
+      LogGroupName: !Ref IssueStatusListEntryAccessLogs
+      Condition: IsProdLikeEnvironment
 
   FindAvailableSlotsFunction:
     Type: AWS::Serverless::Function
