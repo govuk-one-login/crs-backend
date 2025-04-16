@@ -148,7 +148,7 @@ Resources:
       ProvisionedThroughput:
         ReadCapacityUnits: 100
         WriteCapacityUnits: 100
-  
+
   IssueStatusListEntryFunction:
     Type: AWS::Serverless::Function
     Metadata:
@@ -185,8 +185,7 @@ Resources:
   CSLSIssueStatusListEntryFunctionSubscriptionFilter:
     Type: AWS::Logs::SubscriptionFilter
     Properties:
-      DestinationArn: 
-        arn:aws:logs:eu-west-2:885513274347:destination:csls_cw_logs_destination_prodpython-2
+      DestinationArn: arn:aws:logs:eu-west-2:885513274347:destination:csls_cw_logs_destination_prodpython-2
       FilterPattern: ""
       LogGroupName: !Ref IssueStatusListEntryAccessLogs
       Condition: IsProdLikeEnvironment
