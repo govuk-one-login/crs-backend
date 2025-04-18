@@ -356,7 +356,7 @@ Resources:
             Condition:
               StringEquals:
                 AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${CredentialStatusCloudFrontDistribution}
-              
+
   ClientRegistryBucket:
     Type: AWS::S3::Bucket
     Properties:
