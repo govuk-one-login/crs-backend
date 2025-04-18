@@ -1,0 +1,25 @@
+{
+    "clients": 
+    [
+      {
+        "clientName": "OVA",
+        "clientId": "asKWnsjeEJEWjjwSHsIksIksIhBe",
+        "statusList": 
+        {
+          "jwksUri": "https://mobile.dev.account.gov.uk/.well-known/jwks.json",
+          "type": "BitstringStatusList",
+          "format": "vc+jwt"
+        }
+      },
+      {
+        "clientName": "DVLA",
+        "clientId": "DNkekdNSkekSNljrwevOIUPenGeS",
+        "statusList": 
+        {
+          "jwksUri": "https://mobile.dev.account.gov.uk/.well-known/jwks.json",
+          "type": "TokenStatusList",
+          "format": "statuslist+cwt"
+        }
+      }
+    ]
+  }
