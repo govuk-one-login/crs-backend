@@ -26,7 +26,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup nodeJS v22
-        uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.3.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: backend/.nvmrc
           cache: npm
@@ -61,7 +61,7 @@ jobs:
         run: sam build --parallel
 
       - name: Run SonarCloud Scan
-        uses: sonarsource/sonarqube-scan-action@0303d6b62e310685c0e34d0b9cde218036885c4d # v5.0.0
+        uses: sonarsource/sonarqube-scan-action@aa494459d7c39c106cc77b166de8b4250a32bb97 # v5.1.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
