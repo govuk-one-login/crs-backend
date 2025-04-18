@@ -356,6 +356,46 @@ Resources:
             Condition:
               StringEquals:
                 AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${CredentialStatusCloudFrontDistribution}
+              
+  ClientRegistryBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-${Environment}-client-registry
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+
+  ClientRegistryBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ClientRegistryBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+            Principal:
+              Service: lambda.amazonaws.com
+            Resource: !Sub arn:aws:s3:::${ClientRegistryBucket}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${IssueStatusListEntryFunction}
+          - Effect: Deny
+            Action: '*'
+            Principal: '*'
+            Resource: !Sub arn:aws:s3:::${ClientRegistryBucket}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: false
 
   StatusListOriginAccessControl:
     Type: AWS::CloudFront::OriginAccessControl
