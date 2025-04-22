@@ -62,3 +62,18 @@ The service incorporates security best practices, including:
 ## Monitoring
 
 The CloudFront distribution is configured to log access logs to an S3 bucket, allowing for monitoring and analysis of service usage.
+
+### Log Groups
+
+Every log group (e.g. execution logs for a new Lambda function, or API gateway access logs) must have a corresponding log subscription filter
+to ensure that logs are shipped correctly to Splunk as per the requirements of our Centralised Security Logging Service (CSLS), e.g:
+
+```yaml
+CSLSLambdaFunctionLogSubscriptionFilter:
+  Type: AWS::Logs::SubscriptionFilter
+  Condition: IsProdLikeEnvironment
+  Properties:
+    DestinationArn: arn:aws:logs:eu-west-2:885513274347:destination:csls_cw_logs_destination_prodpython-2
+    FilterPattern: ''
+    LogGroupName: !Ref LambdaFunctionLogGroup
+```

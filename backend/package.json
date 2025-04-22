@@ -13,6 +13,7 @@
     "lint": "./node_modules/.bin/eslint ./src/functions",
     "format": "./node_modules/.bin/prettier --write '**/*.ts'",
     "format:check": "./node_modules/.bin/prettier --check '**/*.ts'",
+    "build:infra": "./combine_template.sh",
     "infra:format": "rain fmt --write template.yaml",
     "infra:format:check": "rain fmt --verify template.yaml"
   },
