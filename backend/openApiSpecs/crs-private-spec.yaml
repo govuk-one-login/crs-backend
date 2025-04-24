@@ -1,0 +1,54 @@
+openapi: 3.0.0
+info:
+  title: GOV.UK One Login Status List - API for Credential Issuance and Revocation
+  version: 1.0.0
+  description: GOV.UK One Login Status List - API for asynchronous issuing of credential indices
+tags:
+  - name: issue
+    description: Endpoint to issue credentials
+  - name: revoke
+    description: Endpoint to revoke credentials
+
+components:
+  schemas:
+    IssueRequest:
+      type: object
+      properties:
+        jwt:
+          type: string
+          example: "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6IjFmYjJjMGYwN2Y2NDNiNDVjYWZlYjUzZmI5ZDllYjM0In0.eyJpc3MiOiJhc0tXbnNqZUVKRVdqandTSHNJa3NJa3NJaEJlIiwiZXhwaXJlcyI6IjE3MzQ3MDk0OTMifQ.NXOgtDaErMGh1McajjH9Jo2K5b18R-_u-_SUiaJX_AGymGQTyO1FNe9PcnuWgD7SYMIiuxysX8gmVjESFPtaVg"
+      xml:
+        name: issuerequest
+    IssueResponse:
+      type: object
+      properties:
+        idx:
+          type: integer
+          format: int64
+          example: 3
+        uri:
+          type: string
+          example: "https://api.status-list.service.gov.uk/b/A671FED3E9AD"
+      xml:
+        name: issueresponse
+    
+paths:
+  /issue:
+    post:
+      tags:
+        - issue
+      description: Issue a new index
+      requestBody:
+        description: Update index
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueResponse'
