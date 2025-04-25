@@ -6,8 +6,6 @@ info:
 tags:
   - name: issue
     description: Endpoint to issue credentials
-  - name: revoke
-    description: Endpoint to revoke credentials
 
 components:
   schemas:
@@ -52,3 +50,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/IssueResponse'
+      x-amazon-apigateway-integration:
+        requestTemplates:
+          application/json:
+            statusCode: 200
+        httpMethod: "POST"
+        passthroughBehavior: "when_no_match"
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${IssueStatusListEntryFunction}:live/invocations"
+        type: "aws_proxy"

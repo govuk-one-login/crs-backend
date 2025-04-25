@@ -280,27 +280,6 @@ Resources:
           Parameters:
             Location: './openApiSpecs/crs-private-spec.yaml'
 
-  # IssueStatusListEntryMethod: # New Method resource
-  #   Type: AWS::ApiGateway::Method
-  #   Properties:
-  #     RestApiId: !Ref PrivateApi
-  #     ResourceId: !GetAtt PrivateApi.RootResourceId  # Root resource ID
-  #     HttpMethod: POST
-  #     AuthorizationType: NONE  # Or appropriate authorization
-  #     Integration:
-  #       Type: aws_proxy
-  #       IntegrationHttpMethod: POST
-  #       IntegrationSubtype: Event
-  #       IntegrationUri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${IssueStatusListEntryFunction.Arn}/invocations
-
-  # IssueStatusListEntryPermission: # Grant API Gateway permission to invoke Lambda
-  #   Type: AWS::Lambda::Permission
-  #   Properties:
-  #     FunctionName: !Ref IssueStatusListEntryFunction
-  #     Action: lambda:InvokeFunction
-  #     Principal: apigateway.amazonaws.com
-  #     SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${PrivateApi}/*/POST/issue
-
   ApiGwBodyBucket:
     Type: AWS::S3::Bucket
     Properties:
