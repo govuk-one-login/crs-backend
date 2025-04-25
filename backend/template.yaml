@@ -73,7 +73,7 @@ Mappings:
       PendingDeletionInDays: 30
     staging:
       PendingDeletionInDays: 30
-  
+
   PrivateApigw:
     dev:
       ApiBurstLimit: 10
@@ -90,7 +90,6 @@ Mappings:
     production:
       ApiBurstLimit: 0
       ApiRateLimit: 0
-
 
 Conditions:
   IsDevEnvironment: !Equals
@@ -177,7 +176,8 @@ Resources:
         EntryPoints:
           - src/functions/issueStatusListEntryHandler.ts
     Properties:
-    # attempt at APIGw integration
+
+      # attempt at APIGw integration
       Events:
         IssueIndex:
           Type: Api
@@ -278,7 +278,7 @@ Resources:
         Fn::Transform:
           Name: AWS::Include
           Parameters:
-            Location: './openApiSpecs/crs-private-spec.yaml'
+            Location: ./openApiSpecs/crs-private-spec.yaml
 
   ApiGwBodyBucket:
     Type: AWS::S3::Bucket
@@ -300,7 +300,10 @@ Resources:
       LogGroupName: !Sub /aws/apigateway/${AWS::StackName}-private-api-access-logs
       RetentionInDays: 30
 
-            # Available Slots SQS Queue
+      # Need to add Proxy resourceshere. 
+      # See the following documentation for more information https://govukverify.atlassian.net/wiki/spaces/DCMAW/pages/5104238644/Ayesha+Status+List+Wallet+Handover
+
+      # Available Slots SQS Queue
   AvailableSlotsEncryptionKey:
     Type: AWS::KMS::Key
     Properties:
