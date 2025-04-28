@@ -452,6 +452,48 @@ Resources:
               Bool:
                 aws:SecureTransport: false
 
+  ListConfigurationBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-${Environment}-list-configuration
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+
+  ListConfigurationBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ListConfigurationBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+            Principal:
+              Service: lambda.amazonaws.com
+            Resource: !Sub arn:aws:s3:::${ListConfigurationBucket}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${IssueStatusListEntryFunction}
+          - Effect: Deny
+            Action: '*'
+            Principal: '*'
+            Resource: !Sub arn:aws:s3:::${ListConfigurationBucket}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
   StatusListOriginAccessControl:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
