@@ -222,11 +222,11 @@ Resources:
           - !ImportValue
             Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
 
-            # Available Slots SQS Queue
-  AvailableSlotsEncryptionKey:
+            # Available Slots SQS Queues (Bitstring and Token Status)
+  BitstringAvailableSlotsEncryptionKey:
     Type: AWS::KMS::Key
     Properties:
-      Description: A KMS Key for encrypting the Available Slots SQS Queue
+      Description: A KMS Key for encrypting the Bitstring Available Slots SQS Queue
       Enabled: true
       KeyPolicy:
         Version: "2012-10-17"
@@ -249,22 +249,22 @@ Resources:
         - Key: Environment
           Value: !Sub ${Environment}
 
-  AvailableSlotsKeyAlias:
+  BitstringAvailableSlotsKeyAlias:
     Type: AWS::KMS::Alias
     Properties:
-      AliasName: !Sub alias/${AWS::StackName}-AvailableSlotsEncryptionKey
-      TargetKeyId: !Ref AvailableSlotsEncryptionKey
+      AliasName: !Sub alias/${AWS::StackName}-BitstringAvailableSlotsEncryptionKey
+      TargetKeyId: !Ref BitstringAvailableSlotsEncryptionKey
 
-  AvailableSlotsSQS:
+  BitstringAvailableSlotsSQS:
     Type: AWS::SQS::Queue
     Properties:
-      KmsMasterKeyId: !Ref AvailableSlotsKeyAlias
+      KmsMasterKeyId: !Ref BitstringAvailableSlotsKeyAlias
       MessageRetentionPeriod: 1209600 # 14 days
       RedrivePolicy:
-        deadLetterTargetArn: !GetAtt AvailableSlotsQueueDLQ.Arn
+        deadLetterTargetArn: !GetAtt BitstringAvailableSlotsQueueDLQ.Arn
         maxReceiveCount: 10
 
-  AvailableSlotsSQSPolicy:
+  BitstringAvailableSlotsSQSPolicy:
     Type: AWS::SQS::QueuePolicy
     Properties:
       PolicyDocument:
@@ -283,14 +283,84 @@ Resources:
                   - !Ref Environment
                   - AccountId
             Resource:
-              - !GetAtt AvailableSlotsSQS.Arn
+              - !GetAtt BitstringAvailableSlotsSQS.Arn
       Queues:
-        - !Ref AvailableSlotsSQS
+        - !Ref BitstringAvailableSlotsSQS
 
-  AvailableSlotsQueueDLQ:
+  BitstringAvailableSlotsQueueDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      KmsMasterKeyId: !Sub AvailableSlotsEncryptionKey
+      KmsMasterKeyId: !Ref BitstringAvailableSlotsKeyAlias
+      MessageRetentionPeriod: 604800 # 7 days
+
+  TokenStatusAvailableSlotsEncryptionKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: A KMS Key for encrypting the Token Status Available Slots SQS Queue
+      Enabled: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Action: kms:*
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Resource: '*'
+      KeySpec: SYMMETRIC_DEFAULT
+      KeyUsage: ENCRYPT_DECRYPT
+      MultiRegion: false
+      PendingWindowInDays: !FindInMap
+        - KMS
+        - !Ref Environment
+        - PendingDeletionInDays
+      Tags:
+        - Key: KeyType
+          Value: Encryption Key
+        - Key: Environment
+          Value: !Sub ${Environment}
+
+  TokenStatusAvailableSlotsKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/${AWS::StackName}-TokenStatusAvailableSlotsEncryptionKey
+      TargetKeyId: !Ref TokenStatusAvailableSlotsEncryptionKey
+
+  TokenStatusAvailableSlotsSQS:
+    Type: AWS::SQS::Queue
+    Properties:
+      KmsMasterKeyId: !Ref TokenStatusAvailableSlotsKeyAlias
+      MessageRetentionPeriod: 1209600 # 14 days
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TokenStatusAvailableSlotsQueueDLQ.Arn
+        maxReceiveCount: 10
+
+  TokenStatusAvailableSlotsSQSPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - SQS:DeleteMessage
+              - SQS:GetQueueAttributes
+              - SQS:ChangeMessageVisibility
+              - SQS:ReceiveMessage
+            Effect: Allow
+            Principal:
+              AWS:
+                - !FindInMap
+                  - AccountAccess
+                  - !Ref Environment
+                  - AccountId
+            Resource:
+              - !GetAtt TokenStatusAvailableSlotsSQS.Arn
+      Queues:
+        - !Ref TokenStatusAvailableSlotsSQS
+
+  TokenStatusAvailableSlotsQueueDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      KmsMasterKeyId: !Ref TokenStatusAvailableSlotsKeyAlias
       MessageRetentionPeriod: 604800 # 7 days
 
       # TxMA SQS Queue
