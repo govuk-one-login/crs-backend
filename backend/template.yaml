@@ -198,13 +198,50 @@ Resources:
         Minify: true
         Target: es2022
         EntryPoints:
-          - src/functions/findAvailableSlotsHandler.ts
+          - src/functions/findAvailableSlotsHandler.ts #- src/functions/findAvailableSlotsHandler.ts
     Properties:
       FunctionName: !Sub ${AWS::StackName}-find-available-slots
-      Handler: src/functions/findAvailableSlotsHandler.handler
+      Handler: src/functions/findAvailableSlotsHandler.findAvailableSlots
       Policies:
         - AWSLambdaBasicExecutionRole
         - AWSLambdaVPCAccessExecutionRole
+
+        # S3 read access policy
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource: !Sub arn:aws:s3:::${AWS::StackName}-${Environment}-list-configuration/*
+
+        # SQS send message permissions
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource:
+                - !GetAtt BitstringAvailableSlotsSQS.Arn
+                - !GetAtt TokenStatusAvailableSlotsSQS.Arn
+
+        # KMS permissions for queue encryption
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - kms:GenerateDataKey
+                - kms:Decrypt
+              Resource:
+                - !GetAtt BitstringAvailableSlotsEncryptionKey.Arn
+                - !GetAtt TokenStatusAvailableSlotsEncryptionKey.Arn
+      Environment:
+        Variables:
+          BITSTRING_QUEUE_URL: !Ref BitstringAvailableSlotsSQS
+          TOKEN_STATUS_QUEUE_URL: !Ref TokenStatusAvailableSlotsSQS
+          LIST_CONFIGURATION_BUCKET: !Ref ListConfigurationBucket
+          CONFIGURATION_FILE_KEY: "mockListConfiguration.json" #remove "mock" when using the real file
+          INITIAL_ALLOCATION_SIZE: "3" #change to 10,000 when going live
+          DEFAULT_REFILL_SIZE: "1" #change to 5000 when going live
       Events:
         ScheduledEvent:
           Type: Schedule
