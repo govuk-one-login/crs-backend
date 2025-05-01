@@ -202,6 +202,7 @@ Resources:
     Properties:
       FunctionName: !Sub ${AWS::StackName}-find-available-slots
       Handler: src/functions/findAvailableSlotsHandler.findAvailableSlots
+      Timeout: 300 # 5 minutes
       Policies:
         - AWSLambdaBasicExecutionRole
         - AWSLambdaVPCAccessExecutionRole
@@ -220,6 +221,7 @@ Resources:
             - Effect: Allow
               Action:
                 - sqs:SendMessage
+                - sqs:GetQueueAttributes
               Resource:
                 - !GetAtt BitstringAvailableSlotsSQS.Arn
                 - !GetAtt TokenStatusAvailableSlotsSQS.Arn
@@ -240,13 +242,14 @@ Resources:
           TOKEN_STATUS_QUEUE_URL: !Ref TokenStatusAvailableSlotsSQS
           LIST_CONFIGURATION_BUCKET: !Ref ListConfigurationBucket
           CONFIGURATION_FILE_KEY: "mockListConfiguration.json" #remove "mock" when using the real file
+          TARGET_QUEUE_DEPTH: "103" #change to 10,000 when going live
           INITIAL_ALLOCATION_SIZE: "3" #change to 10,000 when going live
           DEFAULT_REFILL_SIZE: "1" #change to 5000 when going live
       Events:
         ScheduledEvent:
           Type: Schedule
           Properties:
-            Schedule: rate(1 minute)
+            Schedule: rate(8 hours)
       VpcConfig:
         SecurityGroupIds:
           - !ImportValue
