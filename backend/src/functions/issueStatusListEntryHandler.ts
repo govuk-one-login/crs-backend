@@ -3,11 +3,9 @@ import { logger } from '../common/logging/logger'
 import { LogMessage } from '../common/logging/LogMessages'
 
 
-export function handler(context: Context) {  
+export async function handler(context: Context, event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {  
   
   setupLogger(context);
-  logger.info("Context" + context);
-  logger.info("version" + context.functionVersion);
   logger.info(LogMessage.ISSUE_LAMBDA_STARTED);
 
   return {
