@@ -19,6 +19,7 @@
   },
   "license": "MIT",
   "devDependencies": {
+    "@types/aws-lambda": "^8.10.149",
     "@types/jest": "^29.5.14",
     "@types/node-jose": "^1.1.13",
     "eslint": "^9.24.0",
