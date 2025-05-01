@@ -10,5 +10,11 @@ export function buildLambdaContext(): Context {
     awsRequestId: "awsRequestId",
     logGroupName: "logGroup",
     logStreamName: "logStream",
+    getRemainingTimeInMillis: () => {
+      return 2000;
+    },
+    done: function (): void {},
+    fail: function (): void {},
+    succeed: function (): void {},
   };
 }
