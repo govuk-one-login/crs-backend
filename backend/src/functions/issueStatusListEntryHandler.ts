@@ -1,9 +1,9 @@
-import {APIGatewayProxyResult, APIGatewayProxyEvent, Context } from 'aws-lambda';
+import {APIGatewayProxyResult, Context } from 'aws-lambda';
 import { logger } from '../common/logging/logger'
 import { LogMessage } from '../common/logging/LogMessages'
 
 
-export async function handler(context: Context, event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {  
+export async function handler(context: Context): Promise<APIGatewayProxyResult> {  
   
   setupLogger(context);
   logger.info(LogMessage.ISSUE_LAMBDA_STARTED);

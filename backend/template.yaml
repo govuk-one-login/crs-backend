@@ -30,7 +30,7 @@ Parameters:
       The stack name of the VPC where the Lambda functions will be deployed
     Type: String
     Default: devplatform-vpc
-    
+
   DeployMetricFiltersInNonProdLikeEnvironment:
     Description: Set to the string value `true` to deploy metric filters in a DEV environment
     Type: String
@@ -140,10 +140,14 @@ Globals:
     Runtime: nodejs22.x
     Timeout: 3
     LoggingConfig:
-      ApplicationLogLevel:
-        !FindInMap [EnvironmentVariables, !Ref Environment, LambdaLogLevel]
-      SystemLogLevel:
-        !FindInMap [EnvironmentVariables, !Ref Environment, LambdaLogLevel]
+      ApplicationLogLevel: !FindInMap
+        - EnvironmentVariables
+        - !Ref Environment
+        - LambdaLogLevel
+      SystemLogLevel: !FindInMap
+        - EnvironmentVariables
+        - !Ref Environment
+        - LambdaLogLevel
       LogFormat: JSON
 
 Resources:
@@ -200,7 +204,7 @@ Resources:
             Fn::Sub: ${VpcStackName}-PrivateSubnetIdB
           - !ImportValue
             Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
-  
+
   IssueStatusListEntryFunctionLambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -243,7 +247,7 @@ Resources:
     Properties:
       LogGroupName: !Sub /aws/lambda/${AWS::StackName}-issue-status-list-entry
       RetentionInDays: 30
-  
+
   IssueStatusListEntryVersionMetricFilter:
     Type: AWS::Logs::MetricFilter
     Properties:
