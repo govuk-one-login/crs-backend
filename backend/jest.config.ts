@@ -13,4 +13,3 @@ export default {
 
 process.env.POWERTOOLS_DEV = "true";
 process.env.AWS_LAMBDA_LOG_LEVEL = "DEBUG";
-

@@ -9,6 +9,6 @@ export function buildLambdaContext(): Context {
     memoryLimitInMB: "1028",
     awsRequestId: "awsRequestId",
     logGroupName: "logGroup",
-    logStreamName: "logStream"
+    logStreamName: "logStream",
   };
 }

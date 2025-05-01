@@ -1,5 +1,5 @@
-import { APIGatewayProxyEvent } from 'aws-lambda'
-import { randomUUID } from 'crypto'
+import { APIGatewayProxyEvent } from "aws-lambda";
+import { randomUUID } from "crypto";
 
 function getHeaderCaseInsensitive(
   event: APIGatewayProxyEvent,
@@ -8,16 +8,16 @@ function getHeaderCaseInsensitive(
   const [, headerValue] =
     Object.entries(event.headers).find(
       ([key]) => key.toLowerCase() === headerSearchTerm.toLowerCase(),
-    ) ?? []
-  return headerValue
+    ) ?? [];
+  return headerValue;
 }
 
 export const getCorrelationIdFromApiGatewayEvent = (
   event: APIGatewayProxyEvent,
 ): string => {
   return (
-    getHeaderCaseInsensitive(event, 'x-correlation-id') ??
+    getHeaderCaseInsensitive(event, "x-correlation-id") ??
     event.requestContext.requestId ??
     randomUUID()
-  )
-}
+  );
+};
