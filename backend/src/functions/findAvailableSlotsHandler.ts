@@ -1,6 +1,9 @@
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { SQSClient, SendMessageBatchCommand, GetQueueAttributesCommand } from '@aws-sdk/client-sqs';
 import { Readable } from 'stream';
+import { Context } from 'aws-lambda';
+import { logger } from "../common/logging/logger";
+import { LogMessage } from "../common/logging/LogMessages";
 
 const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});
@@ -50,6 +53,15 @@ const CONFIG_KEY = process.env.CONFIGURATION_FILE_KEY || 'ListConfiguration.json
 const TARGET_QUEUE_DEPTH = parseInt(process.env.TARGET_QUEUE_DEPTH || '10000', 10);
 
 /**
+ * Set up the logger with the current context
+ */
+function setupLogger(context: Context) {
+  logger.resetKeys();
+  logger.addContext(context);
+  logger.appendKeys({ functionVersion: context.functionVersion });
+}
+
+/**
  * Get the current number of messages in a queue
  */
 async function getQueueDepth(queueUrl: string): Promise<number> {
@@ -66,7 +78,7 @@ async function getQueueDepth(queueUrl: string): Promise<number> {
     return messageCount;
   } catch (error) {
     console.error(`Error getting queue attributes for ${queueUrl}:`, error);
-    // Return 0 as a safe default if we can't get the queue depth
+
     return 0;
   }
 }
@@ -78,14 +90,14 @@ async function calculateQueueRefills(): Promise<Record<QueueType, QueueStatus>> 
   // Get current queue depths
   const bitstringDepth = await getQueueDepth(BITSTRING_QUEUE_URL);
   const tokenStatusDepth = await getQueueDepth(TOKEN_STATUS_QUEUE_URL);
-  
+
   // Calculate how many messages we need to add to reach the target
-  const bitstringNeeded = Math.max(0, TARGET_QUEUE_DEPTH - bitstringDepth);
-  const tokenStatusNeeded = Math.max(0, TARGET_QUEUE_DEPTH - tokenStatusDepth);
-  
+  const bitstringNeeded = Math.max(0, TARGET_QUEUE_DEPTH - bitstringDepth) / 10; //remove the division by 10 when going live
+  const tokenStatusNeeded = Math.max(0, TARGET_QUEUE_DEPTH - tokenStatusDepth) / 10; //remove the division by 10 when going live
+
   console.log(`Bitstring queue: ${bitstringDepth} messages, need to add ${bitstringNeeded}`);
   console.log(`Token Status queue: ${tokenStatusDepth} messages, need to add ${tokenStatusNeeded}`);
-  
+
   return {
     [QueueType.Bitstring]: {
       currentDepth: bitstringDepth,
@@ -143,14 +155,12 @@ function selectRandomIndexes(endpoints: string[], totalIndexes: number, maxIndex
   const indexesPerEndpoint = Math.ceil(totalIndexes / Math.min(totalIndexes, endpoints.length));
 
   for (const endpoint of endpoints) {
-    // Generate random indexes for this endpoint
     const selectedIndexes = new Set<number>();
     while (selectedIndexes.size < indexesPerEndpoint) {
       const randomIndex = Math.floor(Math.random() * maxIndexPerEndpoint);
       selectedIndexes.add(randomIndex);
     }
 
-    // Store the selected indexes with their URI
     for (const idx of selectedIndexes) {
       result.push({ uri: endpoint, idx });
     }
@@ -170,20 +180,17 @@ function selectRandomIndexes(endpoints: string[], totalIndexes: number, maxIndex
  */
 async function sendMessagesToQueue(messages: EndpointIndexPair[], queueUrl: string): Promise<void> {
   console.log(`Sending ${messages.length} messages to queue: ${queueUrl}`);
-  const BATCH_SIZE = 10; // SQS batch limit
+  const BATCH_SIZE = 10;
   const batchPromises: Promise<any>[] = [];
 
-  // Split messages into batches of 10
   for (let i = 0; i < messages.length; i += BATCH_SIZE) {
     const batchMessages = messages.slice(i, i + BATCH_SIZE);
-    
-    // Create entries for this batch
+
     const entries = batchMessages.map((message, index) => ({
-      Id: `msg-${i + index}`, // Unique ID within the batch
+      Id: `msg-${i + index}`,
       MessageBody: JSON.stringify(message)
     }));
 
-    // Create and send the batch command
     const command = new SendMessageBatchCommand({
       QueueUrl: queueUrl,
       Entries: entries
@@ -198,15 +205,16 @@ async function sendMessagesToQueue(messages: EndpointIndexPair[], queueUrl: stri
 /**
  * Main Lambda handler
  */
-export async function findAvailableSlots(): Promise<LambdaResponse> {
+export async function findAvailableSlots(context: Context): Promise<LambdaResponse> {
   console.log('FindAvailableSlots lambda started - checking queue depths');
+  setupLogger(context);
+  logger.info(LogMessage.FAS_LAMBDA_STARTED);
   try {
-    // Calculate how many messages to add to each queue
     const queueRefills = await calculateQueueRefills();
-    
+
     // If both queues are full, early termination
-    if (queueRefills[QueueType.Bitstring].neededMessages === 0 && 
-        queueRefills[QueueType.TokenStatus].neededMessages === 0) {
+    if (queueRefills[QueueType.Bitstring].neededMessages === 0 &&
+      queueRefills[QueueType.TokenStatus].neededMessages === 0) {
       console.log('All queues are at or above target depth. No refill needed.');
       return {
         statusCode: 200,
