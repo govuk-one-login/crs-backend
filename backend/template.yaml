@@ -721,7 +721,7 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: sns.amazonaws.com
       SourceArn: !Ref AvailableSlotsCapacitySNSTopic
-
+  
   BitstringQueueCapacityAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -731,8 +731,7 @@ Resources:
       Namespace: AWS/SQS
       Statistic: Average
       Period: 60 # Check every minute
-      EvaluationPeriods: 5 # Check 5 consecutive periods
-      DatapointsToAlarm: 1 # Trigger if any 1 datapoint out of 5 is below threshold
+      EvaluationPeriods: 1
       Threshold: 25 # replace with 2500: 25% of 10000
       ComparisonOperator: LessThanThreshold
       AlarmActions:

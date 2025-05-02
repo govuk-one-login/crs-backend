@@ -92,8 +92,8 @@ async function calculateQueueRefills(): Promise<Record<QueueType, QueueStatus>> 
   const tokenStatusDepth = await getQueueDepth(TOKEN_STATUS_QUEUE_URL);
 
   // Calculate how many messages we need to add to reach the target
-  const bitstringNeeded = Math.max(0, TARGET_QUEUE_DEPTH - bitstringDepth) / 10; //remove the division by 10 when going live
-  const tokenStatusNeeded = Math.max(0, TARGET_QUEUE_DEPTH - tokenStatusDepth) / 10; //remove the division by 10 when going live
+  const bitstringNeeded = Math.max(0, TARGET_QUEUE_DEPTH - bitstringDepth);
+  const tokenStatusNeeded = Math.max(0, TARGET_QUEUE_DEPTH - tokenStatusDepth);
 
   console.log(`Bitstring queue: ${bitstringDepth} messages, need to add ${bitstringNeeded}`);
   console.log(`Token Status queue: ${tokenStatusDepth} messages, need to add ${tokenStatusNeeded}`);
