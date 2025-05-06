@@ -256,7 +256,7 @@ Resources:
       Description: Private API gateway for Index Issuance flow
       AlwaysDeploy: true
       StageName: !Ref Environment
-      OpenApiVersion: 3.0.1
+      OpenApiVersion: 3.0.0
       AccessLogSetting:
         DestinationArn: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${CrsPrivateApiAccessLogs}
         Format: '{ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "caller":"$context.identity.caller", "user":"$context.identity.user","requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath", "status":"$context.status","protocol":"$context.protocol", "responseLength":"$context.responseLength" }'

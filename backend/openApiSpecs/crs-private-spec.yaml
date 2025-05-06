@@ -14,7 +14,7 @@ components:
       properties:
         jwt:
           type: string
-          example: "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6IjFmYjJjMGYwN2Y2NDNiNDVjYWZlYjUzZmI5ZDllYjM0In0.eyJpc3MiOiJhc0tXbnNqZUVKRVdqandTSHNJa3NJa3NJaEJlIiwiZXhwaXJlcyI6IjE3MzQ3MDk0OTMifQ.NXOgtDaErMGh1McajjH9Jo2K5b18R-_u-_SUiaJX_AGymGQTyO1FNe9PcnuWgD7SYMIiuxysX8gmVjESFPtaVg"
+          example: "_u-_SUiaJX_AGymGQTyO1FNe9PcnuWgD7SYMIiuxysX8gmVjESFPtaVgeyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImt-pZCI6IjFmYjJjMGYwN2Y2NDNiNDVjYWZlYjUzZmI5ZDllYjM0In0eyJpc3MiOiJhc0tXbnNqZUVKRVdqandTSHNJa3NJa3NJaEJlIiwiZXhwaXJlcyI6IjE3MzQ3MDk0OTMifQNXOgtDaErMGh1McajjH9Jo2K5b18R"
       xml:
         name: issuerequest
     IssueResponse:
