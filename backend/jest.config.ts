@@ -10,3 +10,6 @@ export default {
   testEnvironment: "node",
   clearMocks: true,
 };
+
+process.env.POWERTOOLS_DEV = "true";
+process.env.AWS_LAMBDA_LOG_LEVEL = "DEBUG";
