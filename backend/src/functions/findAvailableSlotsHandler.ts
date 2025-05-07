@@ -1,5 +1,5 @@
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-import { SQSClient, SendMessageBatchCommand, GetQueueAttributesCommand } from '@aws-sdk/client-sqs';
+import { SQSClient, SendMessageBatchCommand, GetQueueAttributesCommand, SendMessageBatchCommandOutput } from '@aws-sdk/client-sqs';
 import { Readable } from 'stream';
 import { Context } from 'aws-lambda';
 import { logger } from "../common/logging/logger";
@@ -65,7 +65,7 @@ function setupLogger(context: Context) {
  * Get the current number of messages in a queue
  */
 async function getQueueDepth(queueUrl: string): Promise<number> {
-  console.log(`Getting attributes for queue: ${queueUrl}`);
+  logger.info(`Getting attributes for queue: ${queueUrl}`);
   try {
     const command = new GetQueueAttributesCommand({
       QueueUrl: queueUrl,
@@ -74,11 +74,10 @@ async function getQueueDepth(queueUrl: string): Promise<number> {
 
     const response = await sqsClient.send(command);
     const messageCount = parseInt(response.Attributes?.ApproximateNumberOfMessages || '0', 10);
-    console.log(`Queue ${queueUrl} has approximately ${messageCount} messages`);
+    logger.info(`Queue ${queueUrl} has approximately ${messageCount} messages`);
     return messageCount;
   } catch (error) {
-    console.error(`Error getting queue attributes for ${queueUrl}:`, error);
-
+    logger.error(`Error getting queue attributes for ${queueUrl}:`, error);
     return 0;
   }
 }
@@ -95,8 +94,8 @@ async function calculateQueueRefills(): Promise<Record<QueueType, QueueStatus>> 
   const bitstringNeeded = Math.max(0, TARGET_QUEUE_DEPTH - bitstringDepth);
   const tokenStatusNeeded = Math.max(0, TARGET_QUEUE_DEPTH - tokenStatusDepth);
 
-  console.log(`Bitstring queue: ${bitstringDepth} messages, need to add ${bitstringNeeded}`);
-  console.log(`Token Status queue: ${tokenStatusDepth} messages, need to add ${tokenStatusNeeded}`);
+  logger.info(`Bitstring queue: ${bitstringDepth} messages, need to add ${bitstringNeeded}`);
+  logger.info(`Token Status queue: ${tokenStatusDepth} messages, need to add ${tokenStatusNeeded}`);
 
   return {
     [QueueType.Bitstring]: {
@@ -114,8 +113,8 @@ async function calculateQueueRefills(): Promise<Record<QueueType, QueueStatus>> 
  * Fetch the configuration from S3
  */
 async function getConfiguration(): Promise<ListConfiguration> {
-  console.log('Fetching configuration from S3...');
-  console.log(`Bucket: ${CONFIG_BUCKET}, Key: ${CONFIG_KEY}`);
+  logger.info('Fetching configuration from S3...');
+  logger.info(`Bucket: ${CONFIG_BUCKET}, Key: ${CONFIG_KEY}`);
   try {
     const command = new GetObjectCommand({
       Bucket: CONFIG_BUCKET,
@@ -124,10 +123,10 @@ async function getConfiguration(): Promise<ListConfiguration> {
 
     const response = await s3Client.send(command);
     const bodyText = await streamToString(response.Body as Readable);
-    console.log(`Fetched configuration: ${bodyText}`);
+    logger.info(`Fetched configuration: ${bodyText}`);
     return JSON.parse(bodyText) as ListConfiguration;
   } catch (error) {
-    console.error('Error fetching configuration from S3:', error);
+    logger.error('Error fetching configuration from S3:', error);
     throw error;
   }
 }
@@ -136,12 +135,12 @@ async function getConfiguration(): Promise<ListConfiguration> {
  * Convert a readable stream to string
  */
 async function streamToString(stream: Readable): Promise<string> {
-  console.log('Converting stream to string...');
+  logger.info('Converting stream to string...');
   const chunks: Buffer[] = [];
   for await (const chunk of stream) {
     chunks.push(Buffer.from(chunk));
   }
-  console.log('Stream converted to string successfully');
+  logger.info('Stream converted to string successfully');
   return Buffer.concat(chunks).toString('utf-8');
 }
 
@@ -149,7 +148,7 @@ async function streamToString(stream: Readable): Promise<string> {
  * Select random indexes for each endpoint
  */
 function selectRandomIndexes(endpoints: string[], totalIndexes: number, maxIndexPerEndpoint: number): EndpointIndexPair[] {
-  console.log('Selecting random indexes for endpoints...');
+  logger.info('Selecting random indexes for endpoints...');
 
   const result: EndpointIndexPair[] = [];
   const indexesPerEndpoint = Math.ceil(totalIndexes / Math.min(totalIndexes, endpoints.length));
@@ -179,9 +178,9 @@ function selectRandomIndexes(endpoints: string[], totalIndexes: number, maxIndex
  * Send messages to an SQS queue using batch operations
  */
 async function sendMessagesToQueue(messages: EndpointIndexPair[], queueUrl: string): Promise<void> {
-  console.log(`Sending ${messages.length} messages to queue: ${queueUrl}`);
+  logger.info(`Sending ${messages.length} messages to queue: ${queueUrl}`);
   const BATCH_SIZE = 10;
-  const batchPromises: Promise<any>[] = [];
+  const batchPromises: Promise<SendMessageBatchCommandOutput>[] = [];
 
   for (let i = 0; i < messages.length; i += BATCH_SIZE) {
     const batchMessages = messages.slice(i, i + BATCH_SIZE);
@@ -206,7 +205,7 @@ async function sendMessagesToQueue(messages: EndpointIndexPair[], queueUrl: stri
  * Main Lambda handler
  */
 export async function findAvailableSlots(context: Context): Promise<LambdaResponse> {
-  console.log('FindAvailableSlots lambda started - checking queue depths');
+  logger.info('FindAvailableSlots lambda started - checking queue depths');
   setupLogger(context);
   logger.info(LogMessage.FAS_LAMBDA_STARTED);
   try {
@@ -215,7 +214,7 @@ export async function findAvailableSlots(context: Context): Promise<LambdaRespon
     // If both queues are full, early termination
     if (queueRefills[QueueType.Bitstring].neededMessages === 0 &&
       queueRefills[QueueType.TokenStatus].neededMessages === 0) {
-      console.log('All queues are at or above target depth. No refill needed.');
+      logger.info('All queues are at or above target depth. No refill needed.');
       return {
         statusCode: 200,
         body: JSON.stringify({
@@ -235,7 +234,7 @@ export async function findAvailableSlots(context: Context): Promise<LambdaRespon
       ...config.tokenStatusList.map(item => item.maxIndices)
     ];
     const maxIndexPerEndpoint = Math.min(...maxIndexesPerEndpoint);
-    console.log(`Allocating ${maxIndexPerEndpoint} indexes per endpoint`);
+    logger.info(`Allocating ${maxIndexPerEndpoint} indexes per endpoint`);
 
     // Extract URIs from the config
     const bitstringEndpoints = config.bitstringStatusList.map(item => item.uri);
@@ -247,7 +246,7 @@ export async function findAvailableSlots(context: Context): Promise<LambdaRespon
     // Refill Bitstring queue if needed
     const bitstringNeeded = queueRefills[QueueType.Bitstring].neededMessages;
     if (bitstringNeeded > 0) {
-      console.log(`Refilling Bitstring queue with ${bitstringNeeded} messages`);
+      logger.info(`Refilling Bitstring queue with ${bitstringNeeded} messages`);
       const bitstringIndexes = selectRandomIndexes(bitstringEndpoints, bitstringNeeded, maxIndexPerEndpoint);
       await sendMessagesToQueue(bitstringIndexes, BITSTRING_QUEUE_URL);
       bitstringAdded = bitstringIndexes.length;
@@ -256,7 +255,7 @@ export async function findAvailableSlots(context: Context): Promise<LambdaRespon
     // Refill TokenStatus queue if needed
     const tokenStatusNeeded = queueRefills[QueueType.TokenStatus].neededMessages;
     if (tokenStatusNeeded > 0) {
-      console.log(`Refilling TokenStatus queue with ${tokenStatusNeeded} messages`);
+      logger.info(`Refilling TokenStatus queue with ${tokenStatusNeeded} messages`);
       const tokenStatusIndexes = selectRandomIndexes(tokenStatusEndpoints, tokenStatusNeeded, maxIndexPerEndpoint);
       await sendMessagesToQueue(tokenStatusIndexes, TOKEN_STATUS_QUEUE_URL);
       tokenStatusAdded = tokenStatusIndexes.length;
@@ -279,7 +278,7 @@ export async function findAvailableSlots(context: Context): Promise<LambdaRespon
       })
     };
   } catch (error) {
-    console.error('Error in lambda execution:', error);
+    logger.error('Error in lambda execution:', error);
     return {
       statusCode: 500,
       body: JSON.stringify({

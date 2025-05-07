@@ -198,7 +198,7 @@ Resources:
         Minify: true
         Target: es2022
         EntryPoints:
-          - src/functions/findAvailableSlotsHandler.ts #- src/functions/findAvailableSlotsHandler.ts
+          - src/functions/findAvailableSlotsHandler.ts
     Properties:
       FunctionName: !Sub ${AWS::StackName}-find-available-slots
       Handler: src/functions/findAvailableSlotsHandler.findAvailableSlots
