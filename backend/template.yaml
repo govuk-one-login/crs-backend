@@ -881,7 +881,7 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: sns.amazonaws.com
       SourceArn: !Ref AvailableSlotsCapacitySNSTopic
-  
+
   BitstringQueueCapacityAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
