@@ -31,24 +31,34 @@ Parameters:
     Type: String
     Default: devplatform-vpc
 
+  DeployMetricFiltersInNonProdLikeEnvironment:
+    Description: Set to the string value `true` to deploy metric filters in a DEV environment
+    Type: String
+    Default: false
+
 Mappings:
   EnvironmentVariables:
     dev:
       CertificateArnV1UsEast1: arn:aws:acm:us-east-1:537124944731:certificate/b0322e50-f75b-4fa3-ac65-4a42ac2380d3
       CertificateWildcardArnV1UsEast1: arn:aws:acm:us-east-1:537124944731:certificate/c1f3daa3-fa88-4cb2-b3cc-0d5ca43d8d80
       dnsSuffix: crs.dev.account.gov.uk
+      LambdaLogLevel: DEBUG
     build:
       CertificateArnV1UsEast1: arn:aws:acm:us-east-1:881490088364:certificate/e913c6e7-1b41-4d5a-8731-6f026ea12b62
       dnsSuffix: crs.build.account.gov.uk
+      LambdaLogLevel: INFO
     staging:
       CertificateArnV1UsEast1: arn:aws:acm:us-east-1:253490791635:certificate/2a8b32c4-9893-476b-a57f-881029f00db0
       dnsSuffix: crs.staging.account.gov.uk
+      LambdaLogLevel: INFO
     integration:
       CertificateArnV1UsEast1: PLACEHOLDER
       dnsSuffix: crs.integration.account.gov.uk
+      LambdaLogLevel: INFO
     production:
       CertificateArnV1UsEast1: PLACEHOLDER
       dnsSuffix: crs.account.gov.uk
+      LambdaLogLevel: INFO
 
   AccountAccess:
     dev:
@@ -73,6 +83,23 @@ Mappings:
       PendingDeletionInDays: 30
     staging:
       PendingDeletionInDays: 30
+
+  PrivateApigw:
+    dev:
+      ApiBurstLimit: 10
+      ApiRateLimit: 10
+    build:
+      ApiBurstLimit: 10
+      ApiRateLimit: 10
+    staging:
+      ApiBurstLimit: 10
+      ApiRateLimit: 10
+    integration:
+      ApiBurstLimit: 0
+      ApiRateLimit: 0
+    production:
+      ApiBurstLimit: 0
+      ApiRateLimit: 0
 
 Conditions:
   IsDevEnvironment: !Equals
@@ -107,6 +134,12 @@ Conditions:
       - !Ref Environment
       - production
 
+  DeployMetricFilters: !Or
+    - !Condition IsProdLikeEnvironment
+    - !Equals
+      - !Ref DeployMetricFiltersInNonProdLikeEnvironment
+      - true
+
 Transform: AWS::Serverless-2016-10-31
 
 Globals:
@@ -123,6 +156,16 @@ Globals:
       - !Ref AWS::NoValue
     Runtime: nodejs22.x
     Timeout: 3
+    LoggingConfig:
+      ApplicationLogLevel: !FindInMap
+        - EnvironmentVariables
+        - !Ref Environment
+        - LambdaLogLevel
+      SystemLogLevel: !FindInMap
+        - EnvironmentVariables
+        - !Ref Environment
+        - LambdaLogLevel
+      LogFormat: JSON
 
 Resources:
   StatusListTable:
@@ -151,6 +194,8 @@ Resources:
 
   IssueStatusListEntryFunction:
     Type: AWS::Serverless::Function
+    DependsOn:
+      - IssueStatusListEntryLogGroup
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -159,11 +204,21 @@ Resources:
         EntryPoints:
           - src/functions/issueStatusListEntryHandler.ts
     Properties:
+
+      # attempt at APIGw integration
+      Events:
+        IssueIndex:
+          Type: Api
+          Properties:
+            Path: /issue
+            Method: post
+            RestApiId: !Ref PrivateApi
       FunctionName: !Sub ${AWS::StackName}-issue-status-list-entry
       Handler: src/functions/issueStatusListEntryHandler.handler
-      Policies:
-        - AWSLambdaBasicExecutionRole
-        - AWSLambdaVPCAccessExecutionRole
+      Role: !GetAtt IssueStatusListEntryFunctionLambdaRole.Arn
+      Environment:
+        Variables:
+          POWERTOOLS_SERVICE_NAME: IssueStatusListEntry
       VpcConfig:
         SecurityGroupIds:
           - !ImportValue
@@ -176,18 +231,71 @@ Resources:
           - !ImportValue
             Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
 
-  IssueStatusListEntryAccessLogs:
+  IssueStatusListEntryFunctionLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AWS::StackName}-issue-status-list-entry-lambda
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: IssueStatusListEntryFunctionLoggingPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+        - PolicyName: VpcPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:CreateNetworkInterface
+                  - ec2:DeleteNetworkInterface
+                Resource: '*'
+      PermissionsBoundary: !If
+        - UsePermissionsBoundary
+        - !Ref PermissionsBoundary
+        - !Ref AWS::NoValue
+
+  IssueStatusListEntryLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/apigateway/${AWS::StackName}-issue-status-list-entry-access-logs
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-issue-status-list-entry
       RetentionInDays: 30
+
+  IssueStatusListEntryVersionMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      FilterPattern: '{ ($.messageCode = *) }'
+      LogGroupName: !Ref IssueStatusListEntryLogGroup
+      MetricTransformations:
+        - Dimensions:
+            - Key: MessageCode
+              Value: $.messageCode
+            - Key: Version
+              Value: $.functionVersion
+          MetricName: IssueStatusListEntryMessageCode
+          MetricNamespace: !Sub ${AWS::StackName}/LogMessages
+          MetricValue: "1"
+    Condition: DeployMetricFilters
 
   CSLSIssueStatusListEntryFunctionSubscriptionFilter:
     Type: AWS::Logs::SubscriptionFilter
     Properties:
       DestinationArn: arn:aws:logs:eu-west-2:885513274347:destination:csls_cw_logs_destination_prodpython-2
       FilterPattern: ""
-      LogGroupName: !Ref IssueStatusListEntryAccessLogs
+      LogGroupName: !Ref IssueStatusListEntryLogGroup
     Condition: IsProdLikeEnvironment
 
   FindAvailableSlotsFunction:
@@ -260,7 +368,59 @@ Resources:
           - !ImportValue
             Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
 
-            # Available Slots SQS Queues (Bitstring and Token Status)
+  # API Gateway
+  PrivateApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub ${AWS::StackName}-private-api
+      Description: Private API gateway for Index Issuance flow
+      AlwaysDeploy: true
+      StageName: !Ref Environment
+      OpenApiVersion: 3.0.0
+      AccessLogSetting:
+        DestinationArn: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${CrsPrivateApiAccessLogs}
+        Format: '{ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "caller":"$context.identity.caller", "user":"$context.identity.user","requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath", "status":"$context.status","protocol":"$context.protocol", "responseLength":"$context.responseLength" }'
+      MethodSettings:
+        - LoggingLevel: INFO
+          ResourcePath: /*
+          HttpMethod: '*'
+          DataTraceEnabled: false
+          MetricsEnabled: true
+          ThrottlingBurstLimit: !FindInMap
+            - PrivateApigw
+            - !Ref Environment
+            - ApiBurstLimit
+          ThrottlingRateLimit: !FindInMap
+            - PrivateApigw
+            - !Ref Environment
+            - ApiRateLimit
+      DefinitionBody:
+        Fn::Transform:
+          Name: AWS::Include
+          Parameters:
+            Location: ./openApiSpecs/crs-private-spec.yaml
+
+  ApiGwBodyBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-${Environment}-crs-private-spec
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  CrsPrivateApiAccessLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/apigateway/${AWS::StackName}-private-api-access-logs
+      RetentionInDays: 30
+
+  # Available Slots SQS Queues (Bitstring and Token Status)
   BitstringAvailableSlotsEncryptionKey:
     Type: AWS::KMS::Key
     Properties:
