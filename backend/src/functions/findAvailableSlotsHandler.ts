@@ -58,7 +58,7 @@ const CONFIG_KEY =
 // Target queue depth - how many messages we want to maintain in each queue
 const TARGET_QUEUE_DEPTH = parseInt(
   process.env.TARGET_QUEUE_DEPTH || "10000",
-  10
+  10,
 );
 
 /**
@@ -84,7 +84,7 @@ async function getQueueDepth(queueUrl: string): Promise<number> {
     const response = await sqsClient.send(command);
     const messageCount = parseInt(
       response.Attributes?.ApproximateNumberOfMessages || "0",
-      10
+      10,
     );
     logger.info(`Queue ${queueUrl} has approximately ${messageCount} messages`);
     return messageCount;
@@ -109,10 +109,10 @@ async function calculateQueueRefills(): Promise<
   const tokenStatusNeeded = Math.max(0, TARGET_QUEUE_DEPTH - tokenStatusDepth);
 
   logger.info(
-    `Bitstring queue: ${bitstringDepth} messages, need to add ${bitstringNeeded}`
+    `Bitstring queue: ${bitstringDepth} messages, need to add ${bitstringNeeded}`,
   );
   logger.info(
-    `Token Status queue: ${tokenStatusDepth} messages, need to add ${tokenStatusNeeded}`
+    `Token Status queue: ${tokenStatusDepth} messages, need to add ${tokenStatusNeeded}`,
   );
 
   return {
@@ -168,13 +168,13 @@ async function streamToString(stream: Readable): Promise<string> {
 function selectRandomIndexes(
   endpoints: string[],
   totalIndexes: number,
-  maxIndexPerEndpoint: number
+  maxIndexPerEndpoint: number,
 ): EndpointIndexPair[] {
   logger.info("Selecting random indexes for endpoints...");
 
   const result: EndpointIndexPair[] = [];
   const indexesPerEndpoint = Math.ceil(
-    totalIndexes / Math.min(totalIndexes, endpoints.length)
+    totalIndexes / Math.min(totalIndexes, endpoints.length),
   );
 
   for (const endpoint of endpoints) {
@@ -203,7 +203,7 @@ function selectRandomIndexes(
  */
 async function sendMessagesToQueue(
   messages: EndpointIndexPair[],
-  queueUrl: string
+  queueUrl: string,
 ): Promise<void> {
   logger.info(`Sending ${messages.length} messages to queue: ${queueUrl}`);
   const BATCH_SIZE = 10;
@@ -232,7 +232,7 @@ async function sendMessagesToQueue(
  * Main Lambda handler
  */
 export async function findAvailableSlots(
-  context: Context
+  context: Context,
 ): Promise<LambdaResponse> {
   logger.info("FindAvailableSlots lambda started - checking queue depths");
   setupLogger(context);
@@ -269,7 +269,7 @@ export async function findAvailableSlots(
 
     // Extract URIs from the config
     const bitstringEndpoints = config.bitstringStatusList.map(
-      (item) => item.uri
+      (item) => item.uri,
     );
     const tokenStatusEndpoints = config.tokenStatusList.map((item) => item.uri);
 
@@ -283,7 +283,7 @@ export async function findAvailableSlots(
       const bitstringIndexes = selectRandomIndexes(
         bitstringEndpoints,
         bitstringNeeded,
-        maxIndexPerEndpoint
+        maxIndexPerEndpoint,
       );
       await sendMessagesToQueue(bitstringIndexes, BITSTRING_QUEUE_URL);
       bitstringAdded = bitstringIndexes.length;
@@ -294,12 +294,12 @@ export async function findAvailableSlots(
       queueRefills[QueueType.TokenStatus].neededMessages;
     if (tokenStatusNeeded > 0) {
       logger.info(
-        `Refilling TokenStatus queue with ${tokenStatusNeeded} messages`
+        `Refilling TokenStatus queue with ${tokenStatusNeeded} messages`,
       );
       const tokenStatusIndexes = selectRandomIndexes(
         tokenStatusEndpoints,
         tokenStatusNeeded,
-        maxIndexPerEndpoint
+        maxIndexPerEndpoint,
       );
       await sendMessagesToQueue(tokenStatusIndexes, TOKEN_STATUS_QUEUE_URL);
       tokenStatusAdded = tokenStatusIndexes.length;
