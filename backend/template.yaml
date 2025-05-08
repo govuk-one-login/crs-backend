@@ -355,7 +355,7 @@ Resources:
         ScheduledEvent:
           Type: Schedule
           Properties:
-            Schedule: rate(8 hours)
+            Schedule: rate(8 hours) #change to 7 days when going live
       VpcConfig:
         SecurityGroupIds:
           - !ImportValue

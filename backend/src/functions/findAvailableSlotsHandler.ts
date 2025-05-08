@@ -105,8 +105,8 @@ async function calculateQueueRefills(): Promise<
   const tokenStatusDepth = await getQueueDepth(TOKEN_STATUS_QUEUE_URL);
 
   // Calculate how many messages we need to add to reach the target
-  const bitstringNeeded = Math.max(0, TARGET_QUEUE_DEPTH - bitstringDepth);
-  const tokenStatusNeeded = Math.max(0, TARGET_QUEUE_DEPTH - tokenStatusDepth);
+  const bitstringNeeded = Math.max(0, TARGET_QUEUE_DEPTH - bitstringDepth) /10;
+  const tokenStatusNeeded = Math.max(0, TARGET_QUEUE_DEPTH - tokenStatusDepth) /10;
 
   logger.info(
     `Bitstring queue: ${bitstringDepth} messages, need to add ${bitstringNeeded}`,
@@ -264,7 +264,8 @@ export async function findAvailableSlots(
       ...config.bitstringStatusList.map((item) => item.maxIndices),
       ...config.tokenStatusList.map((item) => item.maxIndices),
     ];
-    const maxIndexPerEndpoint = Math.min(...maxIndexesPerEndpoint);
+    const maxIndexPerEndpoint = maxIndexesPerEndpoint.length > 0 
+      ? Math.max(0, Math.min(...maxIndexesPerEndpoint)) : 0; // Default to 0 if array is empty
     logger.info(`Allocating ${maxIndexPerEndpoint} indexes per endpoint`);
 
     // Extract URIs from the config
