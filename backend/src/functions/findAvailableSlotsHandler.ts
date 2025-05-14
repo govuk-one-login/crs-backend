@@ -10,10 +10,33 @@ import { Context } from "aws-lambda";
 import { logger } from "../common/logging/logger";
 import { LogMessage } from "../common/logging/LogMessages";
 
+// AWS Clients
 const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});
 
-// Define types for configuration
+// Constants
+const BATCH_SIZE = 10; // Number of messages in an SQS batch
+const DEFAULT_CONFIG_KEY = "ListConfiguration.json";
+const DEFAULT_TARGET_QUEUE_DEPTH = 10000;
+
+// Environment variables with defaults
+const ENV = {
+  BITSTRING_QUEUE_URL: process.env.BITSTRING_QUEUE_URL || "",
+  TOKEN_STATUS_QUEUE_URL: process.env.TOKEN_STATUS_QUEUE_URL || "",
+  CONFIG_BUCKET: process.env.LIST_CONFIGURATION_BUCKET || "",
+  CONFIG_KEY: process.env.CONFIGURATION_FILE_KEY || DEFAULT_CONFIG_KEY,
+  TARGET_QUEUE_DEPTH: parseInt(
+    process.env.TARGET_QUEUE_DEPTH || String(DEFAULT_TARGET_QUEUE_DEPTH),
+    10,
+  ),
+};
+
+// Types
+enum QueueType {
+  Bitstring = "Bitstring",
+  TokenStatus = "TokenStatus",
+}
+
 interface StatusListEntry {
   created: string;
   uri: string;
@@ -31,9 +54,9 @@ interface EndpointIndexPair {
   idx: number;
 }
 
-enum QueueType {
-  Bitstring = "Bitstring",
-  TokenStatus = "TokenStatus",
+interface QueueStatus {
+  currentDepth: number;
+  neededMessages: number;
 }
 
 interface LambdaResponse {
@@ -41,30 +64,22 @@ interface LambdaResponse {
   body: string;
 }
 
-interface QueueStatus {
-  currentDepth: number;
-  neededMessages: number;
+interface QueueRefillResult {
+  previousDepth: number;
+  messagesAdded: number;
+  newDepth: number;
 }
 
-// SQS queue URLs
-const BITSTRING_QUEUE_URL = process.env.BITSTRING_QUEUE_URL || "";
-const TOKEN_STATUS_QUEUE_URL = process.env.TOKEN_STATUS_QUEUE_URL || "";
-
-// S3 bucket and configuration file path
-const CONFIG_BUCKET = process.env.LIST_CONFIGURATION_BUCKET || "";
-const CONFIG_KEY =
-  process.env.CONFIGURATION_FILE_KEY || "ListConfiguration.json";
-
-// Target queue depth - how many messages we want to maintain in each queue
-const TARGET_QUEUE_DEPTH = parseInt(
-  process.env.TARGET_QUEUE_DEPTH || "10000",
-  10,
-);
+interface RefillResult {
+  bitstringQueueStatus: QueueRefillResult;
+  tokenStatusQueueStatus: QueueRefillResult;
+  message: string;
+}
 
 /**
  * Set up the logger with the current context
  */
-function setupLogger(context: Context) {
+function setupLogger(context: Context): void {
   logger.resetKeys();
   logger.addContext(context);
   logger.appendKeys({ functionVersion: context.functionVersion });
@@ -72,6 +87,8 @@ function setupLogger(context: Context) {
 
 /**
  * Get the current number of messages in a queue
+ * @param queueUrl SQS Queue URL
+ * @returns The number of messages in the queue
  * @internal Exported for testing purposes only
  */
 export async function getQueueDepth(queueUrl: string): Promise<number> {
@@ -81,6 +98,7 @@ export async function getQueueDepth(queueUrl: string): Promise<number> {
   }
 
   logger.info(`Getting attributes for queue: ${queueUrl}`);
+
   try {
     const command = new GetQueueAttributesCommand({
       QueueUrl: queueUrl,
@@ -92,6 +110,7 @@ export async function getQueueDepth(queueUrl: string): Promise<number> {
       response.Attributes?.ApproximateNumberOfMessages || "0",
       10,
     );
+
     logger.info(`Queue ${queueUrl} has approximately ${messageCount} messages`);
     return messageCount;
   } catch (error) {
@@ -101,19 +120,71 @@ export async function getQueueDepth(queueUrl: string): Promise<number> {
 }
 
 /**
+ * Fetch the configuration from S3
+ * @param bucket S3 bucket name (optional, defaults to environment variable)
+ * @param key S3 object key (optional, defaults to environment variable)
+ * @returns The parsed configuration object
+ * @internal Exported for testing purposes only
+ */
+export async function getConfiguration(
+  bucket?: string,
+  key?: string,
+): Promise<ListConfiguration> {
+  const configBucket = bucket !== undefined ? bucket : ENV.CONFIG_BUCKET;
+  const configKey = key !== undefined ? key : ENV.CONFIG_KEY;
+
+  if (!configBucket || !configKey) {
+    logger.error("S3 bucket or key not defined");
+    throw new Error("S3 bucket or key not defined");
+  }
+
+  logger.info(
+    `Fetching configuration from S3: bucket=${configBucket}, key=${configKey}`,
+  );
+
+  try {
+    const command = new GetObjectCommand({
+      Bucket: configBucket,
+      Key: configKey,
+    });
+
+    const response = await s3Client.send(command);
+    const bodyText = await streamToString(response.Body as Readable);
+    logger.info(`Fetched configuration successfully`);
+    return JSON.parse(bodyText) as ListConfiguration;
+  } catch (error) {
+    logger.error("Error fetching configuration from S3:", error);
+    throw error;
+  }
+}
+
+/**
+ * Convert a readable stream to string
+ */
+async function streamToString(stream: Readable): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString("utf-8");
+}
+
+/**
  * Calculate how many messages to add to each queue
+ * @returns Status of each queue including current depth and needed messages
  */
 async function calculateQueueRefills(): Promise<
   Record<QueueType, QueueStatus>
 > {
   // Get current queue depths
-  const bitstringDepth = await getQueueDepth(BITSTRING_QUEUE_URL);
-  const tokenStatusDepth = await getQueueDepth(TOKEN_STATUS_QUEUE_URL);
+  const bitstringDepth = await getQueueDepth(ENV.BITSTRING_QUEUE_URL);
+  const tokenStatusDepth = await getQueueDepth(ENV.TOKEN_STATUS_QUEUE_URL);
 
-  // Calculate how many messages we need to add to reach the target
-  const bitstringNeeded = Math.max(0, TARGET_QUEUE_DEPTH - bitstringDepth) / 10; //TODO: remove hardcoded 10
-  const tokenStatusNeeded =
-    Math.max(0, TARGET_QUEUE_DEPTH - tokenStatusDepth) / 10; //TODO: remove hardcoded 10
+  const bitstringNeeded = Math.max(0, ENV.TARGET_QUEUE_DEPTH - bitstringDepth);
+  const tokenStatusNeeded = Math.max(
+    0,
+    ENV.TARGET_QUEUE_DEPTH - tokenStatusDepth,
+  );
 
   logger.info(
     `Bitstring queue: ${bitstringDepth} messages, need to add ${bitstringNeeded}`,
@@ -135,59 +206,109 @@ async function calculateQueueRefills(): Promise<
 }
 
 /**
- * Fetch the configuration from S3
- * @internal Exported for testing purposes only
+ * Validates the configuration format
+ * @param config The configuration to validate
+ * @returns True if valid, false otherwise
  */
-export async function getConfiguration(
-  bucket: string,
-  key: string,
-): Promise<ListConfiguration> {
-  if (!bucket || !key) {
-    logger.error("S3 bucket or key not defined");
-    throw new Error("S3 bucket or key not defined");
-  }
+function validateConfigFormat(config: ListConfiguration): boolean {
+  const isValidBitstringConfig = config.bitstringStatusList.every(
+    (item) =>
+      typeof item.uri === "string" &&
+      typeof item.maxIndices === "number" &&
+      typeof item.format === "string" &&
+      typeof item.created === "string",
+  );
 
-  logger.info("Fetching configuration from S3...");
-  logger.info(`Bucket: ${bucket}, Key: ${key}`);
+  const isValidTokenStatusConfig = config.tokenStatusList.every(
+    (item) =>
+      typeof item.uri === "string" &&
+      typeof item.maxIndices === "number" &&
+      typeof item.format === "string" &&
+      typeof item.created === "string",
+  );
 
-  try {
-    const command = new GetObjectCommand({
-      Bucket: bucket,
-      Key: key,
-    });
-
-    const response = await s3Client.send(command);
-    const bodyText = await streamToString(response.Body as Readable);
-    logger.info(`Fetched configuration: ${bodyText}`);
-    return JSON.parse(bodyText) as ListConfiguration;
-  } catch (error) {
-    logger.error("Error fetching configuration from S3:", error);
-    throw error;
-  }
+  return isValidBitstringConfig && isValidTokenStatusConfig;
 }
 
 /**
- * Convert a readable stream to string
+ * Checks if there are enough endpoints in the configuration
+ * @param config The configuration to check
+ * @returns Object with validation result and max index per endpoint
  */
-async function streamToString(stream: Readable): Promise<string> {
-  logger.info("Converting stream to string...");
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) {
-    chunks.push(Buffer.from(chunk));
-  }
-  logger.info("Stream converted to string successfully");
-  return Buffer.concat(chunks).toString("utf-8");
+function validateConfigEndpoints(config: ListConfiguration): {
+  valid: boolean;
+  maxIndexPerEndpoint: number;
+} {
+  // Determine the minimum maxIndices value across all entries, in the event of less than 100k indexes per URL
+  const maxIndexesPerEndpoint = [
+    ...config.bitstringStatusList.map((item) => item.maxIndices),
+    ...config.tokenStatusList.map((item) => item.maxIndices),
+  ];
+
+  const maxIndexPerEndpoint =
+    maxIndexesPerEndpoint.length > 0
+      ? Math.max(0, Math.min(...maxIndexesPerEndpoint))
+      : 0;
+
+  const hasEndpoints =
+    config.bitstringStatusList.length > 0 || config.tokenStatusList.length > 0;
+
+  return {
+    valid: hasEndpoints && maxIndexPerEndpoint > 0,
+    maxIndexPerEndpoint,
+  };
+}
+
+/**
+ * Checks if there are enough indexes available to fulfill queue requirements
+ * @param bitstringEndpoints Bitstring endpoints
+ * @param tokenStatusEndpoints Token status endpoints
+ * @param bitstringNeeded Number of bitstring messages needed
+ * @param tokenStatusNeeded Number of token status messages needed
+ * @param maxIndexPerEndpoint Maximum index per endpoint
+ * @returns Object with validation result and available indexes
+ */
+function validateIndexesAvailability(
+  bitstringEndpoints: string[],
+  tokenStatusEndpoints: string[],
+  bitstringNeeded: number,
+  tokenStatusNeeded: number,
+  maxIndexPerEndpoint: number,
+): {
+  valid: boolean;
+  totalBitstringIndexes: number;
+  totalTokenStatusIndexes: number;
+} {
+  const totalBitstringIndexes = bitstringEndpoints.length * maxIndexPerEndpoint;
+  const totalTokenStatusIndexes =
+    tokenStatusEndpoints.length * maxIndexPerEndpoint;
+
+  const hasEnoughIndexes =
+    bitstringNeeded <= totalBitstringIndexes &&
+    tokenStatusNeeded <= totalTokenStatusIndexes;
+
+  return {
+    valid: hasEnoughIndexes,
+    totalBitstringIndexes,
+    totalTokenStatusIndexes,
+  };
 }
 
 /**
  * Select random indexes for each endpoint
+ * @param endpoints List of endpoint URIs
+ * @param totalIndexes Total number of indexes needed
+ * @param maxIndexPerEndpoint Maximum index value
+ * @returns Array of endpoint-index pairs
  */
 function selectRandomIndexes(
   endpoints: string[],
   totalIndexes: number,
   maxIndexPerEndpoint: number,
 ): EndpointIndexPair[] {
-  logger.info("Selecting random indexes for endpoints...");
+  if (endpoints.length === 0 || totalIndexes <= 0) {
+    return [];
+  }
 
   const result: EndpointIndexPair[] = [];
   const indexesPerEndpoint = Math.ceil(
@@ -217,13 +338,19 @@ function selectRandomIndexes(
 
 /**
  * Send messages to an SQS queue using batch operations
+ * @param messages Messages to send
+ * @param queueUrl Queue URL
  */
 async function sendMessagesToQueue(
   messages: EndpointIndexPair[],
   queueUrl: string,
 ): Promise<void> {
+  if (messages.length === 0) {
+    logger.info(`No messages to send to queue: ${queueUrl}`);
+    return;
+  }
+
   logger.info(`Sending ${messages.length} messages to queue: ${queueUrl}`);
-  const BATCH_SIZE = 10;
   const batchPromises: Promise<SendMessageBatchCommandOutput>[] = [];
 
   for (let i = 0; i < messages.length; i += BATCH_SIZE) {
@@ -246,7 +373,183 @@ async function sendMessagesToQueue(
 }
 
 /**
+ * Handle the case where all queues are already full
+ * @param queueRefills Current queue status
+ * @returns Response object
+ */
+function handleQueuesAlreadyFull(
+  queueRefills: Record<QueueType, QueueStatus>,
+): LambdaResponse {
+  logger.info("All queues are at or above target depth. No refill needed.");
+  return {
+    statusCode: 200,
+    body: JSON.stringify({
+      message: "No queue refill needed",
+      bitstringDepth: queueRefills[QueueType.Bitstring].currentDepth,
+      tokenStatusDepth: queueRefills[QueueType.TokenStatus].currentDepth,
+    }),
+  };
+}
+
+/**
+ * Handle the case where the configuration is invalid
+ * @param queueRefills Current queue status
+ * @param errorMessage Error message to include
+ * @returns Response object
+ */
+function handleInvalidConfiguration(
+  queueRefills: Record<QueueType, QueueStatus>,
+  errorMessage: string,
+): LambdaResponse {
+  logger.error(errorMessage);
+  return {
+    statusCode: 500,
+    body: JSON.stringify({
+      message: errorMessage,
+      bitstringQueueStatus: {
+        messagesAdded: 0,
+        newDepth: queueRefills[QueueType.Bitstring].currentDepth,
+      },
+      tokenStatusQueueStatus: {
+        messagesAdded: 0,
+        newDepth: queueRefills[QueueType.TokenStatus].currentDepth,
+      },
+    }),
+  };
+}
+
+/**
+ * Handle the case where there aren't enough indexes to refill queues
+ * @param bitstringNeeded Number of bitstring messages needed
+ * @param totalBitstringIndexes Total available bitstring indexes
+ * @param tokenStatusNeeded Number of token status messages needed
+ * @param totalTokenStatusIndexes Total available token status indexes
+ * @returns Response object
+ */
+function handleInsufficientIndexes(
+  bitstringNeeded: number,
+  totalBitstringIndexes: number,
+  tokenStatusNeeded: number,
+  totalTokenStatusIndexes: number,
+): LambdaResponse {
+  const errorMessage = "Not enough indexes to refill queues";
+  logger.error(`${errorMessage}. 
+    Bitstring needed: ${bitstringNeeded}, available: ${totalBitstringIndexes}.
+    TokenStatus needed: ${tokenStatusNeeded}, available: ${totalTokenStatusIndexes}.`);
+
+  return {
+    statusCode: 500,
+    body: JSON.stringify({
+      message: errorMessage,
+      bitstringQueueStatus: {
+        needed: bitstringNeeded,
+        available: totalBitstringIndexes,
+      },
+      tokenStatusQueueStatus: {
+        needed: tokenStatusNeeded,
+        available: totalTokenStatusIndexes,
+      },
+    }),
+  };
+}
+
+/**
+ * Process queue refills and return the result
+ * @param queueRefills Current queue status
+ * @param config Configuration object
+ * @returns Object containing refill results
+ */
+async function processQueueRefills(
+  queueRefills: Record<QueueType, QueueStatus>,
+  config: ListConfiguration,
+): Promise<RefillResult> {
+  // Validate the configuration format
+  if (!validateConfigFormat(config)) {
+    throw new Error("Invalid JSON configuration format");
+  }
+
+  // Validate and get max index per endpoint
+  const { valid: hasValidEndpoints, maxIndexPerEndpoint } =
+    validateConfigEndpoints(config);
+  if (!hasValidEndpoints) {
+    throw new Error("No endpoints found in configuration");
+  }
+
+  logger.info(`Allocating ${maxIndexPerEndpoint} indexes per endpoint`);
+
+  // Extract URIs from the config
+  const bitstringEndpoints = config.bitstringStatusList.map((item) => item.uri);
+  const tokenStatusEndpoints = config.tokenStatusList.map((item) => item.uri);
+
+  // Get needed messages counts
+  const bitstringNeeded = queueRefills[QueueType.Bitstring].neededMessages;
+  const tokenStatusNeeded = queueRefills[QueueType.TokenStatus].neededMessages;
+
+  // Check if we have enough indexes to fulfill the requests
+  const {
+    valid: hasEnoughIndexes,
+    totalBitstringIndexes,
+    totalTokenStatusIndexes,
+  } = validateIndexesAvailability(
+    bitstringEndpoints,
+    tokenStatusEndpoints,
+    bitstringNeeded,
+    tokenStatusNeeded,
+    maxIndexPerEndpoint,
+  );
+
+  if (!hasEnoughIndexes) {
+    throw new Error("Not enough indexes to refill queues");
+  }
+  let bitstringAdded = 0;
+  let tokenStatusAdded = 0;
+
+  // Refill Bitstring queue if needed
+  if (bitstringNeeded > 0) {
+    logger.info(`Refilling Bitstring queue with ${bitstringNeeded} messages`);
+    const bitstringIndexes = selectRandomIndexes(
+      bitstringEndpoints,
+      bitstringNeeded,
+      maxIndexPerEndpoint,
+    );
+    await sendMessagesToQueue(bitstringIndexes, ENV.BITSTRING_QUEUE_URL);
+    bitstringAdded = bitstringIndexes.length;
+  }
+
+  // Refill TokenStatus queue if needed
+  if (tokenStatusNeeded > 0) {
+    logger.info(
+      `Refilling TokenStatus queue with ${tokenStatusNeeded} messages`,
+    );
+    const tokenStatusIndexes = selectRandomIndexes(
+      tokenStatusEndpoints,
+      tokenStatusNeeded,
+      maxIndexPerEndpoint,
+    );
+    await sendMessagesToQueue(tokenStatusIndexes, ENV.TOKEN_STATUS_QUEUE_URL);
+    tokenStatusAdded = tokenStatusIndexes.length;
+  }
+
+  return {
+    message: "Successfully refilled queues",
+    bitstringQueueStatus: {
+      previousDepth: queueRefills[QueueType.Bitstring].currentDepth,
+      messagesAdded: bitstringAdded,
+      newDepth: queueRefills[QueueType.Bitstring].currentDepth + bitstringAdded,
+    },
+    tokenStatusQueueStatus: {
+      previousDepth: queueRefills[QueueType.TokenStatus].currentDepth,
+      messagesAdded: tokenStatusAdded,
+      newDepth:
+        queueRefills[QueueType.TokenStatus].currentDepth + tokenStatusAdded,
+    },
+  };
+}
+
+/**
  * Main Lambda handler
+ * @param context Lambda execution context
+ * @returns Lambda response
  */
 export async function findAvailableSlots(
   context: Context,
@@ -254,185 +557,27 @@ export async function findAvailableSlots(
   logger.info("FindAvailableSlots lambda started - checking queue depths");
   setupLogger(context);
   logger.info(LogMessage.FAS_LAMBDA_STARTED);
+
   try {
+    // Calculate how many messages we need to add to each queue
     const queueRefills = await calculateQueueRefills();
 
     // If both queues are full, early termination
     if (
       queueRefills[QueueType.Bitstring].neededMessages === 0 &&
       queueRefills[QueueType.TokenStatus].neededMessages === 0
-    ) {
-      logger.info("All queues are at or above target depth. No refill needed.");
-      return {
-        statusCode: 200,
-        body: JSON.stringify({
-          message: "No queue refill needed",
-          bitstringDepth: queueRefills[QueueType.Bitstring].currentDepth,
-          tokenStatusDepth: queueRefills[QueueType.TokenStatus].currentDepth,
-        }),
-      };
-    }
+    )
+      return handleQueuesAlreadyFull(queueRefills);
 
     // Fetch configuration from S3
-    const config = await getConfiguration(CONFIG_BUCKET, CONFIG_KEY);
+    const config = await getConfiguration();
 
-    // Determine the minimum maxIndices value across all entries
-    const maxIndexesPerEndpoint = [
-      ...config.bitstringStatusList.map((item) => item.maxIndices),
-      ...config.tokenStatusList.map((item) => item.maxIndices),
-    ];
-    const maxIndexPerEndpoint =
-      maxIndexesPerEndpoint.length > 0
-        ? Math.max(0, Math.min(...maxIndexesPerEndpoint))
-        : 0; // Default to 0 if array is empty
-    logger.info(`Allocating ${maxIndexPerEndpoint} indexes per endpoint`);
-
-    // Check if we have any endpoints in the configuration
-    if (
-      (config.bitstringStatusList.length === 0 &&
-        config.tokenStatusList.length === 0) ||
-      maxIndexPerEndpoint === 0
-    ) {
-      logger.error("No endpoints found in configuration");
-      return {
-        statusCode: 500,
-        body: JSON.stringify({
-          message: "No endpoints found in configuration",
-          bitstringQueueStatus: {
-            messagesAdded: 0,
-            newDepth: queueRefills[QueueType.Bitstring].currentDepth,
-          },
-          tokenStatusQueueStatus: {
-            messagesAdded: 0,
-            newDepth: queueRefills[QueueType.TokenStatus].currentDepth,
-          },
-        }),
-      };
-    }
-
-    // Check for JSON fields' validity and if they all exist (uri, maxIndices, format, created)
-    const isValidBitstringConfig = config.bitstringStatusList.every((item) => {
-      return (
-        typeof item.uri === "string" &&
-        typeof item.maxIndices === "number" &&
-        typeof item.format === "string" &&
-        typeof item.created === "string"
-      );
-    });
-    const isValidTokenStatusConfig = config.tokenStatusList.every((item) => {
-      return (
-        typeof item.uri === "string" &&
-        typeof item.maxIndices === "number" &&
-        typeof item.format === "string" &&
-        typeof item.created === "string"
-      );
-    });
-    if (!isValidBitstringConfig || !isValidTokenStatusConfig) {
-      logger.error("Invalid JSON configuration format");
-      return {
-        statusCode: 500,
-        body: JSON.stringify({
-          message: "Invalid JSON configuration format",
-          bitstringQueueStatus: {
-            messagesAdded: 0,
-            newDepth: queueRefills[QueueType.Bitstring].currentDepth,
-          },
-          tokenStatusQueueStatus: {
-            messagesAdded: 0,
-            newDepth: queueRefills[QueueType.TokenStatus].currentDepth,
-          },
-        }),
-      };
-    }
-    logger.info("Configuration is valid");
-
-    // Extract URIs from the config
-    const bitstringEndpoints = config.bitstringStatusList.map(
-      (item) => item.uri,
-    );
-    const tokenStatusEndpoints = config.tokenStatusList.map((item) => item.uri);
-
-    // Get needed messages counts
-    const bitstringNeeded = queueRefills[QueueType.Bitstring].neededMessages;
-    const tokenStatusNeeded =
-      queueRefills[QueueType.TokenStatus].neededMessages;
-
-    // Calculate total available indices for each queue type
-    const totalBitstringIndices =
-      bitstringEndpoints.length * maxIndexPerEndpoint;
-    const totalTokenStatusIndices =
-      tokenStatusEndpoints.length * maxIndexPerEndpoint;
-
-    // Check if we have enough indices to fulfill the requests
-    if (
-      bitstringNeeded > totalBitstringIndices ||
-      tokenStatusNeeded > totalTokenStatusIndices
-    ) {
-      logger.error(`Not enough indexes to refill queues. 
-        Bitstring needed: ${bitstringNeeded}, available: ${totalBitstringIndices}.
-        TokenStatus needed: ${tokenStatusNeeded}, available: ${totalTokenStatusIndices}.`);
-      return {
-        statusCode: 500,
-        body: JSON.stringify({
-          message: "Not enough indexes to refill queues",
-          bitstringQueueStatus: {
-            needed: bitstringNeeded,
-            available: totalBitstringIndices,
-          },
-          tokenStatusQueueStatus: {
-            needed: tokenStatusNeeded,
-            available: totalTokenStatusIndices,
-          },
-        }),
-      };
-    }
-
-    let bitstringAdded = 0;
-    let tokenStatusAdded = 0;
-
-    // Refill Bitstring queue if needed
-    if (bitstringNeeded > 0) {
-      logger.info(`Refilling Bitstring queue with ${bitstringNeeded} messages`);
-      const bitstringIndexes = selectRandomIndexes(
-        bitstringEndpoints,
-        bitstringNeeded,
-        maxIndexPerEndpoint,
-      );
-      await sendMessagesToQueue(bitstringIndexes, BITSTRING_QUEUE_URL);
-      bitstringAdded = bitstringIndexes.length;
-    }
-
-    // Refill TokenStatus queue if needed
-    if (tokenStatusNeeded > 0) {
-      logger.info(
-        `Refilling TokenStatus queue with ${tokenStatusNeeded} messages`,
-      );
-      const tokenStatusIndexes = selectRandomIndexes(
-        tokenStatusEndpoints,
-        tokenStatusNeeded,
-        maxIndexPerEndpoint,
-      );
-      await sendMessagesToQueue(tokenStatusIndexes, TOKEN_STATUS_QUEUE_URL);
-      tokenStatusAdded = tokenStatusIndexes.length;
-    }
+    // Process queue refills
+    const result = await processQueueRefills(queueRefills, config);
 
     return {
       statusCode: 200,
-      body: JSON.stringify({
-        message: "Successfully refilled queues",
-        bitstringQueueStatus: {
-          previousDepth: queueRefills[QueueType.Bitstring].currentDepth,
-          messagesAdded: bitstringAdded,
-          newDepth:
-            queueRefills[QueueType.Bitstring].currentDepth + bitstringAdded,
-        },
-        tokenStatusQueueStatus: {
-          previousDepth: queueRefills[QueueType.TokenStatus].currentDepth,
-          messagesAdded: tokenStatusAdded,
-          newDepth:
-            queueRefills[QueueType.TokenStatus].currentDepth + tokenStatusAdded,
-        },
-      }),
+      body: JSON.stringify(result),
     };
   } catch (error) {
     logger.error("Error in lambda execution:", error);

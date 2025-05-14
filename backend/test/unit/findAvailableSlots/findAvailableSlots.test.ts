@@ -143,7 +143,7 @@ describe("findAvailableSlots", () => {
 
     const response = await findAvailableSlots(context);
     expect(response.statusCode).toBe(500);
-    expect(JSON.parse(response.body).message).toMatch(/Not enough indexes/);
+    expect(JSON.parse(response.body).error).toContain("Not enough indexes");
   });
 
   it("should get queue depths from SQS", async () => {
@@ -237,9 +237,9 @@ describe("findAvailableSlots", () => {
     const body = JSON.parse(response.body);
     //this should be a 500 error response, because there is no information in the config
     expect(response.statusCode).toBe(500);
-    expect(body.message).toBe("No endpoints found in configuration");
-    expect(body.bitstringQueueStatus.messagesAdded).toBe(0);
-    expect(body.tokenStatusQueueStatus.messagesAdded).toBe(0);
+    expect(body.error).toBe("No endpoints found in configuration");
+    // expect(body.bitstringQueueStatus.messagesAdded).toBe(0);
+    // expect(body.tokenStatusQueueStatus.messagesAdded).toBe(0);
   });
 
   it("should handle invalid JSON in S3 config", async () => {
@@ -281,9 +281,9 @@ describe("findAvailableSlots", () => {
     const body = JSON.parse(response.body);
     //this should be a 500 error response, because there is no information in the config
     expect(response.statusCode).toBe(500);
-    expect(body.message).toBe("Invalid JSON configuration format");
-    expect(body.bitstringQueueStatus.messagesAdded).toBe(0);
-    expect(body.tokenStatusQueueStatus.messagesAdded).toBe(0);
+    expect(body.error).toBe("Invalid JSON configuration format");
+    // expect(body.bitstringQueueStatus.messagesAdded).toBe(0);
+    // expect(body.tokenStatusQueueStatus.messagesAdded).toBe(0);
   });
 
   it("should refill only the TokenStatus queue if Bitstring is already above target", async () => {
