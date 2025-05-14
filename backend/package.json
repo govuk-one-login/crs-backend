@@ -38,9 +38,9 @@
     "@aws-sdk/client-s3": "^3.804.0",
     "@aws-sdk/client-sqs": "^3.804.0",
     "@smithy/util-stream-node": "^4.0.4",
-    "aws-sdk-client-mock": "^4.1.0",
-    "smithy": "^0.6.3"
     "@aws-lambda-powertools/logger": "^2.19.1",
+    "aws-sdk-client-mock": "^4.1.0",
+    "smithy": "^0.6.3",
     "esbuild": "^0.25.4"
   }
 }
