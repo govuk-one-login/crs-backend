@@ -58,7 +58,7 @@ const CONFIG_KEY =
 // Target queue depth - how many messages we want to maintain in each queue
 const TARGET_QUEUE_DEPTH = parseInt(
   process.env.TARGET_QUEUE_DEPTH || "10000",
-  10,
+  10
 );
 
 /**
@@ -72,8 +72,9 @@ function setupLogger(context: Context) {
 
 /**
  * Get the current number of messages in a queue
+ * @internal Exported for testing purposes only
  */
-async function getQueueDepth(queueUrl: string): Promise<number> {
+export async function getQueueDepth(queueUrl: string): Promise<number> {
   if (!queueUrl) {
     logger.error("Queue URL is missing");
     throw new Error("Queue URL is missing");
@@ -87,7 +88,10 @@ async function getQueueDepth(queueUrl: string): Promise<number> {
     });
 
     const response = await sqsClient.send(command);
-    const messageCount = parseInt(response.Attributes?.ApproximateNumberOfMessages || "0", 10);
+    const messageCount = parseInt(
+      response.Attributes?.ApproximateNumberOfMessages || "0",
+      10
+    );
     logger.info(`Queue ${queueUrl} has approximately ${messageCount} messages`);
     return messageCount;
   } catch (error) {
@@ -108,13 +112,14 @@ async function calculateQueueRefills(): Promise<
 
   // Calculate how many messages we need to add to reach the target
   const bitstringNeeded = Math.max(0, TARGET_QUEUE_DEPTH - bitstringDepth) / 10; //TODO: remove hardcoded 10
-  const tokenStatusNeeded = Math.max(0, TARGET_QUEUE_DEPTH - tokenStatusDepth) / 10; //TODO: remove hardcoded 10
+  const tokenStatusNeeded =
+    Math.max(0, TARGET_QUEUE_DEPTH - tokenStatusDepth) / 10; //TODO: remove hardcoded 10
 
   logger.info(
-    `Bitstring queue: ${bitstringDepth} messages, need to add ${bitstringNeeded}`,
+    `Bitstring queue: ${bitstringDepth} messages, need to add ${bitstringNeeded}`
   );
   logger.info(
-    `Token Status queue: ${tokenStatusDepth} messages, need to add ${tokenStatusNeeded}`,
+    `Token Status queue: ${tokenStatusDepth} messages, need to add ${tokenStatusNeeded}`
   );
 
   return {
@@ -131,20 +136,24 @@ async function calculateQueueRefills(): Promise<
 
 /**
  * Fetch the configuration from S3
+ * @internal Exported for testing purposes only
  */
-async function getConfiguration(): Promise<ListConfiguration> {
-  if (!CONFIG_BUCKET || !CONFIG_KEY) {
+export async function getConfiguration(
+  bucket: string,
+  key: string
+): Promise<ListConfiguration> {
+  if (!bucket || !key) {
     logger.error("S3 bucket or key not defined");
     throw new Error("S3 bucket or key not defined");
   }
 
   logger.info("Fetching configuration from S3...");
-  logger.info(`Bucket: ${CONFIG_BUCKET}, Key: ${CONFIG_KEY}`);
+  logger.info(`Bucket: ${bucket}, Key: ${key}`);
 
   try {
     const command = new GetObjectCommand({
-      Bucket: CONFIG_BUCKET,
-      Key: CONFIG_KEY,
+      Bucket: bucket,
+      Key: key,
     });
 
     const response = await s3Client.send(command);
@@ -176,13 +185,13 @@ async function streamToString(stream: Readable): Promise<string> {
 function selectRandomIndexes(
   endpoints: string[],
   totalIndexes: number,
-  maxIndexPerEndpoint: number,
+  maxIndexPerEndpoint: number
 ): EndpointIndexPair[] {
   logger.info("Selecting random indexes for endpoints...");
 
   const result: EndpointIndexPair[] = [];
   const indexesPerEndpoint = Math.ceil(
-    totalIndexes / Math.min(totalIndexes, endpoints.length),
+    totalIndexes / Math.min(totalIndexes, endpoints.length)
   );
 
   for (const endpoint of endpoints) {
@@ -211,7 +220,7 @@ function selectRandomIndexes(
  */
 async function sendMessagesToQueue(
   messages: EndpointIndexPair[],
-  queueUrl: string,
+  queueUrl: string
 ): Promise<void> {
   logger.info(`Sending ${messages.length} messages to queue: ${queueUrl}`);
   const BATCH_SIZE = 10;
@@ -240,7 +249,7 @@ async function sendMessagesToQueue(
  * Main Lambda handler
  */
 export async function findAvailableSlots(
-  context: Context,
+  context: Context
 ): Promise<LambdaResponse> {
   logger.info("FindAvailableSlots lambda started - checking queue depths");
   setupLogger(context);
@@ -265,21 +274,25 @@ export async function findAvailableSlots(
     }
 
     // Fetch configuration from S3
-    const config = await getConfiguration();
+    const config = await getConfiguration(CONFIG_BUCKET, CONFIG_KEY);
 
     // Determine the minimum maxIndices value across all entries
     const maxIndexesPerEndpoint = [
       ...config.bitstringStatusList.map((item) => item.maxIndices),
       ...config.tokenStatusList.map((item) => item.maxIndices),
     ];
-    const maxIndexPerEndpoint = maxIndexesPerEndpoint.length > 0
-      ? Math.max(0, Math.min(...maxIndexesPerEndpoint)) : 0; // Default to 0 if array is empty
+    const maxIndexPerEndpoint =
+      maxIndexesPerEndpoint.length > 0
+        ? Math.max(0, Math.min(...maxIndexesPerEndpoint))
+        : 0; // Default to 0 if array is empty
     logger.info(`Allocating ${maxIndexPerEndpoint} indexes per endpoint`);
 
     // Check if we have any endpoints in the configuration
-    if (config.bitstringStatusList.length === 0 && config.tokenStatusList.length === 0 || 
-        maxIndexPerEndpoint === 0)
-    {
+    if (
+      (config.bitstringStatusList.length === 0 &&
+        config.tokenStatusList.length === 0) ||
+      maxIndexPerEndpoint === 0
+    ) {
       logger.error("No endpoints found in configuration");
       return {
         statusCode: 500,
@@ -334,19 +347,27 @@ export async function findAvailableSlots(
     logger.info("Configuration is valid");
 
     // Extract URIs from the config
-    const bitstringEndpoints = config.bitstringStatusList.map((item) => item.uri);
+    const bitstringEndpoints = config.bitstringStatusList.map(
+      (item) => item.uri
+    );
     const tokenStatusEndpoints = config.tokenStatusList.map((item) => item.uri);
 
     // Get needed messages counts
     const bitstringNeeded = queueRefills[QueueType.Bitstring].neededMessages;
-    const tokenStatusNeeded = queueRefills[QueueType.TokenStatus].neededMessages;
+    const tokenStatusNeeded =
+      queueRefills[QueueType.TokenStatus].neededMessages;
 
     // Calculate total available indices for each queue type
-    const totalBitstringIndices = bitstringEndpoints.length * maxIndexPerEndpoint;
-    const totalTokenStatusIndices = tokenStatusEndpoints.length * maxIndexPerEndpoint;
+    const totalBitstringIndices =
+      bitstringEndpoints.length * maxIndexPerEndpoint;
+    const totalTokenStatusIndices =
+      tokenStatusEndpoints.length * maxIndexPerEndpoint;
 
     // Check if we have enough indices to fulfill the requests
-    if (bitstringNeeded > totalBitstringIndices || tokenStatusNeeded > totalTokenStatusIndices) {
+    if (
+      bitstringNeeded > totalBitstringIndices ||
+      tokenStatusNeeded > totalTokenStatusIndices
+    ) {
       logger.error(`Not enough indexes to refill queues. 
         Bitstring needed: ${bitstringNeeded}, available: ${totalBitstringIndices}.
         TokenStatus needed: ${tokenStatusNeeded}, available: ${totalTokenStatusIndices}.`);
@@ -375,7 +396,7 @@ export async function findAvailableSlots(
       const bitstringIndexes = selectRandomIndexes(
         bitstringEndpoints,
         bitstringNeeded,
-        maxIndexPerEndpoint,
+        maxIndexPerEndpoint
       );
       await sendMessagesToQueue(bitstringIndexes, BITSTRING_QUEUE_URL);
       bitstringAdded = bitstringIndexes.length;
@@ -384,12 +405,12 @@ export async function findAvailableSlots(
     // Refill TokenStatus queue if needed
     if (tokenStatusNeeded > 0) {
       logger.info(
-        `Refilling TokenStatus queue with ${tokenStatusNeeded} messages`,
+        `Refilling TokenStatus queue with ${tokenStatusNeeded} messages`
       );
       const tokenStatusIndexes = selectRandomIndexes(
         tokenStatusEndpoints,
         tokenStatusNeeded,
-        maxIndexPerEndpoint,
+        maxIndexPerEndpoint
       );
       await sendMessagesToQueue(tokenStatusIndexes, TOKEN_STATUS_QUEUE_URL);
       tokenStatusAdded = tokenStatusIndexes.length;
