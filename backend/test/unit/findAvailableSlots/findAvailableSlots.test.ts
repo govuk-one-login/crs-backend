@@ -90,7 +90,7 @@ describe("findAvailableSlots", () => {
               },
             ],
           }),
-        ])
+        ]),
       ),
     });
 
@@ -137,7 +137,7 @@ describe("findAvailableSlots", () => {
               },
             ],
           }),
-        ])
+        ]),
       ),
     });
 
@@ -174,7 +174,7 @@ describe("findAvailableSlots", () => {
               },
             ],
           }),
-        ])
+        ]),
       ),
     });
     // Mock sending messages to queue
@@ -226,7 +226,7 @@ describe("findAvailableSlots", () => {
             bitstringStatusList: [],
             tokenStatusList: [],
           }),
-        ])
+        ]),
       ),
     });
     // Mock sending messages
@@ -270,7 +270,7 @@ describe("findAvailableSlots", () => {
               },
             ],
           }),
-        ])
+        ]),
       ),
     });
     // Mock sending messages
@@ -315,7 +315,7 @@ describe("findAvailableSlots", () => {
               },
             ],
           }),
-        ])
+        ]),
       ),
     });
 
@@ -362,7 +362,7 @@ describe("findAvailableSlots", () => {
               },
             ],
           }),
-        ])
+        ]),
       ),
     });
 
@@ -421,7 +421,7 @@ describe("findAvailableSlots", () => {
     const response = await findAvailableSlots(context);
     expect(response.statusCode).toBe(500);
     expect(JSON.parse(response.body).error).toContain(
-      "S3 bucket or key not defined"
+      "S3 bucket or key not defined",
     );
   });
 
@@ -454,7 +454,7 @@ describe("findAvailableSlots", () => {
               },
             ],
           }),
-        ])
+        ]),
       ),
     });
     // Mock sending messages to SQS with a failure
@@ -497,14 +497,14 @@ describe("getQueueDepth", () => {
   it("should throw an error when called with undefined queue URL", async () => {
     // Test with undefined
     await expect(getQueueDepth(undefined as unknown as string)).rejects.toThrow(
-      "Queue URL is missing"
+      "Queue URL is missing",
     );
   });
 
   it("should throw an error when called with null queue URL", async () => {
     // Test with null
     await expect(getQueueDepth(null as unknown as string)).rejects.toThrow(
-      "Queue URL is missing"
+      "Queue URL is missing",
     );
   });
 
@@ -525,7 +525,7 @@ describe("getQueueDepth", () => {
       .rejects(new Error("SQS service error"));
 
     await expect(getQueueDepth("https://valid-queue-url")).rejects.toThrow(
-      "Error getting queue attributes"
+      "Error getting queue attributes",
     );
   });
 });
@@ -544,21 +544,21 @@ describe("getConfiguration", () => {
   it("should throw an error when bucket name is empty", async () => {
     // Test with empty bucket name
     await expect(getConfiguration("", "testKey")).rejects.toThrow(
-      "S3 bucket or key not defined"
+      "S3 bucket or key not defined",
     );
   });
 
   it("should throw an error when key is empty", async () => {
     // Test with empty key
     await expect(getConfiguration("testBucket", "")).rejects.toThrow(
-      "S3 bucket or key not defined"
+      "S3 bucket or key not defined",
     );
   });
 
   it("should throw an error when both bucket and key are empty", async () => {
     // Test with both empty
     await expect(getConfiguration("", "")).rejects.toThrow(
-      "S3 bucket or key not defined"
+      "S3 bucket or key not defined",
     );
   });
 
