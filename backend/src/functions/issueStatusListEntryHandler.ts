@@ -133,7 +133,7 @@ async function fetchJWKS(jwksUri): Promise<JSONWebKeySet> {
       reject(new Error(`Failed to fetch JWKS: ${error.message}`));
     });
 
-    req.end(); // Important: Send the request
+    req.end();
   });
 }
 
