@@ -42,6 +42,7 @@ Mappings:
       CertificateArnV1UsEast1: arn:aws:acm:us-east-1:537124944731:certificate/b0322e50-f75b-4fa3-ac65-4a42ac2380d3
       CertificateWildcardArnV1UsEast1: arn:aws:acm:us-east-1:537124944731:certificate/c1f3daa3-fa88-4cb2-b3cc-0d5ca43d8d80
       dnsSuffix: crs.dev.account.gov.uk
+      jwksUri: https://mobile.dev.account.gov.uk/.well-known/jwks.json
       LambdaLogLevel: DEBUG
     build:
       CertificateArnV1UsEast1: arn:aws:acm:us-east-1:881490088364:certificate/e913c6e7-1b41-4d5a-8731-6f026ea12b62
@@ -219,6 +220,12 @@ Resources:
       Environment:
         Variables:
           POWERTOOLS_SERVICE_NAME: IssueStatusListEntry
+          CLIENT_REGISTRY_BUCKET: !Ref ClientRegistryBucket
+          CLIENT_REGISTRY_FILE_KEY: mockClientRegistry.json #remove "mock" when using the real file
+          JWKS_URI: !FindInMap
+            - EnvironmentVariables
+            - !Ref Environment
+            - jwksUri
       VpcConfig:
         SecurityGroupIds:
           - !ImportValue
@@ -234,7 +241,7 @@ Resources:
   IssueStatusListEntryFunctionLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub ${AWS::StackName}-issue-status-list-entry-lambda
+      RoleName: !Sub ${AWS::StackName}-issue-status-list-entry-lambda-role
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -242,6 +249,9 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
       Policies:
         - PolicyName: IssueStatusListEntryFunctionLoggingPolicy
           PolicyDocument:
@@ -263,6 +273,15 @@ Resources:
                   - ec2:CreateNetworkInterface
                   - ec2:DeleteNetworkInterface
                 Resource: '*'
+        - PolicyName: S3BucketReadAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource: !Sub arn:aws:s3:::${AWS::StackName}-${Environment}-client-registry/*
       PermissionsBoundary: !If
         - UsePermissionsBoundary
         - !Ref PermissionsBoundary
