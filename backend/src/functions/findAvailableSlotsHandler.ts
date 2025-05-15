@@ -188,7 +188,10 @@ async function calculateQueueRefills(): Promise<
   const tokenStatusDepth = await getQueueDepth(ENV.TOKEN_STATUS_QUEUE_URL);
 
   const bitstringNeeded = Math.max(0, ENV.TARGET_QUEUE_DEPTH - bitstringDepth);
-  const tokenStatusNeeded = Math.max(0, ENV.TARGET_QUEUE_DEPTH - tokenStatusDepth);
+  const tokenStatusNeeded = Math.max(
+    0,
+    ENV.TARGET_QUEUE_DEPTH - tokenStatusDepth,
+  );
 
   logger.info(
     `Bitstring queue: ${bitstringDepth} messages, need to add ${bitstringNeeded}`,
@@ -323,7 +326,9 @@ export function selectRandomIndexes(
     const selectedIndexes = new Set<number>();
     while (selectedIndexes.size < indexesPerEndpoint) {
       const randomValue = randomBytes(4).readUInt32BE(0);
-      const randomIndex = Math.floor((randomValue / 0x100000000) * maxIndexPerEndpoint);
+      const randomIndex = Math.floor(
+        (randomValue / 0x100000000) * maxIndexPerEndpoint,
+      );
       selectedIndexes.add(randomIndex);
     }
 
