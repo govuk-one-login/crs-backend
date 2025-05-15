@@ -180,11 +180,10 @@ async function calculateQueueRefills(): Promise<
   const bitstringDepth = await getQueueDepth(ENV.BITSTRING_QUEUE_URL);
   const tokenStatusDepth = await getQueueDepth(ENV.TOKEN_STATUS_QUEUE_URL);
 
-  const bitstringNeeded = Math.max(0, ENV.TARGET_QUEUE_DEPTH - bitstringDepth);
-  const tokenStatusNeeded = Math.max(
-    0,
-    ENV.TARGET_QUEUE_DEPTH - tokenStatusDepth,
-  );
+  const bitstringNeeded =
+    Math.max(0, ENV.TARGET_QUEUE_DEPTH - bitstringDepth) / 10; //TODO: Remove division by 10
+  const tokenStatusNeeded =
+    Math.max(0, ENV.TARGET_QUEUE_DEPTH - tokenStatusDepth) / 10; //TODO: Remove division by 10
 
   logger.info(
     `Bitstring queue: ${bitstringDepth} messages, need to add ${bitstringNeeded}`,
@@ -306,9 +305,7 @@ function selectRandomIndexes(
   totalIndexes: number,
   maxIndexPerEndpoint: number,
 ): EndpointIndexPair[] {
-  if (endpoints.length === 0 || totalIndexes <= 0) {
-    return [];
-  }
+  if (endpoints.length === 0 || totalIndexes <= 0) return [];
 
   const result: EndpointIndexPair[] = [];
   const indexesPerEndpoint = Math.ceil(
@@ -392,68 +389,6 @@ function handleQueuesAlreadyFull(
 }
 
 /**
- * Handle the case where the configuration is invalid
- * @param queueRefills Current queue status
- * @param errorMessage Error message to include
- * @returns Response object
- */
-function handleInvalidConfiguration(
-  queueRefills: Record<QueueType, QueueStatus>,
-  errorMessage: string,
-): LambdaResponse {
-  logger.error(errorMessage);
-  return {
-    statusCode: 500,
-    body: JSON.stringify({
-      message: errorMessage,
-      bitstringQueueStatus: {
-        messagesAdded: 0,
-        newDepth: queueRefills[QueueType.Bitstring].currentDepth,
-      },
-      tokenStatusQueueStatus: {
-        messagesAdded: 0,
-        newDepth: queueRefills[QueueType.TokenStatus].currentDepth,
-      },
-    }),
-  };
-}
-
-/**
- * Handle the case where there aren't enough indexes to refill queues
- * @param bitstringNeeded Number of bitstring messages needed
- * @param totalBitstringIndexes Total available bitstring indexes
- * @param tokenStatusNeeded Number of token status messages needed
- * @param totalTokenStatusIndexes Total available token status indexes
- * @returns Response object
- */
-function handleInsufficientIndexes(
-  bitstringNeeded: number,
-  totalBitstringIndexes: number,
-  tokenStatusNeeded: number,
-  totalTokenStatusIndexes: number,
-): LambdaResponse {
-  const errorMessage = "Not enough indexes to refill queues";
-  logger.error(`${errorMessage}. 
-    Bitstring needed: ${bitstringNeeded}, available: ${totalBitstringIndexes}.
-    TokenStatus needed: ${tokenStatusNeeded}, available: ${totalTokenStatusIndexes}.`);
-
-  return {
-    statusCode: 500,
-    body: JSON.stringify({
-      message: errorMessage,
-      bitstringQueueStatus: {
-        needed: bitstringNeeded,
-        available: totalBitstringIndexes,
-      },
-      tokenStatusQueueStatus: {
-        needed: tokenStatusNeeded,
-        available: totalTokenStatusIndexes,
-      },
-    }),
-  };
-}
-
-/**
  * Process queue refills and return the result
  * @param queueRefills Current queue status
  * @param config Configuration object
@@ -499,7 +434,11 @@ async function processQueueRefills(
   );
 
   if (!hasEnoughIndexes) {
-    throw new Error("Not enough indexes to refill queues");
+    throw new Error(
+      `Not enough indexes to refill queues. 
+      Bitstring needed: ${bitstringNeeded}, available: ${totalBitstringIndexes}. 
+      TokenStatus needed: ${tokenStatusNeeded}, available: ${totalTokenStatusIndexes}.`,
+    );
   }
   let bitstringAdded = 0;
   let tokenStatusAdded = 0;
