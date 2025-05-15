@@ -156,7 +156,7 @@ async function getConfiguration() {
     return JSON.parse(bodyText) as ClientRegistry;
   } catch (error) {
     logger.error("Error fetching configuration from S3:", error);
-    throw error;
+    throw new Error("Error fetching configuration from S3");
   }
 }
 
