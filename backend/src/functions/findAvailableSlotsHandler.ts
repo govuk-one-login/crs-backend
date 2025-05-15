@@ -355,11 +355,6 @@ async function sendMessagesToQueue(
   messages: EndpointIndexPair[],
   queueUrl: string,
 ): Promise<void> {
-  if (messages.length === 0) {
-    logger.info(`No messages to send to queue: ${queueUrl}`);
-    return;
-  }
-
   logger.info(`Sending ${messages.length} messages to queue: ${queueUrl}`);
   const batchPromises: Promise<SendMessageBatchCommandOutput>[] = [];
 

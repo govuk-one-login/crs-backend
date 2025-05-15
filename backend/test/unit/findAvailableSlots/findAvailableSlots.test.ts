@@ -280,7 +280,7 @@ describe("findAvailableSlots", () => {
       .resolves({ Failed: [], Successful: [] });
     const response = await findAvailableSlots(context);
     const body = JSON.parse(response.body);
-    //this should be a 500 error response, because there is no information in the config
+    //this should be a 500 error response, because there is no uri information in the config
     expect(response.statusCode).toBe(500);
     expect(body.error).toBe("Invalid JSON configuration format");
     // expect(body.bitstringQueueStatus.messagesAdded).toBe(0);
@@ -609,6 +609,46 @@ describe("findAvailableSlots", () => {
 
     // Even with partial failures, the operation should succeed overall
     expect(response.statusCode).toBe(200);
+  });
+
+  it("should handle empty message arrays when sending to queue", async () => {
+    // Mock queue depths to trigger refill for bitstring only
+    sqsMock
+      .on(GetQueueAttributesCommand)
+      .resolvesOnce({ Attributes: { ApproximateNumberOfMessages: "5000" } }) // bitstring needs refill
+      .resolvesOnce({ Attributes: { ApproximateNumberOfMessages: "10000" } }); // token status is full
+
+    // Mock S3 with config that has empty bitstringStatusList but valid tokenStatusList
+    // This will cause selectRandomIndexes to return an empty array for bitstring queue
+    s3Mock.on(GetObjectCommand).resolves({
+      Body: sdkStreamMixin(
+        Readable.from([
+          JSON.stringify({
+            bitstringStatusList: [], // Empty list for bitstring - will cause empty array to be passed to sendMessagesToQueue
+            tokenStatusList: [
+              {
+                created: "2025-01-01",
+                uri: "token1",
+                maxIndices: 1000,
+                format: "",
+              },
+            ],
+          }),
+        ]),
+      ),
+    });
+
+    // Call the function
+    const response = await findAvailableSlots(context);
+
+    const body = JSON.parse(response.body);
+    expect(response.statusCode).toBe(500);
+    expect(body.error).toContain("Not enough indexes to refill queues");
+
+    // Verify SQS sendMessageBatch was never called since the lambda quit early
+    // We should only see calls for getting queue attributes
+    const sqsSendCalls = sqsMock.commandCalls(SendMessageBatchCommand);
+    expect(sqsSendCalls.length).toBe(0);
   });
 });
 
