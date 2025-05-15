@@ -30,9 +30,9 @@ interface ClientRegistry {
 const s3Client = new S3Client({});
 
 // S3 bucket and configuration file path
-const CONFIG_BUCKET = process.env.CLIENT_REGISTRY_BUCKET || "";
+const CONFIG_BUCKET = process.env.CLIENT_REGISTRY_BUCKET ?? "";
 const CONFIG_KEY =
-  process.env.CLIENT_REGISTRY_FILE_KEY || "mockClientRegistry.json";
+  process.env.CLIENT_REGISTRY_FILE_KEY ?? "mockClientRegistry.json";
 
 export async function handler(
   event: APIGatewayProxyEvent,
@@ -41,60 +41,61 @@ export async function handler(
   setupLogger(context);
   logger.info(LogMessage.ISSUE_LAMBDA_STARTED);
 
-  if (event.body != null) {
-    let jsonPayload;
-    let jsonHeader;
-
-    try {
-      // Parse the JWT without verifying the signature
-      const decodedPayload = decodeJwt(event.body);
-      const decodedHeader = decodeProtectedHeader(event.body);
-
-      const payloadString = JSON.stringify(decodedPayload);
-      const headerString = JSON.stringify(decodedHeader);
-      jsonPayload = JSON.parse(payloadString);
-      jsonHeader = JSON.parse(headerString);
-      logger.info("Succesfully decoded JWT as JSON");
-    } catch (error) {
-      logger.error("Error decoding or converting to JSON:", error);
-      return badRequestResponse("Error decoding JWT or converting to JSON");
-    }
-    if (!jsonPayload.iss) {
-      return badRequestResponse("No Issuer in Payload");
-    }
-    if (!jsonPayload.expires) {
-      return badRequestResponse("No Expiry Date in Payload");
-    }
-    if (!jsonHeader.kid) {
-      return badRequestResponse("No Kid in Header");
-    }
-
-    const config: ClientRegistry = await getConfiguration();
-
-    const matchingClientEntry = config.clients.find(
-      (i) => i.clientId == jsonPayload.iss,
-    );
-    if (!matchingClientEntry) {
-      return unauthorizedResponse(
-        "No matching client found with ID: " + jsonPayload.iss,
-      );
-    }
-    const jwksUri = matchingClientEntry.statusList.jwksUri;
-    if (!jwksUri) {
-      return internalServerErrorResponse(
-        "No jwksUri found on client ID: " + matchingClientEntry.clientId,
-      );
-    }
-    const jsonWebKeySet: JSONWebKeySet = await fetchJWKS(jwksUri);
-
-    const jwk = jsonWebKeySet.keys.find((key) => key.kid == jsonHeader.kid);
-    if (!jwk) {
-      return unauthorizedResponse(
-        "No matching Key ID found in JWKS Endpoint for Kid: " + jsonHeader.kid,
-      );
-    }
-  } else {
+  if (event.body == null) {
     return badRequestResponse("No Request Body Found");
+  }
+
+  let jsonPayload;
+  let jsonHeader;
+
+  try {
+    // Parse the JWT without verifying the signature
+    const decodedPayload = decodeJwt(event.body);
+    const decodedHeader = decodeProtectedHeader(event.body);
+
+    const payloadString = JSON.stringify(decodedPayload);
+    const headerString = JSON.stringify(decodedHeader);
+    jsonPayload = JSON.parse(payloadString);
+    jsonHeader = JSON.parse(headerString);
+    logger.info("Succesfully decoded JWT as JSON");
+  } catch (error) {
+    logger.error("Error decoding or converting to JSON:", error);
+    return badRequestResponse("Error decoding JWT or converting to JSON");
+  }
+
+  if (!jsonPayload.iss) {
+    return badRequestResponse("No Issuer in Payload");
+  }
+  if (!jsonPayload.expires) {
+    return badRequestResponse("No Expiry Date in Payload");
+  }
+  if (!jsonHeader.kid) {
+    return badRequestResponse("No Kid in Header");
+  }
+
+  const config: ClientRegistry = await getConfiguration();
+
+  const matchingClientEntry = config.clients.find(
+    (i) => i.clientId == jsonPayload.iss,
+  );
+  if (!matchingClientEntry) {
+    return unauthorizedResponse(
+      "No matching client found with ID: " + jsonPayload.iss,
+    );
+  }
+  const jwksUri = matchingClientEntry.statusList.jwksUri;
+  if (!jwksUri) {
+    return internalServerErrorResponse(
+      "No jwksUri found on client ID: " + matchingClientEntry.clientId,
+    );
+  }
+  const jsonWebKeySet: JSONWebKeySet = await fetchJWKS(jwksUri);
+
+  const jwk = jsonWebKeySet.keys.find((key) => key.kid == jsonHeader.kid);
+  if (!jwk) {
+    return unauthorizedResponse(
+      "No matching Key ID found in JWKS Endpoint for Kid: " + jsonHeader.kid,
+    );
   }
 
   return {
