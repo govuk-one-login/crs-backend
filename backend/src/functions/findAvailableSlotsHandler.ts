@@ -134,8 +134,8 @@ export async function getQueueDepth(queueUrl: string): Promise<number> {
  * @internal Exported for testing purposes only
  */
 export async function getConfiguration(
-  bucket?: string,
-  key?: string,
+  bucket: string,
+  key: string,
 ): Promise<ListConfiguration> {
   const configBucket = bucket ?? ENV.CONFIG_BUCKET;
   const configKey = key ?? ENV.CONFIG_KEY;
@@ -523,7 +523,7 @@ export async function findAvailableSlots(
       return handleQueuesAlreadyFull(queueRefills);
 
     // Fetch configuration from S3
-    const config = await getConfiguration();
+    const config = await getConfiguration(ENV.CONFIG_BUCKET, ENV.CONFIG_KEY);
 
     // Process queue refills
     const result = await processQueueRefills(queueRefills, config);
