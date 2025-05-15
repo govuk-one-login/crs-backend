@@ -35,8 +35,8 @@ const CONFIG_KEY =
   process.env.CLIENT_REGISTRY_FILE_KEY || "mockClientRegistry.json";
 
 export async function handler(
-    event: APIGatewayProxyEvent,
-    context: Context,
+  event: APIGatewayProxyEvent,
+  context: Context,
 ): Promise<APIGatewayProxyResult> {
   setupLogger(context);
   logger.info(LogMessage.ISSUE_LAMBDA_STARTED);
@@ -113,13 +113,13 @@ export async function handler(
 async function fetchJWKS(jwksUri): Promise<JSONWebKeySet> {
   return new Promise((resolve, reject) => {
     const req = https.request(jwksUri, (res) => {
-      let data = '';
+      let data = "";
 
-      res.on('data', (chunk) => {
+      res.on("data", (chunk) => {
         data += chunk;
       });
 
-      res.on('end', () => {
+      res.on("end", () => {
         try {
           const jwks: JSONWebKeySet = JSON.parse(data);
           resolve(jwks);
@@ -129,7 +129,7 @@ async function fetchJWKS(jwksUri): Promise<JSONWebKeySet> {
       });
     });
 
-    req.on('error', (error) => {
+    req.on("error", (error) => {
       reject(new Error(`Failed to fetch JWKS: ${error.message}`));
     });
 
