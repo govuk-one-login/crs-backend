@@ -18,6 +18,7 @@ import {
   findAvailableSlots,
   getQueueDepth,
   getConfiguration,
+  selectRandomIndexes,
 } from "../../../src/functions/findAvailableSlotsHandler";
 import { logger } from "../../../src/common/logging/logger";
 import { sdkStreamMixin } from "@smithy/util-stream-node";
@@ -476,6 +477,139 @@ describe("findAvailableSlots", () => {
     expect(body.bitstringQueueStatus.messagesAdded).toBeGreaterThan(0);
     expect(body.tokenStatusQueueStatus.messagesAdded).toBeGreaterThan(0);
   });
+
+  it("should handle empty response from SQS getQueueAttributes", async () => {
+    // Mock SQS to return empty response (no Attributes field)
+    sqsMock.on(GetQueueAttributesCommand).resolves({});
+
+    const response = await findAvailableSlots(context);
+    expect(response.statusCode).toBe(500);
+  });
+
+  it("should handle non-numeric ApproximateNumberOfMessages", async () => {
+    // Mock SQS to return non-numeric value
+    sqsMock
+      .on(GetQueueAttributesCommand)
+      .resolvesOnce({ Attributes: { ApproximateNumberOfMessages: "NaN" } })
+      .resolvesOnce({ Attributes: { ApproximateNumberOfMessages: "5000" } });
+
+    // Mock S3 with valid config
+    s3Mock.on(GetObjectCommand).resolves({
+      Body: sdkStreamMixin(
+        Readable.from([
+          JSON.stringify({
+            bitstringStatusList: [
+              {
+                created: "2025-01-01",
+                uri: "bit1",
+                maxIndices: 10000,
+                format: "",
+              },
+            ],
+            tokenStatusList: [
+              {
+                created: "2025-01-01",
+                uri: "token1",
+                maxIndices: 10000,
+                format: "",
+              },
+            ],
+          }),
+        ]),
+      ),
+    });
+
+    const response = await findAvailableSlots(context);
+    // Should still work, parseInt will handle this and return 0 (NaN) for the first one
+    expect(response.statusCode).toBe(200);
+  });
+
+  it("should handle empty message array and skip sending", async () => {
+    // Mock queue depths to trigger refill but with no actual messages to send
+    sqsMock
+      .on(GetQueueAttributesCommand)
+      .resolvesOnce({ Attributes: { ApproximateNumberOfMessages: "9999" } }) // Just below target
+      .resolvesOnce({ Attributes: { ApproximateNumberOfMessages: "9999" } });
+
+    // Mock S3 with valid config but all URIs will get exhausted quickly
+    s3Mock.on(GetObjectCommand).resolves({
+      Body: sdkStreamMixin(
+        Readable.from([
+          JSON.stringify({
+            bitstringStatusList: [
+              { created: "2025-01-01", uri: "bit1", maxIndices: 1, format: "" },
+            ],
+            tokenStatusList: [
+              {
+                created: "2025-01-01",
+                uri: "token1",
+                maxIndices: 1,
+                format: "",
+              },
+            ],
+          }),
+        ]),
+      ),
+    });
+
+    // Spy on SendMessageBatchCommand to ensure it isn't called
+    const sendMessageSpy = jest.spyOn(sqsMock, "send");
+
+    await findAvailableSlots(context);
+
+    // Verify that SendMessageBatchCommand was called only for queue depth checks
+    // but not for actual message sending (which would be more than 2 calls)
+    expect(sendMessageSpy.mock.calls.length).toBeLessThan(3);
+  });
+
+  it("should handle mixed success/failure when sending messages", async () => {
+    // Mock queue depths to trigger refill
+    sqsMock
+      .on(GetQueueAttributesCommand)
+      .resolvesOnce({ Attributes: { ApproximateNumberOfMessages: "5000" } })
+      .resolvesOnce({ Attributes: { ApproximateNumberOfMessages: "5000" } });
+
+    // Mock S3 with valid config
+    s3Mock.on(GetObjectCommand).resolves({
+      Body: sdkStreamMixin(
+        Readable.from([
+          JSON.stringify({
+            bitstringStatusList: [
+              {
+                created: "2025-01-01",
+                uri: "bit1",
+                maxIndices: 10000,
+                format: "",
+              },
+            ],
+            tokenStatusList: [
+              {
+                created: "2025-01-01",
+                uri: "token1",
+                maxIndices: 10000,
+                format: "",
+              },
+            ],
+          }),
+        ]),
+      ),
+    });
+
+    // Mock sending messages with mixed success/failure
+    sqsMock.on(SendMessageBatchCommand).resolves({
+      Failed: [
+        { Id: "msg-1", SenderFault: true, Code: "400", Message: "Failed" },
+      ],
+      Successful: [
+        { Id: "msg-0", MessageId: "12345", MD5OfMessageBody: "abcde" },
+      ],
+    });
+
+    const response = await findAvailableSlots(context);
+
+    // Even with partial failures, the operation should succeed overall
+    expect(response.statusCode).toBe(200);
+  });
 });
 
 describe("getQueueDepth", () => {
@@ -581,5 +715,38 @@ describe("getConfiguration", () => {
 
     expect(result).toEqual(mockConfig);
     expect(result.bitstringStatusList[0].uri).toBe("bit1");
+  });
+
+  it("should use environment variables when no parameters are provided", async () => {
+    // Mock successful S3 response
+    const mockConfig = {
+      bitstringStatusList: [],
+      tokenStatusList: [],
+    };
+
+    s3Mock.on(GetObjectCommand).resolves({
+      Body: sdkStreamMixin(Readable.from([JSON.stringify(mockConfig)])),
+    });
+
+    // This will use the environment variables
+    await getConfiguration();
+
+    // Check that the S3 client was called with the environment variable values
+    expect(s3Mock.calls()[0].args[0].input).toEqual({
+      Bucket: process.env.LIST_CONFIGURATION_BUCKET,
+      Key: process.env.CONFIGURATION_FILE_KEY,
+    });
+  });
+});
+
+describe("selectRandomIndexes", () => {
+  it("should return empty array for empty endpoints", () => {
+    const result = selectRandomIndexes([], 10, 100);
+    expect(result).toEqual([]);
+  });
+
+  it("should return empty array for zero totalIndexes", () => {
+    const result = selectRandomIndexes(["endpoint1"], 0, 100);
+    expect(result).toEqual([]);
   });
 });

@@ -31,7 +31,6 @@ const ENV = {
   ),
 };
 
-// Types
 enum QueueType {
   Bitstring = "Bitstring",
   TokenStatus = "TokenStatus",
@@ -110,6 +109,13 @@ export async function getQueueDepth(queueUrl: string): Promise<number> {
       response.Attributes?.ApproximateNumberOfMessages || "0",
       10,
     );
+
+    if (isNaN(messageCount)) {
+      logger.warn(
+        `Queue ${queueUrl} returned non-numeric message count ${response.Attributes?.ApproximateNumberOfMessages}. Assuming 0.`,
+      );
+      return 0;
+    }
 
     logger.info(`Queue ${queueUrl} has approximately ${messageCount} messages`);
     return messageCount;
@@ -299,8 +305,9 @@ function validateIndexesAvailability(
  * @param totalIndexes Total number of indexes needed
  * @param maxIndexPerEndpoint Maximum index value
  * @returns Array of endpoint-index pairs
+ * @internal Exported for testing purposes only
  */
-function selectRandomIndexes(
+export function selectRandomIndexes(
   endpoints: string[],
   totalIndexes: number,
   maxIndexPerEndpoint: number,
@@ -311,6 +318,7 @@ function selectRandomIndexes(
   const indexesPerEndpoint = Math.ceil(
     totalIndexes / Math.min(totalIndexes, endpoints.length),
   );
+  logger.info(`Selecting ${indexesPerEndpoint} indexes per endpoint`);
 
   for (const endpoint of endpoints) {
     const selectedIndexes = new Set<number>();
@@ -410,7 +418,9 @@ async function processQueueRefills(
     throw new Error("No endpoints found in configuration");
   }
 
-  logger.info(`Allocating ${maxIndexPerEndpoint} indexes per endpoint`);
+  logger.info(
+    `List configuration validated successfully, processing ${config.bitstringStatusList.length + config.tokenStatusList.length} endpoints, with ${maxIndexPerEndpoint} indexes per endpoint`,
+  );
 
   // Extract URIs from the config
   const bitstringEndpoints = config.bitstringStatusList.map((item) => item.uri);
@@ -469,6 +479,10 @@ async function processQueueRefills(
     tokenStatusAdded = tokenStatusIndexes.length;
   }
 
+  logger.info(
+    `Refilled queues: ${bitstringAdded} messages added to Bitstring, ${tokenStatusAdded} messages added to TokenStatus`,
+  );
+
   return {
     message: "Successfully refilled queues",
     bitstringQueueStatus: {
@@ -493,9 +507,9 @@ async function processQueueRefills(
 export async function findAvailableSlots(
   context: Context,
 ): Promise<LambdaResponse> {
-  logger.info("FindAvailableSlots lambda started - checking queue depths");
   setupLogger(context);
   logger.info(LogMessage.FAS_LAMBDA_STARTED);
+  logger.info("FindAvailableSlots lambda started - checking queue depths");
 
   try {
     // Calculate how many messages we need to add to each queue
