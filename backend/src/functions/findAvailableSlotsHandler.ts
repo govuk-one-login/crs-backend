@@ -9,6 +9,7 @@ import { Readable } from "stream";
 import { Context } from "aws-lambda";
 import { logger } from "../common/logging/logger";
 import { LogMessage } from "../common/logging/LogMessages";
+import { randomBytes } from "crypto"; // Add this import
 
 // AWS Clients
 const s3Client = new S3Client({});
@@ -21,12 +22,12 @@ const DEFAULT_TARGET_QUEUE_DEPTH = 10000;
 
 // Environment variables with defaults
 const ENV = {
-  BITSTRING_QUEUE_URL: process.env.BITSTRING_QUEUE_URL || "",
-  TOKEN_STATUS_QUEUE_URL: process.env.TOKEN_STATUS_QUEUE_URL || "",
-  CONFIG_BUCKET: process.env.LIST_CONFIGURATION_BUCKET || "",
-  CONFIG_KEY: process.env.CONFIGURATION_FILE_KEY || DEFAULT_CONFIG_KEY,
+  BITSTRING_QUEUE_URL: process.env.BITSTRING_QUEUE_URL ?? "",
+  TOKEN_STATUS_QUEUE_URL: process.env.TOKEN_STATUS_QUEUE_URL ?? "",
+  CONFIG_BUCKET: process.env.LIST_CONFIGURATION_BUCKET ?? "",
+  CONFIG_KEY: process.env.CONFIGURATION_FILE_KEY ?? DEFAULT_CONFIG_KEY,
   TARGET_QUEUE_DEPTH: parseInt(
-    process.env.TARGET_QUEUE_DEPTH || String(DEFAULT_TARGET_QUEUE_DEPTH),
+    process.env.TARGET_QUEUE_DEPTH ?? String(DEFAULT_TARGET_QUEUE_DEPTH),
     10,
   ),
 };
@@ -106,7 +107,7 @@ export async function getQueueDepth(queueUrl: string): Promise<number> {
 
     const response = await sqsClient.send(command);
     const messageCount = parseInt(
-      response.Attributes?.ApproximateNumberOfMessages || "0",
+      response.Attributes?.ApproximateNumberOfMessages ?? "0",
       10,
     );
 
@@ -136,8 +137,8 @@ export async function getConfiguration(
   bucket?: string,
   key?: string,
 ): Promise<ListConfiguration> {
-  const configBucket = bucket !== undefined ? bucket : ENV.CONFIG_BUCKET;
-  const configKey = key !== undefined ? key : ENV.CONFIG_KEY;
+  const configBucket = bucket ?? ENV.CONFIG_BUCKET;
+  const configKey = key ?? ENV.CONFIG_KEY;
 
   if (!configBucket || !configKey) {
     logger.error("S3 bucket or key not defined");
@@ -186,10 +187,8 @@ async function calculateQueueRefills(): Promise<
   const bitstringDepth = await getQueueDepth(ENV.BITSTRING_QUEUE_URL);
   const tokenStatusDepth = await getQueueDepth(ENV.TOKEN_STATUS_QUEUE_URL);
 
-  const bitstringNeeded =
-    Math.max(0, ENV.TARGET_QUEUE_DEPTH - bitstringDepth) / 10; //TODO: Remove division by 10
-  const tokenStatusNeeded =
-    Math.max(0, ENV.TARGET_QUEUE_DEPTH - tokenStatusDepth) / 10; //TODO: Remove division by 10
+  const bitstringNeeded = Math.max(0, ENV.TARGET_QUEUE_DEPTH - bitstringDepth);
+  const tokenStatusNeeded = Math.max(0, ENV.TARGET_QUEUE_DEPTH - tokenStatusDepth);
 
   logger.info(
     `Bitstring queue: ${bitstringDepth} messages, need to add ${bitstringNeeded}`,
@@ -300,7 +299,7 @@ function validateIndexesAvailability(
 }
 
 /**
- * Select random indexes for each endpoint
+ * Select random indexes for each endpoint using cryptographically secure randomness
  * @param endpoints List of endpoint URIs
  * @param totalIndexes Total number of indexes needed
  * @param maxIndexPerEndpoint Maximum index value
@@ -323,7 +322,8 @@ export function selectRandomIndexes(
   for (const endpoint of endpoints) {
     const selectedIndexes = new Set<number>();
     while (selectedIndexes.size < indexesPerEndpoint) {
-      const randomIndex = Math.floor(Math.random() * maxIndexPerEndpoint);
+      const randomValue = randomBytes(4).readUInt32BE(0);
+      const randomIndex = Math.floor((randomValue / 0x100000000) * maxIndexPerEndpoint);
       selectedIndexes.add(randomIndex);
     }
 
