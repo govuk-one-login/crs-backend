@@ -134,8 +134,8 @@ export async function getQueueDepth(queueUrl: string): Promise<number> {
  * @internal Exported for testing purposes only
  */
 export async function getConfiguration(
-  bucket: string,
-  key: string,
+  bucket?: string,
+  key?: string,
 ): Promise<ListConfiguration> {
   const configBucket = bucket ?? ENV.CONFIG_BUCKET;
   const configKey = key ?? ENV.CONFIG_KEY;
@@ -161,7 +161,7 @@ export async function getConfiguration(
     return JSON.parse(bodyText) as ListConfiguration;
   } catch (error) {
     logger.error("Error fetching configuration from S3:", error);
-    throw error;
+    throw new Error(`Error fetching configuration from S3: ${error}`);
   }
 }
 

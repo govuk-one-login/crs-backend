@@ -253,7 +253,7 @@ describe("findAvailableSlots", () => {
 
       const response = await findAvailableSlots(context);
       expect(response.statusCode).toBe(500);
-      expect(JSON.parse(response.body).error).toBe("S3 failure");
+      expect(JSON.parse(response.body).error).toContain("S3 failure");
     });
 
     it("should handle empty endpoint list in S3 config", async () => {
