@@ -296,22 +296,6 @@ describe("findAvailableSlots", () => {
       expect(body.error).toBe("Invalid JSON configuration format");
     });
 
-    it("should handle missing S3 bucket or key", async () => {
-      // Mock the getConfiguration function to throw the specific error
-      jest.spyOn(S3Client.prototype, "send").mockImplementationOnce(() => {
-        throw new Error("S3 bucket or key not defined");
-      });
-
-      // Mock queue depths
-      mockQueueDepths("5000", "5000");
-
-      const response = await findAvailableSlots(context);
-      expect(response.statusCode).toBe(500);
-      expect(JSON.parse(response.body).error).toContain(
-        "S3 bucket or key not defined",
-      );
-    });
-
     it("should handle empty message arrays when sending to queue", async () => {
       // Mock queue depths to trigger refill for bitstring only
       mockQueueDepths("5000", "10000");
@@ -480,28 +464,10 @@ describe("getConfiguration", () => {
     jest.restoreAllMocks();
   });
 
-  it("should throw an error when bucket name is empty", async () => {
-    await expect(getConfiguration("", "testKey")).rejects.toThrow(
-      "S3 bucket or key not defined",
-    );
-  });
-
-  it("should throw an error when key is empty", async () => {
-    await expect(getConfiguration("testBucket", "")).rejects.toThrow(
-      "S3 bucket or key not defined",
-    );
-  });
-
-  it("should throw an error when both bucket and key are empty", async () => {
-    await expect(getConfiguration("", "")).rejects.toThrow(
-      "S3 bucket or key not defined",
-    );
-  });
-
-  it("should return configuration from S3 when valid parameters are provided", async () => {
+  it("should return configuration from S3 when default valid parameters are provided", async () => {
     s3Mock.on(GetObjectCommand).resolves(createS3Body(validConfig));
 
-    const result = await getConfiguration("testBucket", "testKey");
+    const result = await getConfiguration();
 
     expect(result).toEqual(validConfig);
     expect(result.bitstringStatusList[0].uri).toBe("bit1");

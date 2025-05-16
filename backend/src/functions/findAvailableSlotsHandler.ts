@@ -9,7 +9,7 @@ import { Readable } from "stream";
 import { Context } from "aws-lambda";
 import { logger } from "../common/logging/logger";
 import { LogMessage } from "../common/logging/LogMessages";
-import { randomBytes } from "crypto"; // Add this import
+import { randomBytes } from "crypto";
 
 // AWS Clients
 const s3Client = new S3Client({});
@@ -133,26 +133,15 @@ export async function getQueueDepth(queueUrl: string): Promise<number> {
  * @returns The parsed configuration object
  * @internal Exported for testing purposes only
  */
-export async function getConfiguration(
-  bucket?: string,
-  key?: string,
-): Promise<ListConfiguration> {
-  const configBucket = bucket ?? ENV.CONFIG_BUCKET;
-  const configKey = key ?? ENV.CONFIG_KEY;
-
-  if (!configBucket || !configKey) {
-    logger.error("S3 bucket or key not defined");
-    throw new Error("S3 bucket or key not defined");
-  }
-
+export async function getConfiguration(): Promise<ListConfiguration> {
   logger.info(
-    `Fetching configuration from S3: bucket=${configBucket}, key=${configKey}`,
+    `Fetching configuration from S3: bucket = ${ENV.CONFIG_BUCKET}, key = ${ENV.CONFIG_KEY}`,
   );
 
   try {
     const command = new GetObjectCommand({
-      Bucket: configBucket,
-      Key: configKey,
+      Bucket: ENV.CONFIG_BUCKET,
+      Key: ENV.CONFIG_KEY,
     });
 
     const response = await s3Client.send(command);
@@ -509,7 +498,6 @@ export async function findAvailableSlots(
 ): Promise<LambdaResponse> {
   setupLogger(context);
   logger.info(LogMessage.FAS_LAMBDA_STARTED);
-  logger.info("FindAvailableSlots lambda started - checking queue depths");
 
   try {
     // Calculate how many messages we need to add to each queue
@@ -523,7 +511,7 @@ export async function findAvailableSlots(
       return handleQueuesAlreadyFull(queueRefills);
 
     // Fetch configuration from S3
-    const config = await getConfiguration(ENV.CONFIG_BUCKET, ENV.CONFIG_KEY);
+    const config = await getConfiguration();
 
     // Process queue refills
     const result = await processQueueRefills(queueRefills, config);
