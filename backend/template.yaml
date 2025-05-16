@@ -47,10 +47,12 @@ Mappings:
     build:
       CertificateArnV1UsEast1: arn:aws:acm:us-east-1:881490088364:certificate/e913c6e7-1b41-4d5a-8731-6f026ea12b62
       dnsSuffix: crs.build.account.gov.uk
+      jwksUri: https://mobile.dev.account.gov.uk/.well-known/jwks.json
       LambdaLogLevel: INFO
     staging:
       CertificateArnV1UsEast1: arn:aws:acm:us-east-1:253490791635:certificate/2a8b32c4-9893-476b-a57f-881029f00db0
       dnsSuffix: crs.staging.account.gov.uk
+      jwksUri: https://mobile.dev.account.gov.uk/.well-known/jwks.json
       LambdaLogLevel: INFO
     integration:
       CertificateArnV1UsEast1: PLACEHOLDER
