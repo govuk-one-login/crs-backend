@@ -42,21 +42,19 @@ Mappings:
       CertificateArnV1UsEast1: arn:aws:acm:us-east-1:537124944731:certificate/b0322e50-f75b-4fa3-ac65-4a42ac2380d3
       CertificateWildcardArnV1UsEast1: arn:aws:acm:us-east-1:537124944731:certificate/c1f3daa3-fa88-4cb2-b3cc-0d5ca43d8d80
       dnsSuffix: crs.dev.account.gov.uk
-      jwksUri: https://mobile.dev.account.gov.uk/.well-known/jwks.json
       LambdaLogLevel: DEBUG
     build:
       CertificateArnV1UsEast1: arn:aws:acm:us-east-1:881490088364:certificate/e913c6e7-1b41-4d5a-8731-6f026ea12b62
       dnsSuffix: crs.build.account.gov.uk
-      jwksUri: https://mobile.dev.account.gov.uk/.well-known/jwks.json
       LambdaLogLevel: INFO
     staging:
       CertificateArnV1UsEast1: arn:aws:acm:us-east-1:253490791635:certificate/2a8b32c4-9893-476b-a57f-881029f00db0
       dnsSuffix: crs.staging.account.gov.uk
-      jwksUri: https://mobile.dev.account.gov.uk/.well-known/jwks.json
       LambdaLogLevel: INFO
     integration:
       CertificateArnV1UsEast1: PLACEHOLDER
       dnsSuffix: crs.integration.account.gov.uk
+      jwksUri: https://mobile.dev.account.gov.uk/.well-known/jwks.json
       LambdaLogLevel: INFO
     production:
       CertificateArnV1UsEast1: PLACEHOLDER
@@ -227,10 +225,7 @@ Resources:
           POWERTOOLS_SERVICE_NAME: IssueStatusListEntry
           CLIENT_REGISTRY_BUCKET: !Ref ClientRegistryBucket
           CLIENT_REGISTRY_FILE_KEY: mockClientRegistry.json #remove "mock" when using the real file
-          JWKS_URI: !FindInMap
-            - EnvironmentVariables
-            - !Ref Environment
-            - jwksUri
+          TXMA_QUEUE_URL: !Ref TxMASQSQueue
       VpcConfig:
         SecurityGroupIds:
           - !ImportValue
@@ -287,6 +282,19 @@ Resources:
                   - s3:GetObject
                   - s3:ListBucket
                 Resource: !Sub arn:aws:s3:::${AWS::StackName}-${Environment}-client-registry/*
+        - PolicyName: IssueStatusListEntryFunctionTxmaSQSPolicy
+          PolicyDocument:
+            Statement:
+              - Action:
+                  - sqs:SendMessage
+                Effect: Allow
+                Resource: !GetAtt TxMASQSQueue.Arn
+              - Action:
+                  - kms:Decrypt
+                  - kms:GenerateDataKey
+                Effect: Allow
+                Resource: !GetAtt TxMAKMSEncryptionKey.Arn
+            Version: "2012-10-17"
       PermissionsBoundary: !If
         - UsePermissionsBoundary
         - !Ref PermissionsBoundary

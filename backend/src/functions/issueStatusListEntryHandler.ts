@@ -4,11 +4,17 @@ import {
   Context,
 } from "aws-lambda";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import { logger } from "../common/logging/logger";
 import { LogMessage } from "../common/logging/LogMessages";
-import { decodeJwt, decodeProtectedHeader, JSONWebKeySet } from "jose";
+import { importSPKI, JSONWebKeySet, jwtVerify } from "jose";
 import { Readable } from "stream";
 import * as https from "node:https";
+import {
+  TxmaEvent,
+  INDEX_ISSUED_EVENT,
+  ISSUANCE_FAILED_EVENT,
+} from "../common/types";
 
 // Define types for configuration
 interface StatusListEntry {
@@ -28,12 +34,24 @@ interface ClientRegistry {
 }
 
 const s3Client = new S3Client({});
+const sqsClient = new SQSClient({});
 
 // S3 bucket and configuration file path
 const CONFIG_BUCKET = process.env.CLIENT_REGISTRY_BUCKET ?? "";
-const CONFIG_KEY =
-  process.env.CLIENT_REGISTRY_FILE_KEY ?? "mockClientRegistry.json";
+const CONFIG_KEY = process.env.CLIENT_REGISTRY_FILE_KEY ?? "";
+const TXMA_QUEUE_URL = process.env.TXMA_QUEUE_URL ?? "";
 
+export const PUBLIC_KEY =
+  "-----BEGIN PUBLIC KEY-----\
+    MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEEVs/o5+uQbTjL3chynL4wXgUg2R9\
+q9UU8I5mEovUf86QZ7kOBIjJwqnzD1omageEHWwHdBO6B+dFabmdT9POxg==\
+-----END PUBLIC KEY-----"; // REPLACE WITH JWKS ENDPOINT PUBLIC KEY WHEN THATS CREATED
+
+/**
+ * Main Lambda Handler
+ * @param event containing the request which has the issuer and expiry etc.
+ * @param context event context
+ */
 export async function handler(
   event: APIGatewayProxyEvent,
   context: Context,
@@ -50,8 +68,12 @@ export async function handler(
 
   try {
     // Parse the JWT without verifying the signature
-    const decodedPayload = decodeJwt(event.body);
-    const decodedHeader = decodeProtectedHeader(event.body);
+    const publicKey = await importSPKI(PUBLIC_KEY, "ES256");
+
+    const { payload, protectedHeader } = await jwtVerify(event.body, publicKey);
+
+    const decodedPayload = payload;
+    const decodedHeader = protectedHeader;
 
     const payloadString = JSON.stringify(decodedPayload);
     const headerString = JSON.stringify(decodedHeader);
@@ -63,6 +85,57 @@ export async function handler(
     return badRequestResponse("Error decoding JWT or converting to JSON");
   }
 
+  const config: ClientRegistry = await getConfiguration();
+
+  const errorResult = await validateJWT(jsonPayload, jsonHeader, config);
+
+  if (errorResult != undefined) {
+    await writeToSqs(
+      issueFailTXMAEvent(PUBLIC_KEY, jsonHeader.kid, event.body, errorResult),
+    );
+    return errorResult;
+  }
+
+  await writeToSqs(
+    issueSuccessTXMAEvent(
+      PUBLIC_KEY,
+      jsonHeader.kid,
+      event.body,
+      3,
+      "https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AD",
+    ),
+  );
+
+  return {
+    statusCode: 200,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      idx: 3,
+      uri: "https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AD",
+    }),
+  };
+}
+
+async function writeToSqs(txmaEvent: TxmaEvent) {
+  try {
+    await sqsClient.send(
+      new SendMessageCommand({
+        QueueUrl: TXMA_QUEUE_URL,
+        MessageBody: JSON.stringify(txmaEvent),
+      }),
+    );
+  } catch (error) {
+    logger.error(LogMessage.SEND_MESSAGE_TO_SQS_FAILURE, {
+      error,
+    });
+  }
+}
+
+async function validateJWT(
+  jsonPayload,
+  jsonHeader,
+  config: ClientRegistry,
+): Promise<APIGatewayProxyResult | undefined> {
   if (!jsonPayload.iss) {
     return badRequestResponse("No Issuer in Payload");
   }
@@ -73,11 +146,10 @@ export async function handler(
     return badRequestResponse("No Kid in Header");
   }
 
-  const config: ClientRegistry = await getConfiguration();
-
   const matchingClientEntry = config.clients.find(
     (i) => i.clientId == jsonPayload.iss,
   );
+
   if (!matchingClientEntry) {
     return unauthorizedResponse(
       "No matching client found with ID: " + jsonPayload.iss,
@@ -97,15 +169,6 @@ export async function handler(
       "No matching Key ID found in JWKS Endpoint for Kid: " + jsonHeader.kid,
     );
   }
-
-  return {
-    statusCode: 200,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      idx: 3,
-      uri: "https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AD",
-    }),
-  };
 }
 
 /**
@@ -164,12 +227,10 @@ async function getConfiguration() {
  * Convert a readable stream to string
  */
 async function streamToString(stream: Readable): Promise<string> {
-  logger.info("Converting stream to string...");
   const chunks: Buffer[] = [];
   for await (const chunk of stream) {
     chunks.push(Buffer.from(chunk));
   }
-  logger.info("Stream converted to string successfully");
   return Buffer.concat(chunks).toString("utf-8");
 }
 
@@ -215,5 +276,51 @@ const internalServerErrorResponse = (
       error: "INTERNAL_SERVER_ERROR",
       error_description: errorDescription,
     }),
+  };
+};
+
+const issueSuccessTXMAEvent = (
+  signingKey: string,
+  keyId: string,
+  request: string,
+  index: number,
+  uri: string,
+): INDEX_ISSUED_EVENT => {
+  return {
+    timestamp: Math.floor(Date.now() / 1000),
+    event_timestamp_ms: Date.now(),
+    event_name: "CRS_INDEX_ISSUED",
+    component_id: "https://api.status-list.service.gov.uk",
+    extensions: {
+      status_list: {
+        signingKey: signingKey,
+        keyId: keyId,
+        request: request,
+        index: index,
+        uri: uri,
+      },
+    },
+  };
+};
+
+const issueFailTXMAEvent = (
+  signingKey: string,
+  keyId: string = "null",
+  request: string,
+  error: APIGatewayProxyResult,
+): ISSUANCE_FAILED_EVENT => {
+  return {
+    timestamp: Math.floor(Date.now() / 1000),
+    event_timestamp_ms: Date.now(),
+    event_name: "CRS_ISSUANCE_FAILED",
+    component_id: "https://api.status-list.service.gov.uk",
+    extensions: {
+      status_list: {
+        signingKey: signingKey,
+        keyId: keyId,
+        request: request,
+        failure_reason: error,
+      },
+    },
   };
 };
