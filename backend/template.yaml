@@ -194,7 +194,6 @@ Resources:
       Tags:
         - Key: BackupFrequency
           Value: Bihourly
-      
 
   IssueStatusListEntryFunction:
     Type: AWS::Serverless::Function
