@@ -191,6 +191,10 @@ Resources:
       ProvisionedThroughput:
         ReadCapacityUnits: 100
         WriteCapacityUnits: 100
+      Tags:
+        - Key: BackupFrequency
+          Value: Bihourly
+      
 
   IssueStatusListEntryFunction:
     Type: AWS::Serverless::Function
@@ -623,6 +627,11 @@ Resources:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: BackupFrequency
+          Value: Bihourly
 
   StatusListBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -657,6 +666,9 @@ Resources:
               SSEAlgorithm: AES256
       VersioningConfiguration:
         Status: Enabled
+      Tags:
+        - Key: BackupFrequency
+          Value: Daily
 
   ClientRegistryBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -697,6 +709,9 @@ Resources:
               SSEAlgorithm: AES256
       VersioningConfiguration:
         Status: Enabled
+      Tags:
+        - Key: BackupFrequency
+          Value: Daily
 
   ListConfigurationBucketPolicy:
     Type: AWS::S3::BucketPolicy
