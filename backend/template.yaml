@@ -1235,3 +1235,44 @@ Resources:
       Dimensions:
         - Name: QueueName
           Value: !GetAtt TokenStatusAvailableSlotsSQS.QueueName
+
+  # Alerts for FAS Lambda errors and auto retry
+  FindAvailableSlotsErrorsSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${AWS::StackName}-FindAvailableSlotsErrorsTopic
+      DisplayName: Lambda Error Topic for FindAvailableSlots
+
+  FindAvailableSlotsErrorsSNSSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      TopicArn: !Ref FindAvailableSlotsErrorsSNSTopic
+      Endpoint: !GetAtt FindAvailableSlotsFunction.Arn
+
+  FindAvailableSlotsErrorsSNSPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref FindAvailableSlotsFunction
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref FindAvailableSlotsErrorsSNSTopic
+
+  FindAvailableSlotsErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AWS::StackName}-FindAvailableSlotsErrorsAlarm
+      AlarmDescription: Alarm if FindAvailableSlots lambda encounters any errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 60 # Check every minute
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref FindAvailableSlotsErrorsSNSTopic
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref FindAvailableSlotsFunction
