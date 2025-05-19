@@ -333,15 +333,53 @@ Resources:
           - src/functions/findAvailableSlotsHandler.ts
     Properties:
       FunctionName: !Sub ${AWS::StackName}-find-available-slots
-      Handler: src/functions/findAvailableSlotsHandler.handler
+      Handler: src/functions/findAvailableSlotsHandler.findAvailableSlots
+      Timeout: 900 # 15 minutes
       Policies:
         - AWSLambdaBasicExecutionRole
         - AWSLambdaVPCAccessExecutionRole
+
+        # S3 read access policy
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource: !Sub arn:aws:s3:::${AWS::StackName}-${Environment}-list-configuration/*
+
+        # SQS send message permissions
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+                - sqs:GetQueueAttributes
+              Resource:
+                - !GetAtt BitstringAvailableSlotsSQS.Arn
+                - !GetAtt TokenStatusAvailableSlotsSQS.Arn
+
+        # KMS permissions for queue encryption
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - kms:GenerateDataKey
+                - kms:Decrypt
+              Resource:
+                - !GetAtt BitstringAvailableSlotsEncryptionKey.Arn
+                - !GetAtt TokenStatusAvailableSlotsEncryptionKey.Arn
+      Environment:
+        Variables:
+          BITSTRING_QUEUE_URL: !Ref BitstringAvailableSlotsSQS
+          TOKEN_STATUS_QUEUE_URL: !Ref TokenStatusAvailableSlotsSQS
+          LIST_CONFIGURATION_BUCKET: !Ref ListConfigurationBucket
+          CONFIGURATION_FILE_KEY: mockListConfiguration.json #remove "mock" when using the real file
+          TARGET_QUEUE_DEPTH: "10000"
       Events:
         ScheduledEvent:
           Type: Schedule
           Properties:
-            Schedule: rate(1 minute)
+            Schedule: rate(8 hours) #change to 7 days when going live
       VpcConfig:
         SecurityGroupIds:
           - !ImportValue
@@ -858,3 +896,59 @@ Resources:
               - CertificateWildcardArnV1UsEast1
           MinimumProtocolVersion: TLSv1.2_2021
           SslSupportMethod: sni-only
+
+  AvailableSlotsSNSSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      TopicArn: !Ref AvailableSlotsCapacitySNSTopic
+      Endpoint: !GetAtt FindAvailableSlotsFunction.Arn
+
+  AvailableSlotsCapacitySNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: AvailableSlotsCapacityTopic
+
+  LambdaSNSPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref FindAvailableSlotsFunction
+      Action: lambda:InvokeFunction
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref AvailableSlotsCapacitySNSTopic
+
+  BitstringQueueCapacityAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AWS::StackName}-BitstringQueueCapacityAlarm
+      AlarmDescription: Alarm if Bitstring queue drops below 25% capacity
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Statistic: Average
+      Period: 60 # Check every minute
+      EvaluationPeriods: 1
+      Threshold: 2500
+      ComparisonOperator: LessThanThreshold
+      AlarmActions:
+        - !Ref AvailableSlotsCapacitySNSTopic
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt BitstringAvailableSlotsSQS.QueueName
+
+  TokenStatusQueueCapacityAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AWS::StackName}-TokenStatusQueueCapacityAlarm
+      AlarmDescription: Alarm if TokenStatus queue drops below 25% capacity
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Statistic: Average
+      Period: 60 # Check every minute
+      EvaluationPeriods: 1
+      Threshold: 2500
+      ComparisonOperator: LessThanThreshold
+      AlarmActions:
+        - !Ref AvailableSlotsCapacitySNSTopic
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TokenStatusAvailableSlotsSQS.QueueName
