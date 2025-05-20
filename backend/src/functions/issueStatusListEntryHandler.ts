@@ -106,6 +106,8 @@ export async function handler(
     ),
   );
 
+  logger.info(LogMessage.SEND_MESSAGE_TO_SQS_SUCCESS);
+
   return {
     statusCode: 200,
     headers: { "Content-Type": "application/json" },
