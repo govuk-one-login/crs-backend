@@ -7,7 +7,7 @@ export interface TxmaEvent {
   component_id: string;
 }
 
-export interface INDEX_ISSUED_EVENT extends TxmaEvent {
+export interface INDEXISSUEDEVENT extends TxmaEvent {
   timestamp: number;
   event_timestamp_ms: number;
   event_name: EventNames;
@@ -23,7 +23,7 @@ export interface INDEX_ISSUED_EVENT extends TxmaEvent {
   };
 }
 
-export interface ISSUANCE_FAILED_EVENT extends TxmaEvent {
+export interface ISSUANCEFAILEDEVENT extends TxmaEvent {
   timestamp: number;
   event_timestamp_ms: number;
   event_name: EventNames;

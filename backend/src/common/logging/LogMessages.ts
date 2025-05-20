@@ -20,11 +20,10 @@ export class LogMessage implements LogAttributes {
   );
 
   static readonly SEND_MESSAGE_TO_SQS_SUCCESS = new LogMessage(
-      "CRS_SEND_MESSAGE_TO_SQS_SUCCESS",
-      "An audit txma event has been successfully sent to SQS.",
-      "N/A",
+    "CRS_SEND_MESSAGE_TO_SQS_SUCCESS",
+    "An audit txma event has been successfully sent to SQS.",
+    "N/A",
   );
-
 
   private constructor(
     public readonly messageCode: string,

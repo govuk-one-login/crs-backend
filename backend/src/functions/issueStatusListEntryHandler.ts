@@ -12,8 +12,8 @@ import { Readable } from "stream";
 import * as https from "node:https";
 import {
   TxmaEvent,
-  INDEX_ISSUED_EVENT,
-  ISSUANCE_FAILED_EVENT,
+  INDEXISSUEDEVENT,
+  ISSUANCEFAILEDEVENT,
 } from "../common/types";
 
 // Define types for configuration
@@ -42,10 +42,7 @@ const CONFIG_KEY = process.env.CLIENT_REGISTRY_FILE_KEY ?? "";
 const TXMA_QUEUE_URL = process.env.TXMA_QUEUE_URL ?? "";
 
 export const PUBLIC_KEY =
-  "-----BEGIN PUBLIC KEY-----\
-    MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEEVs/o5+uQbTjL3chynL4wXgUg2R9\
-q9UU8I5mEovUf86QZ7kOBIjJwqnzD1omageEHWwHdBO6B+dFabmdT9POxg==\
------END PUBLIC KEY-----"; // REPLACE WITH JWKS ENDPOINT PUBLIC KEY WHEN THATS CREATED
+  "-----BEGIN PUBLIC KEY----- MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEEVs/o5+uQbTjL3chynL4wXgUg2R9q9UU8I5mEovUf86QZ7kOBIjJwqnzD1omageEHWwHdBO6B+dFabmdT9POxg== -----END PUBLIC KEY-----"; // REPLACE WITH JWKS ENDPOINT PUBLIC KEY WHEN THATS CREATED
 
 /**
  * Main Lambda Handler
@@ -91,7 +88,7 @@ export async function handler(
 
   if (errorResult != undefined) {
     await writeToSqs(
-      issueFailTXMAEvent(PUBLIC_KEY, jsonHeader.kid, event.body, errorResult),
+      issueFailTXMAEvent(PUBLIC_KEY, event.body, errorResult, jsonHeader.kid),
     );
     return errorResult;
   }
@@ -290,7 +287,7 @@ const issueSuccessTXMAEvent = (
   request: string,
   index: number,
   uri: string,
-): INDEX_ISSUED_EVENT => {
+): INDEXISSUEDEVENT => {
   return {
     timestamp: Math.floor(Date.now() / 1000),
     event_timestamp_ms: Date.now(),
@@ -310,10 +307,10 @@ const issueSuccessTXMAEvent = (
 
 const issueFailTXMAEvent = (
   signingKey: string,
-  keyId: string = "null",
   request: string,
   error: APIGatewayProxyResult,
-): ISSUANCE_FAILED_EVENT => {
+  keyId: string = "null",
+): ISSUANCEFAILEDEVENT => {
   return {
     timestamp: Math.floor(Date.now() / 1000),
     event_timestamp_ms: Date.now(),
