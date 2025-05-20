@@ -914,7 +914,7 @@ Resources:
   AvailableSlotsCapacitySNSTopic:
     Type: AWS::SNS::Topic
     Properties:
-      TopicName: AvailableSlotsCapacityTopic
+      TopicName: !Sub ${AWS::StackName}-AvailableSlotsCapacityTopic
 
   LambdaSNSPermission:
     Type: AWS::Lambda::Permission
