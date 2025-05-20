@@ -128,6 +128,9 @@ async function writeToSqs(txmaEvent: TxmaEvent) {
     logger.error(LogMessage.SEND_MESSAGE_TO_SQS_FAILURE, {
       error,
     });
+    throw Error(
+      `Failed to send TXMA Event: ${txmaEvent} to sqs, error: ${error}`,
+    );
   }
 }
 
