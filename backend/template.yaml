@@ -210,8 +210,7 @@ Resources:
         EntryPoints:
           - src/functions/issueStatusListEntryHandler.ts
     Properties:
-
-      # attempt at APIGw integration
+      #APIGw integration
       Events:
         IssueIndex:
           Type: Api
@@ -391,6 +390,106 @@ Resources:
             Fn::Sub: ${VpcStackName}-PrivateSubnetIdB
           - !ImportValue
             Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
+
+  # Revoke Lambda
+  RevokeFunction:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - "RevokeLogGroup"
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        EntryPoints:
+          - src/functions/revokeHandler.ts
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-revoke
+      Handler: src/functions/revokeHandler.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSLambdaVPCAccessExecutionRole
+      VpcConfig:
+        SecurityGroupIds:
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-AWSServicesEndpointSecurityGroupId
+        SubnetIds:
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-ProtectedSubnetIdA
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-ProtectedSubnetIdB
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-ProtectedSubnetIdC
+
+  RevokeFunctionLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AWS::StackName}-revoke-lambda-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: RevokeFunctionLoggingPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+        - PolicyName: DynamoDBReadOnly
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:BatchGetItem
+                  - dynamodb:DescribeTable
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource: "*" # Or specify specific DynamoDB table ARNs for more restrictive access
+      PermissionsBoundary: !If
+        - UsePermissionsBoundary
+        - !Ref PermissionsBoundary
+        - !Ref AWS::NoValue
+
+  RevokeLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-revoke-logs
+      RetentionInDays: 30
+  
+  CSLSRevokeFunctionSubscriptionFilter:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: arn:aws:logs:eu-west-2:885513274347:destination:csls_cw_logs_destination_prodpython-2
+      FilterPattern: ""
+      LogGroupName: !Ref RevokeLogGroup
+    Condition: IsProdLikeEnvironment
+
+  RevokeAccessLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-revoke-access-logs
+      RetentionInDays: 30
+
+  CSLSRevokeFunctionAccessSubscriptionFilter:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: arn:aws:logs:eu-west-2:885513274347:destination:csls_cw_logs_destination_prodpython-2
+      FilterPattern: ""
+      LogGroupName: !Ref RevokeAccessLogs
+    Condition: IsProdLikeEnvironment
 
   # API Gateway
   PrivateApi:
