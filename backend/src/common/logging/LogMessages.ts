@@ -13,6 +13,18 @@ export class LogMessage implements LogAttributes {
     "N/A",
   );
 
+  static readonly SEND_MESSAGE_TO_SQS_FAILURE = new LogMessage(
+    "CRS_SEND_MESSAGE_TO_SQS_FAILURE",
+    "An unexpected failure occurred while attempting to write message to SQS.",
+    "N/A",
+  );
+
+  static readonly SEND_MESSAGE_TO_SQS_SUCCESS = new LogMessage(
+    "CRS_SEND_MESSAGE_TO_SQS_SUCCESS",
+    "An audit txma event has been successfully sent to SQS.",
+    "N/A",
+  );
+
   private constructor(
     public readonly messageCode: string,
     public readonly message: string,
