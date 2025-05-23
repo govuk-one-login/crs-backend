@@ -72,6 +72,16 @@ Mappings:
     staging:
       AccountId: arn:aws:iam::253490791635:root
 
+  CslsConfiguration:
+    build:
+      CSLSEGRESS: arn:aws:logs:eu-west-2:885513274347:destination:csls_cw_logs_destination_prodpython-2
+    integration:
+      CSLSEGRESS: arn:aws:logs:eu-west-2:885513274347:destination:csls_cw_logs_destination_prodpython-2
+    production:
+      CSLSEGRESS: arn:aws:logs:eu-west-2:885513274347:destination:csls_cw_logs_destination_prodpython-2
+    staging:
+      CSLSEGRESS: arn:aws:logs:eu-west-2:885513274347:destination:csls_cw_logs_destination_prodpython-2
+
   KMS:
     dev:
       PendingDeletionInDays: 7
@@ -100,6 +110,18 @@ Mappings:
     production:
       ApiBurstLimit: 0
       ApiRateLimit: 0
+
+  LogRetention:
+    dev:
+      RetentionPeriod: 30
+    build:
+      RetentionPeriod: 30
+    staging:
+      RetentionPeriod: 30
+    integration:
+      RetentionPeriod: 30
+    production:
+      RetentionPeriod: 30
 
 Conditions:
   IsDevEnvironment: !Equals
@@ -208,7 +230,7 @@ Resources:
           - src/functions/issueStatusListEntryHandler.ts
     Properties:
 
-      # attempt at APIGw integration
+      #APIGw integration
       Events:
         IssueIndex:
           Type: Api
@@ -303,7 +325,10 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /aws/lambda/${AWS::StackName}-issue-status-list-entry
-      RetentionInDays: 30
+      RetentionInDays: !FindInMap
+        - LogRetention
+        - !Ref Environment
+        - RetentionPeriod
 
   IssueStatusListEntryVersionMetricFilter:
     Type: AWS::Logs::MetricFilter
@@ -324,7 +349,10 @@ Resources:
   CSLSIssueStatusListEntryFunctionSubscriptionFilter:
     Type: AWS::Logs::SubscriptionFilter
     Properties:
-      DestinationArn: arn:aws:logs:eu-west-2:885513274347:destination:csls_cw_logs_destination_prodpython-2
+      DestinationArn: !FindInMap
+        - CslsConfiguration
+        - !Ref Environment
+        - CSLSEGRESS
       FilterPattern: ""
       LogGroupName: !Ref IssueStatusListEntryLogGroup
     Condition: IsProdLikeEnvironment
@@ -399,6 +427,118 @@ Resources:
           - !ImportValue
             Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
 
+  # Revoke Lambda
+  RevokeFunction:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - RevokeLogGroup
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        EntryPoints:
+          - src/functions/revokeHandler.ts
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-revoke
+      Handler: src/functions/revokeHandler.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSLambdaVPCAccessExecutionRole
+      VpcConfig:
+        SecurityGroupIds:
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-AWSServicesEndpointSecurityGroupId
+        SubnetIds:
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-ProtectedSubnetIdA
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-ProtectedSubnetIdB
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-ProtectedSubnetIdC
+
+  RevokeFunctionLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AWS::StackName}-revoke-lambda-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: RevokeFunctionLoggingPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+        - PolicyName: DynamoDBReadOnly
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:BatchGetItem
+                  - dynamodb:DescribeTable
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource: !Sub arn:aws:dynamodb:eu-west-2:${AWS::AccountId}:table/${AWS::StackName}-StatusListTable
+      PermissionsBoundary: !If
+        - UsePermissionsBoundary
+        - !Ref PermissionsBoundary
+        - !Ref AWS::NoValue
+
+  RevokeLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-revoke-logs
+      RetentionInDays: !FindInMap
+        - LogRetention
+        - !Ref Environment
+        - RetentionPeriod
+
+  CSLSRevokeFunctionSubscriptionFilter:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !FindInMap
+        - CslsConfiguration
+        - !Ref Environment
+        - CSLSEGRESS
+      FilterPattern: ""
+      LogGroupName: !Ref RevokeLogGroup
+    Condition: IsProdLikeEnvironment
+
+  RevokeAccessLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-revoke-access-logs
+      RetentionInDays: !FindInMap
+        - LogRetention
+        - !Ref Environment
+        - RetentionPeriod
+
+  CSLSRevokeFunctionAccessSubscriptionFilter:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !FindInMap
+        - CslsConfiguration
+        - !Ref Environment
+        - CSLSEGRESS
+      FilterPattern: ""
+      LogGroupName: !Ref RevokeAccessLogs
+    Condition: IsProdLikeEnvironment
+
   # API Gateway
   PrivateApi:
     Type: AWS::Serverless::Api
@@ -449,7 +589,10 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /aws/apigateway/${AWS::StackName}-private-api-access-logs
-      RetentionInDays: 30
+      RetentionInDays: !FindInMap
+        - LogRetention
+        - !Ref Environment
+        - RetentionPeriod
 
   # Available Slots SQS Queues (Bitstring and Token Status)
   BitstringAvailableSlotsEncryptionKey:
