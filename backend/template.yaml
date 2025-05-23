@@ -75,6 +75,16 @@ Mappings:
     staging:
       AccountId: arn:aws:iam::253490791635:root
 
+  CslsConfiguration:
+    build:
+      CSLSEGRESS: arn:aws:logs:eu-west-2:885513274347:destination:csls_cw_logs_destination_prodpython-2
+    integration:
+      CSLSEGRESS: arn:aws:logs:eu-west-2:885513274347:destination:csls_cw_logs_destination_prodpython-2
+    production:
+      CSLSEGRESS: arn:aws:logs:eu-west-2:885513274347:destination:csls_cw_logs_destination_prodpython-2
+    staging:
+      CSLSEGRESS: arn:aws:logs:eu-west-2:885513274347:destination:csls_cw_logs_destination_prodpython-2
+
   KMS:
     dev:
       PendingDeletionInDays: 7
@@ -103,6 +113,18 @@ Mappings:
     production:
       ApiBurstLimit: 0
       ApiRateLimit: 0
+  
+  LogRetention:
+    dev:
+      RetentionPeriod: 30
+    build:
+      RetentionPeriod: 30
+    staging:
+      RetentionPeriod: 30
+    integration:
+      RetentionPeriod: 30
+    production:
+      RetentionPeriod: 30
 
 Conditions:
   IsDevEnvironment: !Equals
@@ -295,7 +317,10 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /aws/lambda/${AWS::StackName}-issue-status-list-entry
-      RetentionInDays: 30
+      RetentionInDays: !FindInMap
+        - LogRetention
+        - !Ref Environment
+        - RetentionPeriod
 
   IssueStatusListEntryVersionMetricFilter:
     Type: AWS::Logs::MetricFilter
@@ -316,7 +341,10 @@ Resources:
   CSLSIssueStatusListEntryFunctionSubscriptionFilter:
     Type: AWS::Logs::SubscriptionFilter
     Properties:
-      DestinationArn: arn:aws:logs:eu-west-2:885513274347:destination:csls_cw_logs_destination_prodpython-2
+      DestinationArn: !FindInMap
+        - CslsConfiguration
+        - !Ref Environment
+        - CSLSEGRESS
       FilterPattern: ""
       LogGroupName: !Ref IssueStatusListEntryLogGroup
     Condition: IsProdLikeEnvironment
@@ -457,7 +485,7 @@ Resources:
                   - dynamodb:GetItem
                   - dynamodb:Query
                   - dynamodb:Scan
-                Resource: "*" # Or specify specific DynamoDB table ARNs for more restrictive access
+                Resource: !Sub arn:aws:dynamodb:eu-west-2:${AWS::AccountId}:table/${AWS::StackName}-StatusListTable
       PermissionsBoundary: !If
         - UsePermissionsBoundary
         - !Ref PermissionsBoundary
@@ -467,12 +495,18 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /aws/lambda/${AWS::StackName}-revoke-logs
-      RetentionInDays: 30
+      RetentionInDays: !FindInMap
+        - LogRetention
+        - !Ref Environment
+        - RetentionPeriod
   
   CSLSRevokeFunctionSubscriptionFilter:
     Type: AWS::Logs::SubscriptionFilter
     Properties:
-      DestinationArn: arn:aws:logs:eu-west-2:885513274347:destination:csls_cw_logs_destination_prodpython-2
+      DestinationArn: !FindInMap
+        - CslsConfiguration
+        - !Ref Environment
+        - CSLSEGRESS
       FilterPattern: ""
       LogGroupName: !Ref RevokeLogGroup
     Condition: IsProdLikeEnvironment
@@ -481,12 +515,18 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /aws/lambda/${AWS::StackName}-revoke-access-logs
-      RetentionInDays: 30
+      RetentionInDays: !FindInMap
+        - LogRetention
+        - !Ref Environment
+        - RetentionPeriod
 
   CSLSRevokeFunctionAccessSubscriptionFilter:
     Type: AWS::Logs::SubscriptionFilter
     Properties:
-      DestinationArn: arn:aws:logs:eu-west-2:885513274347:destination:csls_cw_logs_destination_prodpython-2
+      DestinationArn: !FindInMap
+        - CslsConfiguration
+        - !Ref Environment
+        - CSLSEGRESS
       FilterPattern: ""
       LogGroupName: !Ref RevokeAccessLogs
     Condition: IsProdLikeEnvironment
@@ -541,7 +581,10 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /aws/apigateway/${AWS::StackName}-private-api-access-logs
-      RetentionInDays: 30
+      RetentionInDays: !FindInMap
+        - LogRetention
+        - !Ref Environment
+        - RetentionPeriod
 
   # Available Slots SQS Queues (Bitstring and Token Status)
   BitstringAvailableSlotsEncryptionKey:
