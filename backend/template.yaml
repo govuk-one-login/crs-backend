@@ -539,6 +539,118 @@ Resources:
       LogGroupName: !Ref RevokeAccessLogs
     Condition: IsProdLikeEnvironment
 
+  # Status List Publisher Lambda
+  StatusListPublisherFunction:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - StatusListPublisherLogGroup
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        EntryPoints:
+          - src/functions/statusListPublisherHandler.ts
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-status-list-publisher
+      Handler: src/functions/statusListPuslisherHandler.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSLambdaVPCAccessExecutionRole
+      VpcConfig:
+        SecurityGroupIds:
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-AWSServicesEndpointSecurityGroupId
+        SubnetIds:
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-ProtectedSubnetIdA
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-ProtectedSubnetIdB
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-ProtectedSubnetIdC
+
+  StatusListPublisherFunctionLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AWS::StackName}-status-list-publisher-lambda-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: StatusListPublisherFunctionLoggingPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+        - PolicyName: DynamoDBReadOnly
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:BatchGetItem
+                  - dynamodb:DescribeTable
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource: !Sub arn:aws:dynamodb:eu-west-2:${AWS::AccountId}:table/${AWS::StackName}-StatusListTable
+      PermissionsBoundary: !If
+        - UsePermissionsBoundary
+        - !Ref PermissionsBoundary
+        - !Ref AWS::NoValue
+
+  StatusListPublisherLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-status-list-publisher-logs
+      RetentionInDays: !FindInMap
+        - LogRetention
+        - !Ref Environment
+        - RetentionPeriod
+
+  CSLSStatusListPublisherFunctionSubscriptionFilter:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !FindInMap
+        - CslsConfiguration
+        - !Ref Environment
+        - CSLSEGRESS
+      FilterPattern: ""
+      LogGroupName: !Ref StatusListPublisherLogGroup
+    Condition: IsProdLikeEnvironment
+
+  StatusListPublisherAccessLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-status-list-publisher-access-logs
+      RetentionInDays: !FindInMap
+        - LogRetention
+        - !Ref Environment
+        - RetentionPeriod
+
+  CSLSStatusListPublisherFunctionAccessSubscriptionFilter:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !FindInMap
+        - CslsConfiguration
+        - !Ref Environment
+        - CSLSEGRESS
+      FilterPattern: ""
+      LogGroupName: !Ref StatusListPublisherAccessLogs
+    Condition: IsProdLikeEnvironment
+
   # API Gateway
   PrivateApi:
     Type: AWS::Serverless::Api
