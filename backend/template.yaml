@@ -113,7 +113,7 @@ Mappings:
     production:
       ApiBurstLimit: 0
       ApiRateLimit: 0
-  
+
   LogRetention:
     dev:
       RetentionPeriod: 30
@@ -232,6 +232,7 @@ Resources:
         EntryPoints:
           - src/functions/issueStatusListEntryHandler.ts
     Properties:
+
       #APIGw integration
       Events:
         IssueIndex:
@@ -423,7 +424,7 @@ Resources:
   RevokeFunction:
     Type: AWS::Serverless::Function
     DependsOn:
-      - "RevokeLogGroup"
+      - RevokeLogGroup
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -499,7 +500,7 @@ Resources:
         - LogRetention
         - !Ref Environment
         - RetentionPeriod
-  
+
   CSLSRevokeFunctionSubscriptionFilter:
     Type: AWS::Logs::SubscriptionFilter
     Properties:
