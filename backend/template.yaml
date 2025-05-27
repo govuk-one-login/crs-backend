@@ -225,6 +225,9 @@ Resources:
           CLIENT_REGISTRY_BUCKET: !Ref ClientRegistryBucket
           CLIENT_REGISTRY_FILE_KEY: mockClientRegistry.json #remove "mock" when using the real file
           TXMA_QUEUE_URL: !Ref TxMASQSQueue
+          BITSTRING_QUEUE_URL: !Ref BitstringAvailableSlotsSQS
+          TOKEN_STATUS_QUEUE_URL: !Ref TokenStatusAvailableSlotsSQS
+          STATUS_LIST_TABLE: !Ref StatusListTable
       VpcConfig:
         SecurityGroupIds:
           - !ImportValue
@@ -281,18 +284,36 @@ Resources:
                   - s3:GetObject
                   - s3:ListBucket
                 Resource: !Sub arn:aws:s3:::${AWS::StackName}-${Environment}-client-registry/*
-        - PolicyName: IssueStatusListEntryFunctionTxmaSQSPolicy
+        - PolicyName: DBReadAndWriteAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                Resource:
+                  - !GetAtt StatusListTable.Arn
+        - PolicyName: IssueStatusListEntryFunctionSQSPolicy
           PolicyDocument:
             Statement:
               - Action:
                   - sqs:SendMessage
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
                 Effect: Allow
-                Resource: !GetAtt TxMASQSQueue.Arn
+                Resource:
+                  - !GetAtt TxMASQSQueue.Arn
+                  - !GetAtt BitstringAvailableSlotsSQS.Arn
+                  - !GetAtt TokenStatusAvailableSlotsSQS.Arn
               - Action:
                   - kms:Decrypt
                   - kms:GenerateDataKey
                 Effect: Allow
-                Resource: !GetAtt TxMAKMSEncryptionKey.Arn
+                Resource:
+                  - !GetAtt TxMAKMSEncryptionKey.Arn
+                  - !GetAtt BitstringAvailableSlotsEncryptionKey.Arn
+                  - !GetAtt TokenStatusAvailableSlotsEncryptionKey.Arn
             Version: "2012-10-17"
       PermissionsBoundary: !If
         - UsePermissionsBoundary

@@ -14,14 +14,25 @@ import { logger } from "../../../src/common/logging/logger";
 import { buildRequest } from "../../utils/mockRequest";
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { mockClient } from "aws-sdk-client-mock";
-import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
+import {
+  SQSClient,
+  SendMessageCommand,
+  ReceiveMessageCommand,
+} from "@aws-sdk/client-sqs";
 import { Readable } from "stream";
 import { sdkStreamMixin } from "@smithy/util-stream-node";
+import {
+  DynamoDBClient,
+  GetItemCommand,
+  PutItemCommand,
+} from "@aws-sdk/client-dynamodb";
 
 const mockS3Client = mockClient(S3Client);
 const mockSQSClient = mockClient(SQSClient);
+const mockDBClient = mockClient(DynamoDBClient);
 
 const TEST_KID = "cc2c3738-03ec-4214-a65e-7f0461a34e7b";
+const TEST_CLIENT_ID = "DNkekdNSkekSNljrwevOIUPenGeS";
 const GOLDEN_JWT =
   "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6ImNjMmMzNzM4LTAzZWMtNDIxNC1hNjVlLTdmMDQ2MWEzNGU3YiJ9.eyJpc3MiOiJhc0tXbnNqZUVKRVdqandTSHNJa3NJa3NJaEJlIiwiZXhwaXJlcyI6IjE3MzQ3MDk0OTMifQ.OlAm7TIfn-Qrs2yJvl6MDr9raiq_uZ6FV7WwaPz2CTuCuK-EkvsqM8139yjIiJq3pqeZk0S_23J-4SGBAkUXhA";
 const JWT_WITH_NO_EXPIRES =
@@ -46,6 +57,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
   beforeEach(() => {
     mockS3Client.reset();
     mockSQSClient.reset();
+    mockDBClient.reset();
     consoleInfoSpy = jest.spyOn(console, "info");
     context = buildLambdaContext();
     event = buildRequest();
@@ -89,6 +101,35 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         ]),
       ),
     });
+
+    mockSQSClient
+      .on(ReceiveMessageCommand)
+      .resolvesOnce({
+        Messages: [
+          {
+            Body: JSON.stringify({
+              idx: 4,
+              uri: "https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AF",
+            }),
+            ReceiptHandle: "mockReceiptHandle",
+          },
+        ],
+      })
+      .resolves({
+        Messages: [
+          {
+            Body: JSON.stringify({
+              idx: 2,
+              uri: "https://douglast-backend.crs.dev.account.gov.uk/b/BAT1FED3E9AF",
+            }),
+            ReceiptHandle: "mockReceiptHandle",
+          },
+        ],
+      });
+
+    mockDBClient.on(GetItemCommand).resolves({
+      Item: undefined,
+    });
   });
 
   describe("On every invocation", () => {
@@ -110,7 +151,9 @@ describe("Testing IssueStatusListEntry Lambda", () => {
   });
 
   describe("Golden Path", () => {
-    it("Returns 200 and the session details and sucessful audit event", async () => {
+    it("Returns 200 and the session details and successful audit event, no existing index", async () => {
+      Date.now = jest.fn(() => new Date(Date.UTC(2017, 1, 14)).valueOf());
+
       result = await handler(event, context);
 
       expect(result).toEqual({
@@ -119,23 +162,72 @@ describe("Testing IssueStatusListEntry Lambda", () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          idx: 3,
-          uri: "https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AD",
+          idx: 4,
+          uri: "https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AF",
         }),
       });
 
       const sqsMessageBody =
         mockSQSClient.commandCalls(SendMessageCommand)[0].args[0].input
           .MessageBody;
-      expect(mockSQSClient.commandCalls(SendMessageCommand)).toHaveLength(1);
-      expect(sqsMessageBody).toContain("CRS_INDEX_ISSUED");
-      expect(sqsMessageBody).toContain(PUBLIC_KEY);
-      expect(sqsMessageBody).toContain(GOLDEN_JWT);
-      expect(sqsMessageBody).toContain(
-        '"index":3,"uri":"https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AD"',
+      assertAndValidateIssuedTXMAEvent(sqsMessageBody);
+
+      const dbItem =
+        mockDBClient.commandCalls(PutItemCommand)[0].args[0].input.Item;
+      expect(dbItem).toEqual(
+        createTestDBItem(
+          "https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AF",
+          "4",
+        ),
       );
-      expect(sqsMessageBody).toContain(
-        '"keyId":"cc2c3738-03ec-4214-a65e-7f0461a34e7b"',
+    });
+
+    it("Available index already used, finds another, returns 200 and successful event", async () => {
+      Date.now = jest.fn(() => new Date(Date.UTC(2017, 1, 14)).valueOf());
+
+      mockDBClient
+        .on(GetItemCommand)
+        .resolvesOnce({
+          Item: {
+            uri: {
+              S: "https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AF",
+            },
+            idx: { N: "4" },
+          },
+        })
+        .resolves({
+          Item: undefined,
+        });
+
+      result = await handler(event, context);
+
+      expect(result).toEqual({
+        statusCode: 200,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          idx: 2,
+          uri: "https://douglast-backend.crs.dev.account.gov.uk/b/BAT1FED3E9AF",
+        }),
+      });
+
+      const sqsMessageBody =
+        mockSQSClient.commandCalls(SendMessageCommand)[0].args[0].input
+          .MessageBody;
+      assertAndValidateIssuedTXMAEvent(
+        sqsMessageBody,
+        '"index":2',
+        '"https://douglast-backend.crs.dev.account.gov.uk/b/BAT1FED3E9AF"',
+      );
+
+      const dbItem =
+        mockDBClient.commandCalls(PutItemCommand)[0].args[0].input.Item;
+      expect(dbItem).toEqual(
+        createTestDBItem(
+          "https://douglast-backend.crs.dev.account.gov.uk/b/BAT1FED3E9AF",
+          "2",
+        ),
       );
     });
   });
@@ -147,22 +239,25 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         "No Expiry Date in Payload",
         JWT_WITH_NO_EXPIRES,
         TEST_KID,
+        TEST_CLIENT_ID,
       ],
       [
         buildRequest({ body: JWT_WITH_NO_KID }),
         "No Kid in Header",
         JWT_WITH_NO_KID,
         "null",
+        TEST_CLIENT_ID,
       ],
       [
         buildRequest({ body: JWT_WITH_NO_ISS }),
         "No Issuer in Payload",
         JWT_WITH_NO_ISS,
         TEST_KID,
+        "",
       ],
     ])(
       "Returns 400 with correct descriptions",
-      async (event, errorDescription, request, kid) => {
+      async (event, errorDescription, request, kid, clientId: string) => {
         result = await handler(event, context);
 
         expect(result).toStrictEqual({
@@ -173,7 +268,8 @@ describe("Testing IssueStatusListEntry Lambda", () => {
             error_description: errorDescription,
           }),
         });
-        assertAndValidateErrorAuditSQSMessage(
+        assertAndValidateErrorTXMAEvent(
+          clientId,
           "CRS_ISSUANCE_FAILED",
           PUBLIC_KEY,
           kid,
@@ -181,6 +277,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
           "400",
           "BAD_REQUEST",
         );
+        expect(mockDBClient.commandCalls(PutItemCommand)).toHaveLength(0);
       },
     );
   });
@@ -191,15 +288,17 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         buildRequest({ body: JWT_WITH_NON_MATCHING_CLIENT_ID }),
         "No matching client found with ID: DAkekdNSkekSNljrwevOIUPenGeS",
         JWT_WITH_NON_MATCHING_CLIENT_ID,
+        "DAkekdNSkekSNljrwevOIUPenGeS",
       ],
       [
         buildRequest({ body: JWT_WITH_NON_MATCHING_KID }),
         "No matching Key ID found in JWKS Endpoint for Kid: 1fb2c0f07f643b45cafeb53fb9d9eb34",
         JWT_WITH_NON_MATCHING_KID,
+        TEST_CLIENT_ID,
       ],
     ])(
       "Returns 401 with correct descriptions",
-      async (event, errorDescription, request: string) => {
+      async (event, errorDescription, request: string, clientId: string) => {
         result = await handler(event, context);
 
         expect(result).toStrictEqual({
@@ -210,7 +309,8 @@ describe("Testing IssueStatusListEntry Lambda", () => {
             error_description: errorDescription,
           }),
         });
-        assertAndValidateErrorAuditSQSMessage(
+        assertAndValidateErrorTXMAEvent(
+          clientId,
           "CRS_ISSUANCE_FAILED",
           PUBLIC_KEY,
           "1fb2c0f07f643b45cafeb53fb9d9eb34",
@@ -218,6 +318,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
           "401",
           "UNAUTHORISED",
         );
+        expect(mockDBClient.commandCalls(PutItemCommand)).toHaveLength(0);
       },
     );
   });
@@ -235,7 +336,8 @@ describe("Testing IssueStatusListEntry Lambda", () => {
           error_description: "No jwksUri found on client ID: mockClientId",
         }),
       });
-      assertAndValidateErrorAuditSQSMessage(
+      assertAndValidateErrorTXMAEvent(
+        "mockClientId",
         "CRS_ISSUANCE_FAILED",
         PUBLIC_KEY,
         TEST_KID,
@@ -243,11 +345,13 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         "500",
         "INTERNAL_SERVER_ERROR",
       );
+      expect(mockDBClient.commandCalls(PutItemCommand)).toHaveLength(0);
     });
   });
 });
 
-function assertAndValidateErrorAuditSQSMessage(
+function assertAndValidateErrorTXMAEvent(
+  clientId: string,
   eventName: string,
   signingKey: string,
   kid: string | null,
@@ -258,10 +362,42 @@ function assertAndValidateErrorAuditSQSMessage(
   const sqsMessageBody =
     mockSQSClient.commandCalls(SendMessageCommand)[0].args[0].input.MessageBody;
   expect(mockSQSClient.commandCalls(SendMessageCommand)).toHaveLength(1);
+  expect(sqsMessageBody).toContain(clientId);
   expect(sqsMessageBody).toContain(eventName);
   expect(sqsMessageBody).toContain(signingKey);
   expect(sqsMessageBody).toContain(kid);
   expect(sqsMessageBody).toContain(jwtRequest);
   expect(sqsMessageBody).toContain(statusCode);
   expect(sqsMessageBody).toContain(error);
+}
+
+function assertAndValidateIssuedTXMAEvent(
+  sqsMessageBody,
+  index: string = '"index":4',
+  uri: string = '"uri":"https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AF"',
+) {
+  expect(mockSQSClient.commandCalls(SendMessageCommand)).toHaveLength(1);
+  expect(sqsMessageBody).toContain(
+    '"client_id":"asKWnsjeEJEWjjwSHsIksIksIhBe"',
+  );
+  expect(sqsMessageBody).toContain("CRS_INDEX_ISSUED");
+  expect(sqsMessageBody).toContain(PUBLIC_KEY);
+  expect(sqsMessageBody).toContain(GOLDEN_JWT);
+  expect(sqsMessageBody).toContain(index);
+  expect(sqsMessageBody).toContain(uri);
+  expect(sqsMessageBody).toContain(
+    '"keyId":"cc2c3738-03ec-4214-a65e-7f0461a34e7b"',
+  );
+}
+
+function createTestDBItem(uri: string, idx: string) {
+  return {
+    uri: { S: uri },
+    idx: { N: idx },
+    issuedAt: { N: "1487030400000" },
+    clientId: { S: "asKWnsjeEJEWjjwSHsIksIksIhBe" },
+    exp: { N: "1734709493" },
+    issuer: { S: "OVA" },
+    listType: { S: "BitstringStatusList" },
+  };
 }
