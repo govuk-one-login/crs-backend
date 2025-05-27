@@ -343,8 +343,8 @@ async function addCredentialToStatusListTable(
         },
       }),
     );
-  } catch (Error) {
-    throw Error("Error adding credential to status list table");
+  } catch (error) {
+    throw new Error(`Error adding credential to status list table:  ${error}`);
   }
 }
 

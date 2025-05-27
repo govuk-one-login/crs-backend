@@ -35,6 +35,8 @@ const TEST_KID = "cc2c3738-03ec-4214-a65e-7f0461a34e7b";
 const TEST_CLIENT_ID = "DNkekdNSkekSNljrwevOIUPenGeS";
 const GOLDEN_JWT =
   "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6ImNjMmMzNzM4LTAzZWMtNDIxNC1hNjVlLTdmMDQ2MWEzNGU3YiJ9.eyJpc3MiOiJhc0tXbnNqZUVKRVdqandTSHNJa3NJa3NJaEJlIiwiZXhwaXJlcyI6IjE3MzQ3MDk0OTMifQ.OlAm7TIfn-Qrs2yJvl6MDr9raiq_uZ6FV7WwaPz2CTuCuK-EkvsqM8139yjIiJq3pqeZk0S_23J-4SGBAkUXhA";
+const GOLDEN_JWT_TOKEN_LIST =
+  "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6ImNjMmMzNzM4LTAzZWMtNDIxNC1hNjVlLTdmMDQ2MWEzNGU3YiJ9.eyJpc3MiOiJETmtla2ROU2tla1NObGpyd2V2T0lVUGVuR2VTIiwiZXhwaXJlcyI6IjE3MzQ3MDk0OTMifQ.TAAkC2SxFnVKPzaZkZW2zbQWcQoA0iNP_cmpD4OY6JR-Bf2sF4OWk0SRgUIz-mmuwaheZ1Zny2g_yhvHCZXnuA";
 const JWT_WITH_NO_EXPIRES =
   "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImNjMmMzNzM4LTAzZWMtNDIxNC1hNjVlLTdmMDQ2MWEzNGU3YiJ9.eyJpc3MiOiJETmtla2ROU2tla1NObGpyd2V2T0lVUGVuR2VTIn0.2Uqks9_0pF6OI-297ihGZn_ym0IVRraVIcLyGeHDak_YwRjCUUvHY-vlI1_8hLTSF4xK2KHVnq9Xm2w2ps6Spg";
 const JWT_WITH_NO_KID =
@@ -181,7 +183,46 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         ),
       );
     });
+    it("Returns 200,successful audit event, no existing index, token status list", async () => {
+      Date.now = jest.fn(() => new Date(Date.UTC(2017, 1, 14)).valueOf());
+      event = buildRequest(buildRequest({ body: GOLDEN_JWT_TOKEN_LIST }));
+      result = await handler(event, context);
 
+      expect(result).toEqual({
+        statusCode: 200,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          idx: 4,
+          uri: "https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AF",
+        }),
+      });
+
+      const sqsMessageBody =
+        mockSQSClient.commandCalls(SendMessageCommand)[0].args[0].input
+          .MessageBody;
+      assertAndValidateIssuedTXMAEvent(
+        sqsMessageBody,
+        undefined,
+        undefined,
+        '"client_id":"DNkekdNSkekSNljrwevOIUPenGeS"',
+        GOLDEN_JWT_TOKEN_LIST,
+      );
+
+      const dbItem =
+        mockDBClient.commandCalls(PutItemCommand)[0].args[0].input.Item;
+      expect(dbItem).toEqual(
+        createTestDBItem(
+          "https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AF",
+          "4",
+          "DNkekdNSkekSNljrwevOIUPenGeS",
+
+          "TokenStatusList",
+          "DVLA",
+        ),
+      );
+    });
     it("Available index already used, finds another, returns 200 and successful event", async () => {
       Date.now = jest.fn(() => new Date(Date.UTC(2017, 1, 14)).valueOf());
 
@@ -219,6 +260,8 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         sqsMessageBody,
         '"index":2',
         '"https://douglast-backend.crs.dev.account.gov.uk/b/BAT1FED3E9AF"',
+        '"client_id":"asKWnsjeEJEWjjwSHsIksIksIhBe"',
+        GOLDEN_JWT,
       );
 
       const dbItem =
@@ -280,6 +323,21 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         expect(mockDBClient.commandCalls(PutItemCommand)).toHaveLength(0);
       },
     );
+
+    it("Returns 400 on a empty request body", async () => {
+      result = await handler(buildRequest({ body: null }), context);
+
+      expect(result).toStrictEqual({
+        headers: { "Content-Type": "application/json" },
+        statusCode: 400,
+        body: JSON.stringify({
+          error: "BAD_REQUEST",
+          error_description: "No Request Body Found",
+        }),
+      });
+
+      expect(mockDBClient.commandCalls(PutItemCommand)).toHaveLength(0);
+    });
   });
 
   describe("Unauthorized Request Error Scenarios", () => {
@@ -375,14 +433,14 @@ function assertAndValidateIssuedTXMAEvent(
   sqsMessageBody,
   index: string = '"index":4',
   uri: string = '"uri":"https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AF"',
+  clientId: string = '"client_id":"asKWnsjeEJEWjjwSHsIksIksIhBe"',
+  jwtRequest: string = GOLDEN_JWT,
 ) {
   expect(mockSQSClient.commandCalls(SendMessageCommand)).toHaveLength(1);
-  expect(sqsMessageBody).toContain(
-    '"client_id":"asKWnsjeEJEWjjwSHsIksIksIhBe"',
-  );
+  expect(sqsMessageBody).toContain(clientId);
   expect(sqsMessageBody).toContain("CRS_INDEX_ISSUED");
   expect(sqsMessageBody).toContain(PUBLIC_KEY);
-  expect(sqsMessageBody).toContain(GOLDEN_JWT);
+  expect(sqsMessageBody).toContain(jwtRequest);
   expect(sqsMessageBody).toContain(index);
   expect(sqsMessageBody).toContain(uri);
   expect(sqsMessageBody).toContain(
@@ -390,14 +448,20 @@ function assertAndValidateIssuedTXMAEvent(
   );
 }
 
-function createTestDBItem(uri: string, idx: string) {
+function createTestDBItem(
+  uri: string,
+  idx: string,
+  clientId: string = "asKWnsjeEJEWjjwSHsIksIksIhBe",
+  listType: string = "BitstringStatusList",
+  issuer: string = "OVA",
+) {
   return {
     uri: { S: uri },
     idx: { N: idx },
     issuedAt: { N: "1487030400000" },
-    clientId: { S: "asKWnsjeEJEWjjwSHsIksIksIhBe" },
+    clientId: { S: clientId },
     exp: { N: "1734709493" },
-    issuer: { S: "OVA" },
-    listType: { S: "BitstringStatusList" },
+    issuer: { S: issuer },
+    listType: { S: listType },
   };
 }
