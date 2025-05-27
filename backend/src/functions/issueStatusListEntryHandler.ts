@@ -17,7 +17,15 @@ import {
 } from "@aws-sdk/client-dynamodb";
 import { logger } from "../common/logging/logger";
 import { LogMessage } from "../common/logging/LogMessages";
-import { importSPKI, JSONWebKeySet, jwtVerify } from "jose";
+import {
+  decodeJwt,
+  decodeProtectedHeader,
+  exportJWK,
+  importJWK,
+  JSONWebKeySet,
+  jwtVerify,
+  KeyLike,
+} from "jose";
 import { Readable } from "stream";
 import * as https from "node:https";
 import {
@@ -43,6 +51,14 @@ interface ClientRegistry {
   clients: ClientEntry[];
 }
 
+//Used for validation and returning values if successful
+interface ValidationResult {
+  isValid: boolean;
+  signingKey?: KeyLike | Uint8Array<ArrayBufferLike>;
+  matchingClientEntry?: ClientEntry;
+  error?: APIGatewayProxyResult;
+}
+
 const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});
 const dynamoDBClient = new DynamoDBClient({});
@@ -53,9 +69,6 @@ const TXMA_QUEUE_URL = process.env.TXMA_QUEUE_URL ?? "";
 const BITSTRING_QUEUE_URL = process.env.BITSTRING_QUEUE_URL ?? "";
 const TOKEN_STATUS_QUEUE_URL = process.env.TOKEN_STATUS_QUEUE_URL ?? "";
 const STATUS_LIST_TABLE = process.env.STATUS_LIST_TABLE ?? "";
-
-export const PUBLIC_KEY =
-  "-----BEGIN PUBLIC KEY----- MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEEVs/o5+uQbTjL3chynL4wXgUg2R9q9UU8I5mEovUf86QZ7kOBIjJwqnzD1omageEHWwHdBO6B+dFabmdT9POxg== -----END PUBLIC KEY-----"; // REPLACE WITH JWKS ENDPOINT PUBLIC KEY WHEN THATS CREATED
 
 /**
  * Main Lambda Handler
@@ -77,16 +90,11 @@ export async function handler(
   let jsonHeader;
 
   try {
-    const publicKey = await importSPKI(PUBLIC_KEY, "ES256");
+    const payload = decodeJwt(event.body);
+    const protectedHeader = decodeProtectedHeader(event.body);
 
-    //replace with decodeJwt and decodeProtected header, then verify signature later.
-    const { payload, protectedHeader } = await jwtVerify(event.body, publicKey);
-
-    const decodedPayload = payload;
-    const decodedHeader = protectedHeader;
-
-    const payloadString = JSON.stringify(decodedPayload);
-    const headerString = JSON.stringify(decodedHeader);
+    const payloadString = JSON.stringify(payload);
+    const headerString = JSON.stringify(protectedHeader);
     jsonPayload = JSON.parse(payloadString);
     jsonHeader = JSON.parse(headerString);
     logger.info("Succesfully decoded JWT as JSON");
@@ -97,30 +105,42 @@ export async function handler(
 
   const config: ClientRegistry = await getConfiguration();
 
-  const errorResult = await validateJWT(jsonPayload, jsonHeader, config);
+  const validationResult = await validateJWT(
+    event.body,
+    jsonPayload,
+    jsonHeader,
+    config,
+  );
 
-  if (errorResult != undefined) {
+  let signingKeyString = "";
+  if (validationResult.signingKey) {
+    const jwk = await exportJWK(validationResult.signingKey);
+    signingKeyString = JSON.stringify(jwk);
+  }
+
+  if (!validationResult.isValid && validationResult.error) {
     await writeToSqs(
       issueFailTXMAEvent(
         jsonPayload.iss,
-        PUBLIC_KEY,
+        signingKeyString,
         event.body,
-        errorResult,
+        validationResult.error,
         jsonHeader.kid,
       ),
     );
-    return errorResult;
+    return validationResult.error;
   }
 
   const matchingClientEntry: ClientEntry = <ClientEntry>(
     config.clients.find((i) => i.clientId == jsonPayload.iss)
   );
 
-  const getCorrectQueueUrl = getListType(matchingClientEntry);
+  const queueType = getListType(matchingClientEntry);
 
-  const result = await findNextAvailableIndexPoll(getCorrectQueueUrl);
+  const availableIndex = await findNextAvailableIndexPoll(queueType);
+
   await addCredentialToStatusListTable(
-    result,
+    availableIndex,
     jsonPayload,
     matchingClientEntry,
   );
@@ -128,11 +148,11 @@ export async function handler(
   await writeToSqs(
     issueSuccessTXMAEvent(
       jsonPayload.iss,
-      PUBLIC_KEY,
+      signingKeyString,
       jsonHeader.kid,
       event.body,
-      result.status_index,
-      result.status_uri,
+      availableIndex.status_index,
+      availableIndex.status_uri,
     ),
   );
 
@@ -142,8 +162,8 @@ export async function handler(
     statusCode: 200,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      idx: result.status_index,
-      uri: result.status_uri,
+      idx: availableIndex.status_index,
+      uri: availableIndex.status_uri,
     }),
   };
 }
@@ -254,18 +274,25 @@ async function writeToSqs(txmaEvent: TxmaEvent) {
 }
 
 async function validateJWT(
+  jwt: string,
   jsonPayload,
   jsonHeader,
   config: ClientRegistry,
-): Promise<APIGatewayProxyResult | undefined> {
+): Promise<ValidationResult> {
   if (!jsonPayload.iss) {
-    return badRequestResponse("No Issuer in Payload");
+    return {
+      isValid: false,
+      error: badRequestResponse("No Issuer in Payload"),
+    };
   }
   if (!jsonPayload.expires) {
-    return badRequestResponse("No Expiry Date in Payload");
+    return {
+      isValid: false,
+      error: badRequestResponse("No Expiry Date in Payload"),
+    };
   }
   if (!jsonHeader.kid) {
-    return badRequestResponse("No Kid in Header");
+    return { isValid: false, error: badRequestResponse("No Kid in Header") };
   }
 
   const matchingClientEntry = config.clients.find(
@@ -273,30 +300,81 @@ async function validateJWT(
   );
 
   if (!matchingClientEntry) {
-    return unauthorizedResponse(
-      "No matching client found with ID: " + jsonPayload.iss,
-    );
+    return {
+      isValid: false,
+      error: unauthorizedResponse(
+        `No matching client found with ID: ${jsonPayload.iss} `,
+      ),
+    };
   }
+
   const jwksUri = matchingClientEntry.statusList.jwksUri;
   if (!jwksUri) {
-    return internalServerErrorResponse(
-      "No jwksUri found on client ID: " + matchingClientEntry.clientId,
-    );
+    return {
+      isValid: false,
+      matchingClientEntry: matchingClientEntry,
+      error: internalServerErrorResponse(
+        `No jwksUri found on client ID: ${matchingClientEntry.clientId}`,
+      ),
+    };
   }
   const jsonWebKeySet: JSONWebKeySet = await fetchJWKS(jwksUri);
 
   const jwk = jsonWebKeySet.keys.find((key) => key.kid == jsonHeader.kid);
   if (!jwk) {
-    return unauthorizedResponse(
-      "No matching Key ID found in JWKS Endpoint for Kid: " + jsonHeader.kid,
-    );
+    return {
+      isValid: false,
+      matchingClientEntry: matchingClientEntry,
+      error: unauthorizedResponse(
+        `No matching Key ID found in JWKS Endpoint for Kid: ${jsonHeader.kid}`,
+      ),
+    };
   }
+
+  const ecPublicKey = await importJWK(
+    {
+      crv: jwk.crv,
+      kty: jwk.kty,
+      x: jwk.x,
+      y: jwk.y,
+    },
+    jwk.alg,
+  );
+
+  if (!ecPublicKey) {
+    return {
+      isValid: false,
+      signingKey: ecPublicKey,
+      matchingClientEntry: matchingClientEntry,
+      error: unauthorizedResponse(
+        `No matching Key ID found in JWKS Endpoint for Kid:  ${jsonHeader.kid}`,
+      ),
+    };
+  }
+
+  try {
+    await jwtVerify(jwt, ecPublicKey);
+  } catch (error) {
+    logger.error(`Failure verifying the signature of the jwt: ${error}`);
+    return {
+      isValid: false,
+      signingKey: ecPublicKey,
+      matchingClientEntry: matchingClientEntry,
+      error: unauthorizedResponse(`Failure verifying the signature of the jwt`),
+    };
+  }
+
+  return {
+    isValid: true,
+    signingKey: ecPublicKey,
+    matchingClientEntry: matchingClientEntry,
+  };
 }
 
 /**
  * Helper function to fetch the JWKS from the URI
  */
-async function fetchJWKS(jwksUri): Promise<JSONWebKeySet> {
+export async function fetchJWKS(jwksUri): Promise<JSONWebKeySet> {
   return new Promise((resolve, reject) => {
     const req = https.request(jwksUri, (res) => {
       let data = "";
