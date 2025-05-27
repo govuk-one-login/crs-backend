@@ -481,7 +481,7 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource: arn:aws:logs:*:*:*
+                Resource: !GetAtt StatusListPublisherLogGroup.Arn
         - PolicyName: DynamoDBReadOnly
           PolicyDocument:
             Version: "2012-10-17"
@@ -493,7 +493,7 @@ Resources:
                   - dynamodb:GetItem
                   - dynamodb:Query
                   - dynamodb:Scan
-                Resource: !Sub arn:aws:dynamodb:eu-west-2:${AWS::AccountId}:table/${AWS::StackName}-StatusListTable
+                Resource: !GetAtt StatusListTable.Arn
       PermissionsBoundary: !If
         - UsePermissionsBoundary
         - !Ref PermissionsBoundary
@@ -593,7 +593,7 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource: arn:aws:logs:*:*:*
+                Resource: !GetAtt StatusListPublisherLogGroup.Arn
         - PolicyName: DynamoDBReadOnly
           PolicyDocument:
             Version: "2012-10-17"
@@ -605,7 +605,7 @@ Resources:
                   - dynamodb:GetItem
                   - dynamodb:Query
                   - dynamodb:Scan
-                Resource: !Sub arn:aws:dynamodb:eu-west-2:${AWS::AccountId}:table/${AWS::StackName}-StatusListTable
+                Resource: !GetAtt StatusListTable.Arn
       PermissionsBoundary: !If
         - UsePermissionsBoundary
         - !Ref PermissionsBoundary
