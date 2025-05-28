@@ -1,7 +1,10 @@
 process.env.ALARM_NAME = "TestAlarm";
 
 import { mockClient } from "aws-sdk-client-mock";
-import { CloudWatchClient, DescribeAlarmsCommand } from "@aws-sdk/client-cloudwatch";
+import {
+  CloudWatchClient,
+  DescribeAlarmsCommand,
+} from "@aws-sdk/client-cloudwatch";
 import { handler } from "../../../src/functions/checkAlarmState";
 
 const cloudwatchMock = mockClient(CloudWatchClient);
