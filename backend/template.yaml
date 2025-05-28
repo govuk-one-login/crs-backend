@@ -431,6 +431,7 @@ Resources:
           LIST_CONFIGURATION_BUCKET: !Ref ListConfigurationBucket
           CONFIGURATION_FILE_KEY: mockListConfiguration.json #remove "mock" when using the real file
           TARGET_QUEUE_DEPTH: "10000"
+          POWERTOOLS_SERVICE_NAME: FindAvailableSlots
       Events:
         ScheduledEvent:
           Type: Schedule
@@ -1258,21 +1259,146 @@ Resources:
       Principal: sns.amazonaws.com
       SourceArn: !Ref FindAvailableSlotsErrorsSNSTopic
 
-  FindAvailableSlotsErrorsAlarm:
+  # Metric filter to detect errors in logs
+  FindAvailableSlotsErrorMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-find-available-slots
+      FilterPattern: '{$.level = "ERROR" || $.message = "*Error*"}'
+      MetricTransformations:
+        - MetricName: FindAvailableSlotsErrors
+          MetricNamespace: !Sub ${AWS::StackName}/LogMessages
+          MetricValue: "1"
+    Condition: DeployMetricFilters
+
+  # CloudWatch Alarm to monitor the error metric
+  FindAvailableSlotsErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub ${AWS::StackName}-FindAvailableSlotsErrorsAlarm
-      AlarmDescription: Alarm if FindAvailableSlots lambda encounters any errors
-      MetricName: Errors
-      Namespace: AWS/Lambda
-      Statistic: Sum
+      AlarmName: !Sub ${AWS::StackName}-FindAvailableSlotsErrorAlarm
+      AlarmDescription: Alarm when FindAvailableSlots Lambda encounters an error, triggering auto-retry
+      MetricName: FindAvailableSlotsErrors
+      Namespace: !Sub ${AWS::StackName}/LogMessages
+      Statistic: SampleCount
       Period: 60 # Check every minute
       EvaluationPeriods: 1
       Threshold: 0
       ComparisonOperator: GreaterThanThreshold
       TreatMissingData: notBreaching
-      AlarmActions:
-        - !Ref FindAvailableSlotsErrorsSNSTopic
-      Dimensions:
-        - Name: FunctionName
-          Value: !Ref FindAvailableSlotsFunction
+    Condition: DeployMetricFilters
+
+  CheckAlarmStateFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        EntryPoints:
+          - src/functions/checkAlarmState.ts
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-check-alarm-state
+      Handler: src/functions/checkAlarmState.handler
+      Timeout: 30 # 30 seconds
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - cloudwatch:DescribeAlarms
+              Resource: '*'
+      Environment:
+        Variables:
+          ALARM_NAME: !Sub ${AWS::StackName}-FindAvailableSlotsErrorAlarm
+
+  FindAvailableSlotsRetryStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: !Sub ${AWS::StackName}-FindAvailableSlotsRetry
+      RoleArn: !GetAtt FindAvailableSlotsRetryStateMachineRole.Arn
+      Definition:
+        StartAt: CheckAlarm
+        States:
+          CheckAlarm:
+            Type: Task
+            Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-check-alarm-state
+            ResultPath: $.alarmCheck
+            Next: IsAlarm
+          IsAlarm:
+            Type: Choice
+            Choices:
+              - Variable: $.alarmCheck.state
+                StringEquals: ALARM
+                Next: InvokeFindAvailableSlots
+            Default: Done
+          InvokeFindAvailableSlots:
+            Type: Task
+            Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-find-available-slots
+            Next: Wait
+          Wait:
+            Type: Wait
+            Seconds: 60
+            Next: CheckAlarm
+          Done:
+            Type: Succeed
+
+  FindAvailableSlotsRetryStateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StepFunctionInvokeLambdas
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt CheckAlarmStateFunction.Arn
+                  - !GetAtt FindAvailableSlotsFunction.Arn
+
+  FindAvailableSlotsAlarmEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - aws.cloudwatch
+        detail-type:
+          - CloudWatch Alarm State Change
+        detail:
+          state:
+            value:
+              - ALARM
+          alarmName:
+            - !Sub ${AWS::StackName}-FindAvailableSlotsErrorAlarm
+      Targets:
+        - Arn: !Ref FindAvailableSlotsRetryStateMachine
+          Id: FindAvailableSlotsRetryStateMachine
+          RoleArn: !GetAtt FindAvailableSlotsAlarmEventRole.Arn
+
+  FindAvailableSlotsAlarmEventRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AllowStartStepFunction
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:StartExecution
+                Resource: !Ref FindAvailableSlotsRetryStateMachine
