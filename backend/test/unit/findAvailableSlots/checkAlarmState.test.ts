@@ -37,18 +37,18 @@ describe("checkAlarmState Lambda", () => {
     expect(result).toEqual({ state: "INSUFFICIENT_DATA" });
   });
 
-  it("returns UNKNOWN if no alarms are found", async () => {
+  it("returns NO_ALARM if no alarms are found", async () => {
     cloudwatchMock.on(DescribeAlarmsCommand).resolves({
       MetricAlarms: [],
     });
 
     const result = await handler({}, {} as AWSLambda.Context);
-    expect(result).toEqual({ state: "UNKNOWN" });
+    expect(result).toEqual({ state: "NO_ALARM" });
   });
 
-  it("returns UNKNOWN if ALARM_NAME is not set", async () => {
+  it("returns NOT_SET if ALARM_NAME is not set", async () => {
     delete process.env.ALARM_NAME;
     const result = await handler({}, {} as AWSLambda.Context);
-    expect(result).toEqual({ state: "UNKNOWN" });
+    expect(result).toEqual({ state: "NOT_SET" });
   });
 });
