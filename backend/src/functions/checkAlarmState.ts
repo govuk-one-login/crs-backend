@@ -14,6 +14,6 @@ export const handler = async (
   const result = await cloudwatch.send(
     new DescribeAlarmsCommand({ AlarmNames: [alarmName] }),
   );
-  const state = result.MetricAlarms?.[0]?.StateValue || "UNKNOWN";
+  const state = result.MetricAlarms?.[0]?.StateValue ?? "UNKNOWN";
   return { state };
 };
