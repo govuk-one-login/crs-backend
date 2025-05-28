@@ -3,17 +3,27 @@ import {
   APIGatewayProxyResult,
   Context,
 } from "aws-lambda";
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
-import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
+import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  DeleteMessageCommand,
+  ReceiveMessageCommand,
+  SendMessageCommand,
+  SQSClient,
+} from "@aws-sdk/client-sqs";
+import {
+  DynamoDBClient,
+  GetItemCommand,
+  PutItemCommand,
+} from "@aws-sdk/client-dynamodb";
 import { logger } from "../common/logging/logger";
 import { LogMessage } from "../common/logging/LogMessages";
 import { importSPKI, JSONWebKeySet, jwtVerify } from "jose";
 import { Readable } from "stream";
 import * as https from "node:https";
 import {
-  TxmaEvent,
   INDEXISSUEDEVENT,
   ISSUANCEFAILEDEVENT,
+  TxmaEvent,
 } from "../common/types";
 
 // Define types for configuration
@@ -35,11 +45,14 @@ interface ClientRegistry {
 
 const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});
+const dynamoDBClient = new DynamoDBClient({});
 
-// S3 bucket and configuration file path
 const CONFIG_BUCKET = process.env.CLIENT_REGISTRY_BUCKET ?? "";
 const CONFIG_KEY = process.env.CLIENT_REGISTRY_FILE_KEY ?? "";
 const TXMA_QUEUE_URL = process.env.TXMA_QUEUE_URL ?? "";
+const BITSTRING_QUEUE_URL = process.env.BITSTRING_QUEUE_URL ?? "";
+const TOKEN_STATUS_QUEUE_URL = process.env.TOKEN_STATUS_QUEUE_URL ?? "";
+const STATUS_LIST_TABLE = process.env.STATUS_LIST_TABLE ?? "";
 
 export const PUBLIC_KEY =
   "-----BEGIN PUBLIC KEY----- MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEEVs/o5+uQbTjL3chynL4wXgUg2R9q9UU8I5mEovUf86QZ7kOBIjJwqnzD1omageEHWwHdBO6B+dFabmdT9POxg== -----END PUBLIC KEY-----"; // REPLACE WITH JWKS ENDPOINT PUBLIC KEY WHEN THATS CREATED
@@ -64,9 +77,9 @@ export async function handler(
   let jsonHeader;
 
   try {
-    // Parse the JWT without verifying the signature
     const publicKey = await importSPKI(PUBLIC_KEY, "ES256");
 
+    //replace with decodeJwt and decodeProtected header, then verify signature later.
     const { payload, protectedHeader } = await jwtVerify(event.body, publicKey);
 
     const decodedPayload = payload;
@@ -88,18 +101,38 @@ export async function handler(
 
   if (errorResult != undefined) {
     await writeToSqs(
-      issueFailTXMAEvent(PUBLIC_KEY, event.body, errorResult, jsonHeader.kid),
+      issueFailTXMAEvent(
+        jsonPayload.iss,
+        PUBLIC_KEY,
+        event.body,
+        errorResult,
+        jsonHeader.kid,
+      ),
     );
     return errorResult;
   }
 
+  const matchingClientEntry: ClientEntry = <ClientEntry>(
+    config.clients.find((i) => i.clientId == jsonPayload.iss)
+  );
+
+  const getCorrectQueueUrl = getListType(matchingClientEntry);
+
+  const result = await findNextAvailableIndexPoll(getCorrectQueueUrl);
+  await addCredentialToStatusListTable(
+    result,
+    jsonPayload,
+    matchingClientEntry,
+  );
+
   await writeToSqs(
     issueSuccessTXMAEvent(
+      jsonPayload.iss,
       PUBLIC_KEY,
       jsonHeader.kid,
       event.body,
-      3,
-      "https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AD",
+      result.status_index,
+      result.status_uri,
     ),
   );
 
@@ -109,10 +142,97 @@ export async function handler(
     statusCode: 200,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      idx: 3,
-      uri: "https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AD",
+      idx: result.status_index,
+      uri: result.status_uri,
     }),
   };
+}
+
+async function findNextAvailableIndexPoll(getCorrectQueueUrl: string) {
+  const availableSlot = await findNextAvailableIndex(getCorrectQueueUrl);
+
+  const data = await dynamoDBClient.send(
+    new GetItemCommand({
+      TableName: STATUS_LIST_TABLE,
+      Key: {
+        uri: { S: availableSlot.status_uri },
+        idx: { N: String(availableSlot.status_index) },
+      },
+    }),
+  );
+
+  if (!data.Item) {
+    logger.info("Index not used yet, returning the available slot");
+    return availableSlot;
+  } else {
+    logger.info("Index already in use, retrying...");
+    return findNextAvailableIndexPoll(getCorrectQueueUrl);
+  }
+}
+
+async function findNextAvailableIndex(queue_url: string | undefined): Promise<{
+  status_index: number;
+  status_uri: string;
+}> {
+  let status_uri = "";
+  let status_index = -1;
+
+  try {
+    const data = await sqsClient.send(
+      new ReceiveMessageCommand({
+        QueueUrl: queue_url,
+        WaitTimeSeconds: 20,
+      }),
+    );
+
+    if (data.Messages) {
+      for (const message of data.Messages) {
+        if (message.Body) {
+          const jsonResult = JSON.parse(message.Body);
+          status_index = jsonResult.idx;
+          status_uri = jsonResult.uri;
+          await deleteMessage(message.ReceiptHandle, queue_url);
+        } else {
+          throw Error("No body in message");
+        }
+      }
+    } else {
+      throw Error("No messages received.");
+    }
+  } catch (error) {
+    logger.error("Error receiving messages:", error);
+    throw Error("Error receiving messages: " + error);
+  }
+  return { status_index, status_uri };
+}
+
+function getListType(matchingClientEntry: ClientEntry | undefined) {
+  if (matchingClientEntry?.statusList.type === "BitstringStatusList") {
+    return BITSTRING_QUEUE_URL;
+  } else {
+    return TOKEN_STATUS_QUEUE_URL;
+  }
+}
+
+async function deleteMessage(
+  receiptHandle: string | undefined,
+  queue_url: string | undefined,
+) {
+  try {
+    if (!receiptHandle) {
+      logger.error("ReceiptHandle is undefined. Cannot delete message.");
+      return;
+    }
+    await sqsClient.send(
+      new DeleteMessageCommand({
+        QueueUrl: queue_url,
+        ReceiptHandle: receiptHandle,
+      }),
+    );
+    logger.info("Message deleted successfully.");
+  } catch (error) {
+    logger.error(`Error deleting message: ${error}`, error);
+  }
 }
 
 async function writeToSqs(txmaEvent: TxmaEvent) {
@@ -203,6 +323,31 @@ async function fetchJWKS(jwksUri): Promise<JSONWebKeySet> {
   });
 }
 
+async function addCredentialToStatusListTable(
+  result,
+  jsonPayload,
+  matchingClientEntry: ClientEntry,
+) {
+  try {
+    await dynamoDBClient.send(
+      new PutItemCommand({
+        TableName: STATUS_LIST_TABLE,
+        Item: {
+          uri: { S: result.status_uri },
+          idx: { N: String(result.status_index) },
+          clientId: { S: jsonPayload.iss },
+          issuedAt: { N: String(Date.now()) },
+          exp: { N: jsonPayload.expires },
+          issuer: { S: matchingClientEntry.clientName },
+          listType: { S: matchingClientEntry.statusList.type },
+        },
+      }),
+    );
+  } catch (error) {
+    throw new Error(`Error adding credential to status list table:  ${error}`);
+  }
+}
+
 /**
  * Fetch the configuration from S3
  */
@@ -282,6 +427,7 @@ const internalServerErrorResponse = (
 };
 
 const issueSuccessTXMAEvent = (
+  client_id: string,
   signingKey: string,
   keyId: string,
   request: string,
@@ -289,6 +435,7 @@ const issueSuccessTXMAEvent = (
   uri: string,
 ): INDEXISSUEDEVENT => {
   return {
+    client_id: client_id,
     timestamp: Math.floor(Date.now() / 1000),
     event_timestamp_ms: Date.now(),
     event_name: "CRS_INDEX_ISSUED",
@@ -306,12 +453,14 @@ const issueSuccessTXMAEvent = (
 };
 
 const issueFailTXMAEvent = (
+  client_id: string,
   signingKey: string,
   request: string,
   error: APIGatewayProxyResult,
   keyId: string = "null",
 ): ISSUANCEFAILEDEVENT => {
   return {
+    client_id: client_id,
     timestamp: Math.floor(Date.now() / 1000),
     event_timestamp_ms: Date.now(),
     event_name: "CRS_ISSUANCE_FAILED",

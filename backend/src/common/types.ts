@@ -8,6 +8,7 @@ export interface TxmaEvent {
 }
 
 export interface INDEXISSUEDEVENT extends TxmaEvent {
+  client_id: string;
   timestamp: number;
   event_timestamp_ms: number;
   event_name: EventNames;
@@ -24,6 +25,7 @@ export interface INDEXISSUEDEVENT extends TxmaEvent {
 }
 
 export interface ISSUANCEFAILEDEVENT extends TxmaEvent {
+  client_id: string;
   timestamp: number;
   event_timestamp_ms: number;
   event_name: EventNames;
