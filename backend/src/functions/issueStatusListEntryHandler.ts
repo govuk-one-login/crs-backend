@@ -149,21 +149,21 @@ export async function handler(
 }
 
 async function findNextAvailableIndexPoll(getCorrectQueueUrl: string) {
-  const nextIndex = await findNextAvailableIndex(getCorrectQueueUrl);
+  const availableSlot = await findNextAvailableIndex(getCorrectQueueUrl);
 
   const data = await dynamoDBClient.send(
     new GetItemCommand({
       TableName: STATUS_LIST_TABLE,
       Key: {
-        uri: { S: nextIndex.status_uri },
-        idx: { N: String(nextIndex.status_index) },
+        uri: { S: availableSlot.status_uri },
+        idx: { N: String(availableSlot.status_index) },
       },
     }),
   );
 
   if (!data.Item) {
-    logger.info("Index not used yet, returning value and uri");
-    return nextIndex;
+    logger.info("Index not used yet, returning the available slot");
+    return availableSlot;
   } else {
     logger.info("Index already in use, retrying...");
     return findNextAvailableIndexPoll(getCorrectQueueUrl);
@@ -220,7 +220,7 @@ async function deleteMessage(
 ) {
   try {
     if (!receiptHandle) {
-      console.error("ReceiptHandle is undefined. Cannot delete message.");
+      logger.error("ReceiptHandle is undefined. Cannot delete message.");
       return;
     }
     await sqsClient.send(
@@ -229,9 +229,9 @@ async function deleteMessage(
         ReceiptHandle: receiptHandle,
       }),
     );
-    console.log("Message deleted successfully.");
+    logger.info("Message deleted successfully.");
   } catch (error) {
-    console.error("Error deleting message:", error);
+    logger.error(`Error deleting message: ${error}`, error);
   }
 }
 
