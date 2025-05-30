@@ -964,6 +964,7 @@ Resources:
               Namespace: AWS/Lambda
             Period: 60
             Stat: Maximum
+          ReturnData: false
         - Id: e2
           MetricStat:
             Metric:
@@ -974,6 +975,7 @@ Resources:
               Namespace: AWS/Lambda
             Period: 60
             Stat: Maximum
+          ReturnData: false
         - Expression: e1 / e2 * 100
           Id: e3
           Label: Throughput Percentage
