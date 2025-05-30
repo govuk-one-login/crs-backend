@@ -30,7 +30,7 @@ export class LogMessage implements LogAttributes {
     "Revoke handler has been called.",
     "N/A",
   );
-  
+
   private constructor(
     public readonly messageCode: string,
     public readonly message: string,
