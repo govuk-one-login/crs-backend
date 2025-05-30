@@ -452,8 +452,9 @@ Resources:
   # Revoke Lambda
   RevokeFunction:
     Type: AWS::Serverless::Function
-    DependsOn:
-      - RevokeLogGroup
+
+    # DependsOn:
+    #   - RevokeLogGroup
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -478,6 +479,9 @@ Resources:
             Fn::Sub: ${VpcStackName}-ProtectedSubnetIdB
           - !ImportValue
             Fn::Sub: ${VpcStackName}-ProtectedSubnetIdC
+      Environment:
+        Variables:
+          POWERTOOLS_SERVICE_NAME: Revoke
 
   RevokeFunctionLambdaRole:
     Type: AWS::IAM::Role
@@ -521,14 +525,21 @@ Resources:
         - !Ref PermissionsBoundary
         - !Ref AWS::NoValue
 
-  RevokeLogGroup:
-    Type: AWS::Logs::LogGroup
+  RevokeVersionMetricFilter:
+    Type: AWS::Logs::MetricFilter
     Properties:
-      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-revoke-logs
-      RetentionInDays: !FindInMap
-        - LogRetention
-        - !Ref Environment
-        - RetentionPeriod
+      FilterPattern: '{ ($.messageCode = *) && ($.functionVersion = *) }'
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-revoke
+      MetricTransformations:
+        - Dimensions:
+            - Key: MessageCode
+              Value: $.messageCode
+            - Key: Version
+              Value: $.functionVersion
+          MetricName: RevokeMessageCode
+          MetricNamespace: !Sub ${AWS::StackName}/LogMessages
+          MetricValue: "1"
+    Condition: DeployMetricFilters
 
   CSLSRevokeFunctionSubscriptionFilter:
     Type: AWS::Logs::SubscriptionFilter
@@ -538,7 +549,7 @@ Resources:
         - !Ref Environment
         - CSLSEGRESS
       FilterPattern: ""
-      LogGroupName: !Ref RevokeLogGroup
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-revoke
     Condition: IsProdLikeEnvironment
 
   RevokeAccessLogs:
