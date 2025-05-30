@@ -99,6 +99,18 @@ Mappings:
     staging:
       PendingDeletionInDays: 30
 
+  LogRetention:
+    dev:
+      RetentionPeriod: 30
+    build:
+      RetentionPeriod: 30
+    staging:
+      RetentionPeriod: 30
+    integration:
+      RetentionPeriod: 30
+    production:
+      RetentionPeriod: 30
+
   PrivateApigw:
     dev:
       ApiBurstLimit: 10
@@ -116,17 +128,9 @@ Mappings:
       ApiBurstLimit: 0
       ApiRateLimit: 0
 
-  LogRetention:
-    dev:
-      RetentionPeriod: 30
-    build:
-      RetentionPeriod: 30
-    staging:
-      RetentionPeriod: 30
-    integration:
-      RetentionPeriod: 30
-    production:
-      RetentionPeriod: 30
+  StaticVariables:
+    urls:
+      WarningAlarmsRunbook: https://govukverify.atlassian.net/wiki/spaces/DCMAW/pages/4453826602/Mobile+Backend+Alarms+and+Thresholds
 
 Conditions:
   DeployAlarms: !Or
@@ -590,12 +594,12 @@ Resources:
       ActionsEnabled: true
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
-      # AlarmDescription: !Sub
-      #   - '80% or more of requests are failing on the /revoke endpoint with a 4XX error. See runbook: ${RunbookUrl}'
-      #   - RunbookUrl: !FindInMap
-      #       - StaticVariables
-      #       - urls
-      #       - CriticalAlarmsRunbook
+      AlarmDescription: !Sub
+        - '80% or more of requests are failing on the /revoke endpoint with a 4XX error. See runbook: ${WarningAlarmsRunbookUrl}'
+        - WarningAlarmsRunbookUrl: !FindInMap
+            - StaticVariables
+            - urls
+            - WarningAlarmsRunbook
       AlarmName: !Sub ${AWS::StackName}-high-threshold-revoke-4xx-api-gw
       ComparisonOperator: GreaterThanOrEqualToThreshold
       DatapointsToAlarm: 2
@@ -656,12 +660,12 @@ Resources:
       ActionsEnabled: true
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
-      # AlarmDescription: !Sub
-      #   - '1% or more of requests are failing on the /revoke endpoint with a 4XX error. See runbook: ${RunbookUrl}'
-      #   - RunbookUrl: !FindInMap
-      #       - StaticVariables
-      #       - urls
-      #       - WarningAlarmsRunbook
+      AlarmDescription: !Sub
+        - '1% or more of requests are failing on the /revoke endpoint with a 4XX error. See runbook: ${WarningAlarmsRunbookUrl}'
+        - WarningAlarmsRunbookUrl: !FindInMap
+            - StaticVariables
+            - urls
+            - WarningAlarmsRunbook
       AlarmName: !Sub ${AWS::StackName}-low-threshold-revoke-4xx-api-gw
       ComparisonOperator: GreaterThanOrEqualToThreshold
       DatapointsToAlarm: 2
@@ -722,12 +726,12 @@ Resources:
       ActionsEnabled: true
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
-      # AlarmDescription: !Sub
-      #   - '80% or more of requests are failing on the /revoke endpoint with a 5XX error. See runbook: ${RunbookUrl}'
-      #   - RunbookUrl: !FindInMap
-      #       - StaticVariables
-      #       - urls
-      #       - CriticalAlarmsRunbook
+      AlarmDescription: !Sub
+        - '80% or more of requests are failing on the /revoke endpoint with a 5XX error. See runbook: ${WarningAlarmsRunbookUrl}'
+        - WarningAlarmsRunbookUrl: !FindInMap
+            - StaticVariables
+            - urls
+            - WarningAlarmsRunbook
       AlarmName: !Sub ${AWS::StackName}-high-threshold-revoke-5xx-api-gw
       ComparisonOperator: GreaterThanOrEqualToThreshold
       DatapointsToAlarm: 2
@@ -788,12 +792,12 @@ Resources:
       ActionsEnabled: true
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
-      # AlarmDescription: !Sub
-      #   - '1% or more of requests are failing on the /revoke endpoint with a 5XX error. See runbook: ${RunbookUrl}'
-      #   - RunbookUrl: !FindInMap
-      #       - StaticVariables
-      #       - urls
-      #       - WarningAlarmsRunbook
+      AlarmDescription: !Sub
+        - '1% or more of requests are failing on the /revoke endpoint with a 5XX error. See runbook: ${WarningAlarmsRunbookUrl}'
+        - WarningAlarmsRunbookUrl: !FindInMap
+            - StaticVariables
+            - urls
+            - WarningAlarmsRunbook
       AlarmName: !Sub ${AWS::StackName}-low-threshold-revoke-5xx-api-gw
       ComparisonOperator: GreaterThanOrEqualToThreshold
       DatapointsToAlarm: 2
@@ -854,12 +858,12 @@ Resources:
       ActionsEnabled: true
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
-      # AlarmDescription: !Sub
-      #   - There is increased latency on the API Gateway. ${AlarmsAndThresholdsURL}"
-      #   - AlarmsAndThresholdsURL: !FindInMap
-      #       - StaticVariables
-      #       - urls
-      #       - AlarmsAndThresholds
+      AlarmDescription: !Sub
+        - There is increased latency on the API Gateway. ${WarningAlarmsRunbookURL}"
+        - WarningAlarmsRunbookURL: !FindInMap
+            - StaticVariables
+            - urls
+            - WarningAlarmsRunbook
       AlarmName: !Sub ${AWS::StackName}-api-gateway-latency
       ComparisonOperator: GreaterThanOrEqualToThreshold
       DatapointsToAlarm: 2
@@ -903,19 +907,84 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
     Condition: DeployAlarms
+  
+  RevokeConcurrencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: true
+      AlarmActions:
+        - !ImportValue platform-alarms-sns-topic-warning
+      AlarmDescription: !Sub
+        - 80% of the reserved concurrency for the Revoke Lambda has been used. ${WarningAlarmsRunbookURL}
+        - WarningAlarmsRunbookURL: !FindInMap
+            - StaticVariables
+            - urls
+            - WarningAlarmsRunbook
+      AlarmName: !Sub ${AWS::StackName}-revoke-concurrency
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      DatapointsToAlarm: 1
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref RevokeFunction
+      EvaluationPeriods: 1
+      MetricName: ConcurrentExecutions
+      Namespace: AWS/Lambda
+      OKActions:
+        - !ImportValue platform-alarms-sns-topic-warning
+      Period: 60
+      Statistic: Maximum
+      Threshold: 64
+      TreatMissingData: notBreaching
+    Condition: DeployAlarms
+  
+  RevokeThroughputAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: true
+      AlarmActions:
+        - !ImportValue platform-alarms-sns-topic-warning
+      AlarmDescription: !Sub
+        - 80% of the reserved concurrency for the Revoke Lambda has been used. ${WarningAlarmsRunbookURL}
+        - WarningAlarmsRunbookURL: !FindInMap
+            - StaticVariables
+            - urls
+            - WarningAlarmsRunbook
+      AlarmName: !Sub ${AWS::StackName}-revoke-throughput
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      DatapointsToAlarm: 1
+      EvaluationPeriods: 1
+      Metrics:  # Use a Metrics array for the math expression
+        - Id: e1
+          MetricStat:
+            Metric:
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref RevokeFunction
+              MetricName: ConcurrentExecutions
+              Namespace: AWS/Lambda
+            Period: 60
+            Stat: Maximum
+        - Id: e2
+          MetricStat:
+            Metric:
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref RevokeFunction
+              MetricName: UnreservedConcurrentExecutions
+              Namespace: AWS/Lambda
+            Period: 60
+            Stat: Maximum
+        - Expression: e1 / e2 * 100
+          Id: e3
+          Label: Throughput Percentage
+          ReturnData: true
+      OKActions:
+        - !ImportValue platform-alarms-sns-topic-warning
+      Threshold: 60
+      TreatMissingData: notBreaching
+    Condition: DeployAlarms
 
     # SNS Topics
-  AlarmCriticalSNSTopic:
-    Type: AWS::SNS::Topic
-    Properties:
-      DisplayName: !Sub ${AWS::StackName}-critical
-      KmsMasterKeyId: !Ref AlarmSNSTopicKey
-      FifoTopic: false
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-      TopicName: !Sub ${AWS::StackName}-critical
-
   AlarmWarningSNSTopic:
     Type: AWS::SNS::Topic
     Properties:
@@ -926,19 +995,6 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
       TopicName: !Sub ${AWS::StackName}-warning
-
-  AlarmCriticalSNSTopicPolicy:
-    Type: AWS::SNS::TopicPolicy
-    Properties:
-      Topics:
-        - !Ref AlarmCriticalSNSTopic
-      PolicyDocument:
-        Statement:
-          - Action: sns:Publish
-            Effect: Allow
-            Resource: !Ref AlarmCriticalSNSTopic
-            Principal:
-              Service: cloudwatch.amazonaws.com
 
   AlarmWarningSNSTopicPolicy:
     Type: AWS::SNS::TopicPolicy
