@@ -944,7 +944,7 @@ Resources:
       AlarmActions:
         - !ImportValue platform-alarms-sns-topic-warning
       AlarmDescription: !Sub
-        - 80% of the reserved concurrency for the Revoke Lambda has been used. ${WarningAlarmsRunbookURL}
+        - 60% of the Revoke Lambda capacity has been used. ${WarningAlarmsRunbookURL}
         - WarningAlarmsRunbookURL: !FindInMap
             - StaticVariables
             - urls
@@ -953,7 +953,7 @@ Resources:
       ComparisonOperator: GreaterThanOrEqualToThreshold
       DatapointsToAlarm: 1
       EvaluationPeriods: 1
-      Metrics:  # Use a Metrics array for the math expression
+      Metrics:
         - Id: e1
           MetricStat:
             Metric:
