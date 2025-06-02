@@ -868,7 +868,6 @@ Resources:
       ComparisonOperator: GreaterThanOrEqualToThreshold
       DatapointsToAlarm: 2
       EvaluationPeriods: 5
-
       Metrics:
         - Id: m1
           Label: Sum of requests sent to the API Gateway
