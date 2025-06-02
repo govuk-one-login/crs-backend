@@ -3,6 +3,11 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: Scheduled Lambda Function with esbuild Build
 
 Parameters:
+  DeployAlarmsInDev:
+    Description: Set to `true` to deploy alarms in a dev environment
+    Type: String
+    Default: true
+
   CodeSigningConfigArn:
     Description: The ARN of the Code Signing Config to use, provided by the deployment pipeline
     Type: String
@@ -94,6 +99,18 @@ Mappings:
     staging:
       PendingDeletionInDays: 30
 
+  LogRetention:
+    dev:
+      RetentionPeriod: 30
+    build:
+      RetentionPeriod: 30
+    staging:
+      RetentionPeriod: 30
+    integration:
+      RetentionPeriod: 30
+    production:
+      RetentionPeriod: 30
+
   PrivateApigw:
     dev:
       ApiBurstLimit: 10
@@ -111,19 +128,20 @@ Mappings:
       ApiBurstLimit: 0
       ApiRateLimit: 0
 
-  LogRetention:
-    dev:
-      RetentionPeriod: 30
-    build:
-      RetentionPeriod: 30
-    staging:
-      RetentionPeriod: 30
-    integration:
-      RetentionPeriod: 30
-    production:
-      RetentionPeriod: 30
+  StaticVariables:
+    urls:
+      WarningAlarmsRunbook: https://govukverify.atlassian.net/wiki/spaces/DCMAW/pages/4453826602/Mobile+Backend+Alarms+and+Thresholds
 
 Conditions:
+  DeployAlarms: !Or
+    - !Not
+      - !Equals
+        - !Ref Environment
+        - dev
+    - !Equals
+      - !Ref DeployAlarmsInDev
+      - true
+
   IsDevEnvironment: !Equals
     - !Ref Environment
     - dev
@@ -463,6 +481,15 @@ Resources:
         EntryPoints:
           - src/functions/revokeHandler.ts
     Properties:
+
+      #APIGw integration
+      Events:
+        IssueIndex:
+          Type: Api
+          Properties:
+            Path: /revoke
+            Method: post
+            RestApiId: !Ref PrivateApi
       FunctionName: !Sub ${AWS::StackName}-revoke
       Handler: src/functions/revokeHandler.handler
       Policies:
@@ -571,6 +598,456 @@ Resources:
       FilterPattern: ""
       LogGroupName: !Ref RevokeAccessLogs
     Condition: IsProdLikeEnvironment
+
+    # Revoke Alarms
+  Revoke4XXHighThresholdAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
+      AlarmDescription: !Sub
+        - '80% or more of requests are failing on the /revoke endpoint with a 4XX error. See runbook: ${WarningAlarmsRunbookUrl}'
+        - WarningAlarmsRunbookUrl: !FindInMap
+            - StaticVariables
+            - urls
+            - WarningAlarmsRunbook
+      AlarmName: !Sub ${AWS::StackName}-high-threshold-revoke-4xx-api-gw
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      DatapointsToAlarm: 2
+      EvaluationPeriods: 5
+      Metrics:
+        - Expression: IF(invocations>=10,errorPercentage4XX)
+          Id: errorThreshold
+          Label: errorThreshold
+          ReturnData: true
+        - Id: invocations
+          MetricStat:
+            Metric:
+              Dimensions:
+                - Name: Method
+                  Value: POST
+                - Name: ApiName
+                  Value: !Sub ${AWS::StackName}-private-api
+                - Name: Stage
+                  Value: !Ref Environment
+                - Name: Resource
+                  Value: /revoke
+              MetricName: Count
+              Namespace: AWS/ApiGateway
+            Period: 60
+            Stat: Sum
+          ReturnData: false
+        - Id: errorSum4XX
+          Label: Number of 4XX errors
+          MetricStat:
+            Metric:
+              Dimensions:
+                - Name: Method
+                  Value: POST
+                - Name: ApiName
+                  Value: !Sub ${AWS::StackName}-private-api
+                - Name: Stage
+                  Value: !Ref Environment
+                - Name: Resource
+                  Value: /revoke
+              MetricName: 4XXError
+              Namespace: AWS/ApiGateway
+            Period: 60
+            Stat: Sum
+          ReturnData: false
+        - Expression: (errorSum4XX/invocations) * 100
+          Id: errorPercentage4XX
+          Label: Number of 4XX errors returned as a percentage
+          ReturnData: false
+      OKActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
+      Threshold: 80
+      TreatMissingData: notBreaching
+    Condition: DeployAlarms
+
+  Revoke4XXLowThresholdAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
+      AlarmDescription: !Sub
+        - '1% or more of requests are failing on the /revoke endpoint with a 4XX error. See runbook: ${WarningAlarmsRunbookUrl}'
+        - WarningAlarmsRunbookUrl: !FindInMap
+            - StaticVariables
+            - urls
+            - WarningAlarmsRunbook
+      AlarmName: !Sub ${AWS::StackName}-low-threshold-revoke-4xx-api-gw
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      DatapointsToAlarm: 2
+      EvaluationPeriods: 5
+      Metrics:
+        - Expression: IF((invocations>=4) && (errorSum4XX>=2),errorPercentage4XX)
+          Id: errorThreshold
+          Label: errorThreshold
+          ReturnData: true
+        - Id: invocations
+          MetricStat:
+            Metric:
+              Dimensions:
+                - Name: Method
+                  Value: POST
+                - Name: ApiName
+                  Value: !Sub ${AWS::StackName}-private-api
+                - Name: Stage
+                  Value: !Ref Environment
+                - Name: Resource
+                  Value: /revoke
+              MetricName: Count
+              Namespace: AWS/ApiGateway
+            Period: 60
+            Stat: Sum
+          ReturnData: false
+        - Id: errorSum4XX
+          Label: Number of 4XX errors
+          MetricStat:
+            Metric:
+              Dimensions:
+                - Name: Method
+                  Value: POST
+                - Name: ApiName
+                  Value: !Sub ${AWS::StackName}-private-api
+                - Name: Stage
+                  Value: !Ref Environment
+                - Name: Resource
+                  Value: /revoke
+              MetricName: 4XXError
+              Namespace: AWS/ApiGateway
+            Period: 60
+            Stat: Sum
+          ReturnData: false
+        - Expression: (errorSum4XX/invocations) * 100
+          Id: errorPercentage4XX
+          Label: Number of 4XX errors returned as a percentage
+          ReturnData: false
+      OKActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
+      Threshold: 1
+      TreatMissingData: notBreaching
+    Condition: DeployAlarms
+
+  Revoke5XXHighThresholdAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
+      AlarmDescription: !Sub
+        - '80% or more of requests are failing on the /revoke endpoint with a 5XX error. See runbook: ${WarningAlarmsRunbookUrl}'
+        - WarningAlarmsRunbookUrl: !FindInMap
+            - StaticVariables
+            - urls
+            - WarningAlarmsRunbook
+      AlarmName: !Sub ${AWS::StackName}-high-threshold-revoke-5xx-api-gw
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      DatapointsToAlarm: 2
+      EvaluationPeriods: 5
+      Metrics:
+        - Expression: IF(invocations>=10,errorPercentage5XX)
+          Id: errorThreshold
+          Label: errorThreshold
+          ReturnData: true
+        - Id: invocations
+          MetricStat:
+            Metric:
+              Dimensions:
+                - Name: Method
+                  Value: POST
+                - Name: ApiName
+                  Value: !Sub ${AWS::StackName}-private-api
+                - Name: Stage
+                  Value: !Ref Environment
+                - Name: Resource
+                  Value: /revoke
+              MetricName: Count
+              Namespace: AWS/ApiGateway
+            Period: 60
+            Stat: Sum
+          ReturnData: false
+        - Id: errorSum5XX
+          Label: Number of 5XX errors
+          MetricStat:
+            Metric:
+              Dimensions:
+                - Name: Method
+                  Value: POST
+                - Name: ApiName
+                  Value: !Sub ${AWS::StackName}-private-api
+                - Name: Stage
+                  Value: !Ref Environment
+                - Name: Resource
+                  Value: /revoke
+              MetricName: 5XXError
+              Namespace: AWS/ApiGateway
+            Period: 60
+            Stat: Sum
+          ReturnData: false
+        - Expression: (errorSum5XX/invocations) * 100
+          Id: errorPercentage5XX
+          Label: Number of 5XX errors returned as a percentage
+          ReturnData: false
+      OKActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
+      Threshold: 80
+      TreatMissingData: notBreaching
+    Condition: DeployAlarms
+
+  Revoke5XXLowThresholdAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
+      AlarmDescription: !Sub
+        - '1% or more of requests are failing on the /revoke endpoint with a 5XX error. See runbook: ${WarningAlarmsRunbookUrl}'
+        - WarningAlarmsRunbookUrl: !FindInMap
+            - StaticVariables
+            - urls
+            - WarningAlarmsRunbook
+      AlarmName: !Sub ${AWS::StackName}-low-threshold-revoke-5xx-api-gw
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      DatapointsToAlarm: 2
+      EvaluationPeriods: 5
+      Metrics:
+        - Expression: IF((invocations>=4) && (errorSum5XX>=2),errorPercentage5XX)
+          Id: errorThreshold
+          Label: errorThreshold
+          ReturnData: true
+        - Id: invocations
+          MetricStat:
+            Metric:
+              Dimensions:
+                - Name: Method
+                  Value: POST
+                - Name: ApiName
+                  Value: !Sub ${AWS::StackName}-private-api
+                - Name: Stage
+                  Value: !Ref Environment
+                - Name: Resource
+                  Value: /revoke
+              MetricName: Count
+              Namespace: AWS/ApiGateway
+            Period: 60
+            Stat: Sum
+          ReturnData: false
+        - Id: errorSum5XX
+          Label: Number of 5XX errors
+          MetricStat:
+            Metric:
+              Dimensions:
+                - Name: Method
+                  Value: POST
+                - Name: ApiName
+                  Value: !Sub ${AWS::StackName}-private-api
+                - Name: Stage
+                  Value: !Ref Environment
+                - Name: Resource
+                  Value: /revoke
+              MetricName: 5XXError
+              Namespace: AWS/ApiGateway
+            Period: 60
+            Stat: Sum
+          ReturnData: false
+        - Expression: (errorSum5XX/invocations) * 100
+          Id: errorPercentage5XX
+          Label: Number of 5XX errors returned as a percentage
+          ReturnData: false
+      OKActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
+      Threshold: 1
+      TreatMissingData: notBreaching
+    Condition: DeployAlarms
+
+  ApiGatewayLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
+      AlarmDescription: !Sub
+        - There is increased latency on the API Gateway. ${WarningAlarmsRunbookURL}"
+        - WarningAlarmsRunbookURL: !FindInMap
+            - StaticVariables
+            - urls
+            - WarningAlarmsRunbook
+      AlarmName: !Sub ${AWS::StackName}-api-gateway-latency
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      DatapointsToAlarm: 2
+      EvaluationPeriods: 5
+      Metrics:
+        - Id: m1
+          Label: Sum of requests sent to the API Gateway
+          MetricStat:
+            Metric:
+              Dimensions:
+                - Name: ApiName
+                  Value: !Sub ${AWS::StackName}-private-api
+              MetricName: Count
+              Namespace: AWS/ApiGateway
+            Period: 60
+            Stat: Sum
+          ReturnData: false
+        - Id: m2
+          Label: Maximum latency
+          MetricStat:
+            Metric:
+              Dimensions:
+                - Name: ApiName
+                  Value: !Sub ${AWS::StackName}-private-api
+              MetricName: Latency
+              Namespace: AWS/ApiGateway
+            Period: 60
+            Stat: Maximum
+          ReturnData: false
+        - Expression: IF(m1 >= 10, m2, 0)
+          Id: m3
+          Label: Latency threshold calculation
+          ReturnData: false
+        - Expression: FILL(m3, 0)
+          Id: m4
+          Label: Latency threshold with missing data points filled
+          ReturnData: true
+      OKActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
+      Threshold: 1
+      TreatMissingData: notBreaching
+    Condition: DeployAlarms
+
+  RevokeConcurrencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
+      AlarmDescription: !Sub
+        - 80% of the reserved concurrency for the Revoke Lambda has been used. ${WarningAlarmsRunbookURL}
+        - WarningAlarmsRunbookURL: !FindInMap
+            - StaticVariables
+            - urls
+            - WarningAlarmsRunbook
+      AlarmName: !Sub ${AWS::StackName}-revoke-concurrency
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      DatapointsToAlarm: 1
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref RevokeFunction
+      EvaluationPeriods: 1
+      MetricName: ConcurrentExecutions
+      Namespace: AWS/Lambda
+      OKActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
+      Period: 60
+      Statistic: Maximum
+      Threshold: 64
+      TreatMissingData: notBreaching
+    Condition: DeployAlarms
+
+  RevokeThroughputAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
+      AlarmDescription: !Sub
+        - 60% of the Revoke Lambda capacity has been used. ${WarningAlarmsRunbookURL}
+        - WarningAlarmsRunbookURL: !FindInMap
+            - StaticVariables
+            - urls
+            - WarningAlarmsRunbook
+      AlarmName: !Sub ${AWS::StackName}-revoke-throughput
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      DatapointsToAlarm: 1
+      EvaluationPeriods: 1
+      Metrics:
+        - Id: e1
+          MetricStat:
+            Metric:
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref RevokeFunction
+              MetricName: ConcurrentExecutions
+              Namespace: AWS/Lambda
+            Period: 60
+            Stat: Maximum
+          ReturnData: false
+        - Id: e2
+          MetricStat:
+            Metric:
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref RevokeFunction
+              MetricName: UnreservedConcurrentExecutions
+              Namespace: AWS/Lambda
+            Period: 60
+            Stat: Maximum
+          ReturnData: false
+        - Expression: e1 / e2 * 100
+          Id: e3
+          Label: Throughput Percentage
+          ReturnData: true
+      OKActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
+      Threshold: 60
+      TreatMissingData: notBreaching
+    Condition: DeployAlarms
+
+    # SNS Topics
+  AlarmWarningSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub ${AWS::StackName}-warning
+      KmsMasterKeyId: !Ref AlarmSNSTopicKey
+      FifoTopic: false
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+      TopicName: !Sub ${AWS::StackName}-warning
+
+  AlarmWarningSNSTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref AlarmWarningSNSTopic
+      PolicyDocument:
+        Statement:
+          - Action: sns:Publish
+            Effect: Allow
+            Resource: !Ref AlarmWarningSNSTopic
+            Principal:
+              Service: cloudwatch.amazonaws.com
+
+  AlarmSNSTopicKey:
+    Type: AWS::KMS::Key
+    Properties:
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: Allow Cloudwatch to enqueue encrypted messages
+            Effect: Allow
+            Resource: '*'
+            Action:
+              - kms:Decrypt
+              - kms:GenerateDataKey
+            Principal:
+              Service: cloudwatch.amazonaws.com
+          - Sid: Allow the account to manage the key
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action: kms:*
+            Resource: '*'
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-topics
+        - Key: Environment
+          Value: !Ref Environment
 
   # Status List Publisher Lambda
   StatusListPublisherFunction:
