@@ -1,8 +1,9 @@
 import { Capture, Match, Template } from "aws-cdk-lib/assertions";
 import { readFileSync } from "fs";
 import { load } from "js-yaml";
+import { schema } from "yaml-cfn";
 
-const { schema } = require("yaml-cfn");
+// const { schema } = require("yaml-cfn");
 
 // https://docs.aws.amazon.com/cdk/v2/guide/testing.html <--- how to use this file
 
@@ -10,9 +11,13 @@ const yamltemplate: any = load(readFileSync("template.yaml", "utf-8"), {
   schema: schema,
 });
 
+console.log("yamltemplate:" + yamltemplate);
+
 const template = Template.fromJSON(yamltemplate, {
   skipCyclicalDependenciesCheck: true, // Note: canary alarms falsely trigger the circular dependency check. sam validate --lint (cfn-lint) can correctly handle this so we do not miss out here.
 });
+
+console.log("template:" + template);
 
 describe("Backend application infrastructure", () => {
 //   describe("CloudWatch alarms", () => {
@@ -29,14 +34,14 @@ describe("Backend application infrastructure", () => {
 //       };
 
   describe("Warning alarms", () => {
-    it.each([
+    test.each([
+    ["revoke-concurrency"],
+    ["revoke-throughput"],
     ["high-threshold-revoke-4xx-api-gw"],
     ["low-threshold-revoke-4xx-api-gw"],
     ["high-threshold-revoke-5xx-api-gw"],
     ["low-threshold-revoke-5xx-api-gw"],
     ["api-gateway-latency"],
-    ["revoke-concurrency"],
-    ["revoke-throughput"],
     ])(
     "The %s alarm is configured to send an event to the warnings SNS topic on Alarm and OK actions",
     (alarmName: string) => {

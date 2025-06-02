@@ -913,7 +913,7 @@ Resources:
     Properties:
       ActionsEnabled: true
       AlarmActions:
-        - !ImportValue platform-alarms-sns-topic-warning
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       AlarmDescription: !Sub
         - 80% of the reserved concurrency for the Revoke Lambda has been used. ${WarningAlarmsRunbookURL}
         - WarningAlarmsRunbookURL: !FindInMap
@@ -930,7 +930,7 @@ Resources:
       MetricName: ConcurrentExecutions
       Namespace: AWS/Lambda
       OKActions:
-        - !ImportValue platform-alarms-sns-topic-warning
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       Period: 60
       Statistic: Maximum
       Threshold: 64
@@ -942,7 +942,7 @@ Resources:
     Properties:
       ActionsEnabled: true
       AlarmActions:
-        - !ImportValue platform-alarms-sns-topic-warning
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       AlarmDescription: !Sub
         - 60% of the Revoke Lambda capacity has been used. ${WarningAlarmsRunbookURL}
         - WarningAlarmsRunbookURL: !FindInMap
@@ -981,7 +981,7 @@ Resources:
           Label: Throughput Percentage
           ReturnData: true
       OKActions:
-        - !ImportValue platform-alarms-sns-topic-warning
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       Threshold: 60
       TreatMissingData: notBreaching
     Condition: DeployAlarms
