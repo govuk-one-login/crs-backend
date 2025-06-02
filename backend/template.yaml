@@ -398,6 +398,8 @@ Resources:
 
   FindAvailableSlotsFunction:
     Type: AWS::Serverless::Function
+    DependsOn:
+      - FindAvailableSlotsLogGroup
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -470,9 +472,8 @@ Resources:
   # Revoke Lambda
   RevokeFunction:
     Type: AWS::Serverless::Function
-
-    # DependsOn:
-    #   - RevokeLogGroup
+    DependsOn:
+      - RevokeLogGroup
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -552,11 +553,20 @@ Resources:
         - !Ref PermissionsBoundary
         - !Ref AWS::NoValue
 
+  RevokeLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-revoke
+      RetentionInDays: !FindInMap
+        - LogRetention
+        - !Ref Environment
+        - RetentionPeriod
+
   RevokeVersionMetricFilter:
     Type: AWS::Logs::MetricFilter
     Properties:
       FilterPattern: '{ ($.messageCode = *) && ($.functionVersion = *) }'
-      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-revoke
+      LogGroupName: !Ref RevokeLogGroup
       MetricTransformations:
         - Dimensions:
             - Key: MessageCode
@@ -579,15 +589,6 @@ Resources:
       LogGroupName: !Sub /aws/lambda/${AWS::StackName}-revoke
     Condition: IsProdLikeEnvironment
 
-  RevokeAccessLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-revoke-access-logs
-      RetentionInDays: !FindInMap
-        - LogRetention
-        - !Ref Environment
-        - RetentionPeriod
-
   CSLSRevokeFunctionAccessSubscriptionFilter:
     Type: AWS::Logs::SubscriptionFilter
     Properties:
@@ -596,7 +597,7 @@ Resources:
         - !Ref Environment
         - CSLSEGRESS
       FilterPattern: ""
-      LogGroupName: !Ref RevokeAccessLogs
+      LogGroupName: !Ref RevokeLogGroup
     Condition: IsProdLikeEnvironment
 
     # Revoke Alarms
@@ -1747,11 +1748,20 @@ Resources:
       Principal: sns.amazonaws.com
       SourceArn: !Ref FindAvailableSlotsErrorsSNSTopic
 
+  FindAvailableSlotsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-find-available-slots
+      RetentionInDays: !FindInMap
+        - LogRetention
+        - !Ref Environment
+        - RetentionPeriod
+
   # Metric filter to detect errors in logs
   FindAvailableSlotsErrorMetricFilter:
     Type: AWS::Logs::MetricFilter
     Properties:
-      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-find-available-slots
+      LogGroupName: !Ref FindAvailableSlotsLogGroup
       FilterPattern: '{$.level = "ERROR" || $.message = "*Error*"}'
       MetricTransformations:
         - MetricName: FindAvailableSlotsErrors
