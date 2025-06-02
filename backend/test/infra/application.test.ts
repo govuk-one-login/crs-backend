@@ -3,10 +3,6 @@ import { readFileSync } from "fs";
 import { load } from "js-yaml";
 import { schema } from "yaml-cfn";
 
-// const { schema } = require("yaml-cfn");
-
-// https://docs.aws.amazon.com/cdk/v2/guide/testing.html <--- how to use this file
-
 const yamltemplate: any = load(readFileSync("template.yaml", "utf-8"), {
   schema: schema,
 });
@@ -20,19 +16,6 @@ const template = Template.fromJSON(yamltemplate, {
 console.log("template:" + template);
 
 describe("Backend application infrastructure", () => {
-//   describe("CloudWatch alarms", () => {
-//     test("All critical alerts should have runbooks defined", () => {
-//       // to be updated only when a runbook exists for an alarm
-//       const runbooksByAlarm: Record<string, boolean> = {
-//         "high-threshold-revoke-4xx-api-gw": false,
-//         "low-threshold-revoke-4xx-api-gw": false,
-//         "high-threshold-revoke-5xx-api-gw": false,
-//         "low-threshold-revoke-5xx-api-gw": false,
-//         "api-gateway-latency": false,
-//         "revoke-concurrency": false,
-//         "revoke-throughput": false,
-//       };
-
   describe("Warning alarms", () => {
     test.each([
     ["revoke-concurrency"],
