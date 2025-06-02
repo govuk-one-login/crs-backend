@@ -34,5 +34,7 @@ export const PUBLIC_KEY =
 /*
     Signing key used from actual jwks wellknown endpoint
  */
-export const EXPECTED_SIGNING_KEY =
+export const JWKS_SIGNING_KEY =
   '"x\\":\\"EVs_o5-uQbTjL3chynL4wXgUg2R9q9UU8I5mEovUf84\\",\\"y\\":\\"kGe5DgSIycKp8w9aJmoHhB1sB3QTugfnRWm5nU_TzsY\\"';
+
+export const EMPTY_SIGNING_KEY = 'signingKey":""';

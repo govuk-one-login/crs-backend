@@ -26,7 +26,7 @@ import {
 import * as jose from "jose";
 import { importSPKI } from "jose";
 import {
-  EXPECTED_SIGNING_KEY,
+  JWKS_SIGNING_KEY,
   GOLDEN_JWT,
   GOLDEN_JWT_TOKEN_LIST,
   JWT_WITH_NO_EXPIRES,
@@ -40,6 +40,7 @@ import {
   TEST_CLIENT_ID,
   TEST_KID,
   TEST_NON_MATCHING_KID,
+  EMPTY_SIGNING_KEY,
 } from "../../utils/testConstants";
 
 const mockS3Client = mockClient(S3Client);
@@ -202,10 +203,11 @@ describe("Testing IssueStatusListEntry Lambda", () => {
       const sqsMessageBody =
         mockSQSClient.commandCalls(SendMessageCommand)[0].args[0].input
           .MessageBody;
+
       assertAndValidateIssuedTXMAEvent(
         sqsMessageBody,
-        undefined,
-        undefined,
+        '"index":4',
+        "https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AF",
         '"client_id":"DNkekdNSkekSNljrwevOIUPenGeS"',
         GOLDEN_JWT_TOKEN_LIST,
       );
@@ -314,7 +316,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         assertAndValidateErrorTXMAEvent(
           clientId,
           "CRS_ISSUANCE_FAILED",
-          'signingKey"',
+          EMPTY_SIGNING_KEY,
           kid,
           request,
           "400",
@@ -348,6 +350,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         JWT_WITH_NON_MATCHING_CLIENT_ID,
         "DAkekdNSkekSNljrwevOIUPenGeS",
         TEST_NON_MATCHING_KID,
+        EMPTY_SIGNING_KEY,
       ],
       [
         buildRequest({ body: JWT_WITH_NON_MATCHING_KID }),
@@ -355,6 +358,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         JWT_WITH_NON_MATCHING_KID,
         TEST_CLIENT_ID,
         TEST_NON_MATCHING_KID,
+        EMPTY_SIGNING_KEY,
       ],
       [
         buildRequest({ body: JWT_WITH_NON_VERIFIED_SIGNATURE }),
@@ -362,6 +366,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         JWT_WITH_NON_VERIFIED_SIGNATURE,
         TEST_CLIENT_ID,
         TEST_KID,
+        JWKS_SIGNING_KEY,
       ],
     ])(
       "Returns 401 with correct descriptions",
@@ -371,6 +376,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         request: string,
         clientId: string,
         kid: string,
+        signingKey: string,
       ) => {
         result = await handler(event, context);
 
@@ -385,7 +391,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         assertAndValidateErrorTXMAEvent(
           clientId,
           "CRS_ISSUANCE_FAILED",
-          'signingKey"',
+          signingKey,
           kid,
           request,
           "401",
@@ -454,7 +460,7 @@ function assertAndValidateIssuedTXMAEvent(
   expect(mockSQSClient.commandCalls(SendMessageCommand)).toHaveLength(1);
   expect(sqsMessageBody).toContain(clientId);
   expect(sqsMessageBody).toContain("CRS_INDEX_ISSUED");
-  expect(sqsMessageBody).toContain(EXPECTED_SIGNING_KEY);
+  expect(sqsMessageBody).toContain(JWKS_SIGNING_KEY);
   expect(sqsMessageBody).toContain(jwtRequest);
   expect(sqsMessageBody).toContain(index);
   expect(sqsMessageBody).toContain(uri);
