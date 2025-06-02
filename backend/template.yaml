@@ -587,7 +587,7 @@ Resources:
       LogGroupName: !Ref RevokeAccessLogs
     Condition: IsProdLikeEnvironment
 
-# Revoke Alarms
+    # Revoke Alarms
   Revoke4XXHighThresholdAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -868,6 +868,7 @@ Resources:
       ComparisonOperator: GreaterThanOrEqualToThreshold
       DatapointsToAlarm: 2
       EvaluationPeriods: 5
+
       # Review metrics below. These metrics were copied from mobile-platform-back https://github.com/govuk-one-login/mobile-platform-back/blob/fe9fe81c94a89e54e39f2748cd5d6e0a1039ac42/backend-api/template.yaml#L303
       Metrics:
         - Id: m1
@@ -907,7 +908,7 @@ Resources:
       Threshold: 1
       TreatMissingData: notBreaching
     Condition: DeployAlarms
-  
+
   RevokeConcurrencyAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -936,7 +937,7 @@ Resources:
       Threshold: 64
       TreatMissingData: notBreaching
     Condition: DeployAlarms
-  
+
   RevokeThroughputAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
