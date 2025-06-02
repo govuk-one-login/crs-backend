@@ -1,7 +1,4 @@
-import {
-  handler,
-  PUBLIC_KEY,
-} from "../../../src/functions/issueStatusListEntryHandler";
+import { handler } from "../../../src/functions/issueStatusListEntryHandler";
 import {
   APIGatewayProxyEvent,
   APIGatewayProxyResult,
@@ -15,9 +12,9 @@ import { buildRequest } from "../../utils/mockRequest";
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { mockClient } from "aws-sdk-client-mock";
 import {
-  SQSClient,
-  SendMessageCommand,
   ReceiveMessageCommand,
+  SendMessageCommand,
+  SQSClient,
 } from "@aws-sdk/client-sqs";
 import { Readable } from "stream";
 import { sdkStreamMixin } from "@smithy/util-stream-node";
@@ -26,29 +23,29 @@ import {
   GetItemCommand,
   PutItemCommand,
 } from "@aws-sdk/client-dynamodb";
+import * as jose from "jose";
+import { importSPKI } from "jose";
+import {
+  JWKS_SIGNING_KEY,
+  GOLDEN_JWT,
+  GOLDEN_JWT_TOKEN_LIST,
+  JWT_WITH_NO_EXPIRES,
+  JWT_WITH_NO_ISS,
+  JWT_WITH_NO_JWKS_URI,
+  JWT_WITH_NO_KID,
+  JWT_WITH_NON_MATCHING_CLIENT_ID,
+  JWT_WITH_NON_MATCHING_KID,
+  JWT_WITH_NON_VERIFIED_SIGNATURE,
+  PUBLIC_KEY,
+  TEST_CLIENT_ID,
+  TEST_KID,
+  TEST_NON_MATCHING_KID,
+  EMPTY_SIGNING_KEY,
+} from "../../utils/testConstants";
 
 const mockS3Client = mockClient(S3Client);
 const mockSQSClient = mockClient(SQSClient);
 const mockDBClient = mockClient(DynamoDBClient);
-
-const TEST_KID = "cc2c3738-03ec-4214-a65e-7f0461a34e7b";
-const TEST_CLIENT_ID = "DNkekdNSkekSNljrwevOIUPenGeS";
-const GOLDEN_JWT =
-  "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6ImNjMmMzNzM4LTAzZWMtNDIxNC1hNjVlLTdmMDQ2MWEzNGU3YiJ9.eyJpc3MiOiJhc0tXbnNqZUVKRVdqandTSHNJa3NJa3NJaEJlIiwiZXhwaXJlcyI6IjE3MzQ3MDk0OTMifQ.OlAm7TIfn-Qrs2yJvl6MDr9raiq_uZ6FV7WwaPz2CTuCuK-EkvsqM8139yjIiJq3pqeZk0S_23J-4SGBAkUXhA";
-const GOLDEN_JWT_TOKEN_LIST =
-  "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6ImNjMmMzNzM4LTAzZWMtNDIxNC1hNjVlLTdmMDQ2MWEzNGU3YiJ9.eyJpc3MiOiJETmtla2ROU2tla1NObGpyd2V2T0lVUGVuR2VTIiwiZXhwaXJlcyI6IjE3MzQ3MDk0OTMifQ.TAAkC2SxFnVKPzaZkZW2zbQWcQoA0iNP_cmpD4OY6JR-Bf2sF4OWk0SRgUIz-mmuwaheZ1Zny2g_yhvHCZXnuA";
-const JWT_WITH_NO_EXPIRES =
-  "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImNjMmMzNzM4LTAzZWMtNDIxNC1hNjVlLTdmMDQ2MWEzNGU3YiJ9.eyJpc3MiOiJETmtla2ROU2tla1NObGpyd2V2T0lVUGVuR2VTIn0.2Uqks9_0pF6OI-297ihGZn_ym0IVRraVIcLyGeHDak_YwRjCUUvHY-vlI1_8hLTSF4xK2KHVnq9Xm2w2ps6Spg";
-const JWT_WITH_NO_KID =
-  "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJETmtla2ROU2tla1NObGpyd2V2T0lVUGVuR2VTIiwiZXhwaXJlcyI6IjE3MzQ3MDk0OTMifQ.RoM7Z-Ir0yKPTSqEyN0pbThdmEHL-cwxMUb_lZw-ZgSdRSbfWQBLdCg6L0lT_GG-o7_LEyFitmiX-Ya_jKe20g";
-const JWT_WITH_NO_ISS =
-  "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImNjMmMzNzM4LTAzZWMtNDIxNC1hNjVlLTdmMDQ2MWEzNGU3YiJ9.eyJleHBpcmVzIjoiMTczNDcwOTQ5MyJ9.fn_1wkH1EgufA1U3sKHSVpfpYOmxPVC4_b8NHPe_YKQr5QNqP1NQHaWL56cXpL38Tfo6i4c2YKmJwmdpQkS5Kw";
-const JWT_WITH_NON_MATCHING_CLIENT_ID =
-  "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjFmYjJjMGYwN2Y2NDNiNDVjYWZlYjUzZmI5ZDllYjM0In0.eyJpc3MiOiJEQWtla2ROU2tla1NObGpyd2V2T0lVUGVuR2VTIiwiZXhwaXJlcyI6IjE3MzQ3MDk0OTMifQ.XSos0P9wZYV_QEzKe6UFpVrn-D2_1oK6emDyrix_cXGSg5gS1cu2l7rImGDZ_DOgZlqsNzj1KbQbjvRFFSAhjw";
-const JWT_WITH_NON_MATCHING_KID =
-  "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjFmYjJjMGYwN2Y2NDNiNDVjYWZlYjUzZmI5ZDllYjM0In0.eyJpc3MiOiJETmtla2ROU2tla1NObGpyd2V2T0lVUGVuR2VTIiwiZXhwaXJlcyI6IjE3MzQ3MDk0OTMifQ.BLL1kOTPZFI8gfYZZghPO65oipEnRBVefAqobZ3RmI9E14vB-l9taEAdgVKKyBVQe6XIRSuhsXC6Nv5UDBt57A";
-const JWT_WITH_NO_JWKS_URI =
-  "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImNjMmMzNzM4LTAzZWMtNDIxNC1hNjVlLTdmMDQ2MWEzNGU3YiJ9.eyJpc3MiOiJtb2NrQ2xpZW50SWQiLCJleHBpcmVzIjoiMTczNDcwOTQ5MyJ9.y10ELWBHxVFiw8YZwbqiDdF4PC4rR95P9me-qK8pLlYeKh5VO7EtrspkCANKoM92EC6pysc9ymt5CpeTTiVB5w";
 
 describe("Testing IssueStatusListEntry Lambda", () => {
   let consoleInfoSpy: jest.SpyInstance;
@@ -63,6 +60,8 @@ describe("Testing IssueStatusListEntry Lambda", () => {
     consoleInfoSpy = jest.spyOn(console, "info");
     context = buildLambdaContext();
     event = buildRequest();
+
+    const importedPublicKey = importSPKI(PUBLIC_KEY, "ES256");
 
     mockS3Client.on(GetObjectCommand).resolves({
       Body: sdkStreamMixin(
@@ -132,6 +131,8 @@ describe("Testing IssueStatusListEntry Lambda", () => {
     mockDBClient.on(GetItemCommand).resolves({
       Item: undefined,
     });
+
+    jest.spyOn(jose, "importJWK").mockResolvedValue(importedPublicKey);
   });
 
   describe("On every invocation", () => {
@@ -202,10 +203,11 @@ describe("Testing IssueStatusListEntry Lambda", () => {
       const sqsMessageBody =
         mockSQSClient.commandCalls(SendMessageCommand)[0].args[0].input
           .MessageBody;
+
       assertAndValidateIssuedTXMAEvent(
         sqsMessageBody,
-        undefined,
-        undefined,
+        '"index":4',
+        "https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AF",
         '"client_id":"DNkekdNSkekSNljrwevOIUPenGeS"',
         GOLDEN_JWT_TOKEN_LIST,
       );
@@ -314,7 +316,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         assertAndValidateErrorTXMAEvent(
           clientId,
           "CRS_ISSUANCE_FAILED",
-          PUBLIC_KEY,
+          EMPTY_SIGNING_KEY,
           kid,
           request,
           "400",
@@ -344,19 +346,38 @@ describe("Testing IssueStatusListEntry Lambda", () => {
     test.each([
       [
         buildRequest({ body: JWT_WITH_NON_MATCHING_CLIENT_ID }),
-        "No matching client found with ID: DAkekdNSkekSNljrwevOIUPenGeS",
+        "No matching client found with ID: DAkekdNSkekSNljrwevOIUPenGeS ",
         JWT_WITH_NON_MATCHING_CLIENT_ID,
         "DAkekdNSkekSNljrwevOIUPenGeS",
+        TEST_NON_MATCHING_KID,
+        EMPTY_SIGNING_KEY,
       ],
       [
         buildRequest({ body: JWT_WITH_NON_MATCHING_KID }),
-        "No matching Key ID found in JWKS Endpoint for Kid: 1fb2c0f07f643b45cafeb53fb9d9eb34",
+        `No matching Key ID found in JWKS Endpoint for Kid: ${TEST_NON_MATCHING_KID}`,
         JWT_WITH_NON_MATCHING_KID,
         TEST_CLIENT_ID,
+        TEST_NON_MATCHING_KID,
+        EMPTY_SIGNING_KEY,
+      ],
+      [
+        buildRequest({ body: JWT_WITH_NON_VERIFIED_SIGNATURE }),
+        "Failure verifying the signature of the jwt",
+        JWT_WITH_NON_VERIFIED_SIGNATURE,
+        TEST_CLIENT_ID,
+        TEST_KID,
+        JWKS_SIGNING_KEY,
       ],
     ])(
       "Returns 401 with correct descriptions",
-      async (event, errorDescription, request: string, clientId: string) => {
+      async (
+        event,
+        errorDescription,
+        request: string,
+        clientId: string,
+        kid: string,
+        signingKey: string,
+      ) => {
         result = await handler(event, context);
 
         expect(result).toStrictEqual({
@@ -370,8 +391,8 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         assertAndValidateErrorTXMAEvent(
           clientId,
           "CRS_ISSUANCE_FAILED",
-          PUBLIC_KEY,
-          "1fb2c0f07f643b45cafeb53fb9d9eb34",
+          signingKey,
+          kid,
           request,
           "401",
           "UNAUTHORISED",
@@ -397,7 +418,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
       assertAndValidateErrorTXMAEvent(
         "mockClientId",
         "CRS_ISSUANCE_FAILED",
-        PUBLIC_KEY,
+        'signingKey"',
         TEST_KID,
         JWT_WITH_NO_JWKS_URI,
         "500",
@@ -439,7 +460,7 @@ function assertAndValidateIssuedTXMAEvent(
   expect(mockSQSClient.commandCalls(SendMessageCommand)).toHaveLength(1);
   expect(sqsMessageBody).toContain(clientId);
   expect(sqsMessageBody).toContain("CRS_INDEX_ISSUED");
-  expect(sqsMessageBody).toContain(PUBLIC_KEY);
+  expect(sqsMessageBody).toContain(JWKS_SIGNING_KEY);
   expect(sqsMessageBody).toContain(jwtRequest);
   expect(sqsMessageBody).toContain(index);
   expect(sqsMessageBody).toContain(uri);
