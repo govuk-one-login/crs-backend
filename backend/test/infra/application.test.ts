@@ -10,7 +10,7 @@ const yamltemplate: any = load(readFileSync("template.yaml", "utf-8"), {
 console.log("yamltemplate:" + yamltemplate);
 
 const template = Template.fromJSON(yamltemplate, {
-  skipCyclicalDependenciesCheck: true, // Note: canary alarms falsely trigger the circular dependency check. sam validate --lint (cfn-lint) can correctly handle this so we do not miss out here.
+  skipCyclicalDependenciesCheck: true, 
 });
 
 console.log("template:" + template);
