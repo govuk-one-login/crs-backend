@@ -869,7 +869,6 @@ Resources:
       DatapointsToAlarm: 2
       EvaluationPeriods: 5
 
-      # Review metrics below. These metrics were copied from mobile-platform-back https://github.com/govuk-one-login/mobile-platform-back/blob/fe9fe81c94a89e54e39f2748cd5d6e0a1039ac42/backend-api/template.yaml#L303
       Metrics:
         - Id: m1
           Label: Sum of requests sent to the API Gateway
