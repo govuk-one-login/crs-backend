@@ -18,10 +18,7 @@ jest.mock("../../../src/common/logging/logger", () => ({
 
 describe("revoke handler", () => {
   const mockEvent = {} as APIGatewayProxyEvent;
-  const mockContext = {
-    functionVersion: "v1.0",
-    awsRequestId: "test-request-id",
-  } as Context;
+  const mockContext = { functionVersion: "1" } as Context;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -59,6 +56,6 @@ describe("revoke handler", () => {
   it("should log the handler being called", async () => {
     await handler(mockEvent, mockContext);
 
-    expect(logger.info).toHaveBeenCalledWith(LogMessage.REVOKE_HANDLER_CALLED);
+    expect(logger.info).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_CALLED);
   });
 });

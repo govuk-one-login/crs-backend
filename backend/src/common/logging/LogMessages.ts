@@ -25,8 +25,8 @@ export class LogMessage implements LogAttributes {
     "N/A",
   );
 
-  static readonly REVOKE_HANDLER_CALLED = new LogMessage(
-    "REVOKE_HANDLER_CALLED",
+  static readonly REVOKE_LAMBDA_CALLED = new LogMessage(
+    "REVOKE_LAMBDA_CALLED",
     "Revoke handler has been called.",
     "N/A",
   );

@@ -17,7 +17,7 @@ export function handler(
   context: Context,
 ): Promise<APIGatewayProxyResult> {
   setupLogger(context);
-  logger.info(LogMessage.REVOKE_HANDLER_CALLED);
+  logger.info(LogMessage.REVOKE_LAMBDA_CALLED);
 
   return Promise.resolve({
     statusCode: 202,
