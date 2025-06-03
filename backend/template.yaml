@@ -1850,6 +1850,9 @@ Resources:
             Principal:
               Service: states.amazonaws.com
             Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
       Policies:
         - PolicyName: StepFunctionInvokeLambdas
           PolicyDocument:
@@ -1861,6 +1864,10 @@ Resources:
                 Resource:
                   - !GetAtt CheckAlarmStateFunction.Arn
                   - !GetAtt FindAvailableSlotsFunction.Arn
+      PermissionsBoundary: !If
+        - UsePermissionsBoundary
+        - !Ref PermissionsBoundary
+        - !Ref AWS::NoValue
 
   FindAvailableSlotsAlarmEventRule:
     Type: AWS::Events::Rule
@@ -1891,6 +1898,9 @@ Resources:
             Principal:
               Service: events.amazonaws.com
             Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
       Policies:
         - PolicyName: AllowStartStepFunction
           PolicyDocument:
@@ -1900,3 +1910,7 @@ Resources:
                 Action:
                   - states:StartExecution
                 Resource: !Ref FindAvailableSlotsRetryStateMachine
+      PermissionsBoundary: !If
+        - UsePermissionsBoundary
+        - !Ref PermissionsBoundary
+        - !Ref AWS::NoValue
