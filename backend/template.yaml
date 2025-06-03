@@ -586,7 +586,7 @@ Resources:
         - !Ref Environment
         - CSLSEGRESS
       FilterPattern: ""
-      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-revoke
+      LogGroupName: !Ref RevokeLogGroup
     Condition: IsProdLikeEnvironment
 
   CSLSRevokeFunctionAccessSubscriptionFilter:
