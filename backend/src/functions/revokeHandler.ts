@@ -53,11 +53,54 @@ function notFoundResponse(errorDescription: string): APIGatewayProxyResult {
   };
 }
 
+function getExpectedListType(indicator: string): string | null {
+  switch (indicator) {
+    case "t":
+      return "TokenStatusList";
+    case "b":
+      return "BitstringStatusList";
+    default:
+      return null;
+  }
+}
+
+function createRevocationResponse(updateResult: {
+  alreadyRevoked: boolean;
+  timestamp: string;
+}) {
+  const baseResponse = {
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: updateResult.alreadyRevoked
+        ? "Credential already revoked"
+        : "Request accepted for revocation",
+      revokedAt: updateResult.timestamp,
+    }),
+  };
+
+  return {
+    ...baseResponse,
+    statusCode: updateResult.alreadyRevoked ? 200 : 202,
+  };
+}
+
+function handleRevocationError(error: Error): APIGatewayProxyResult {
+  if (
+    error.message.includes("List type mismatch") ||
+    error.message.includes("Entry not found")
+  ) {
+    return notFoundResponse(error.message);
+  }
+
+  logger.error("Error during revocation process:", error);
+  return badRequestResponse("Error processing revocation request");
+}
+
 async function queryStatusListEntry(
   uriSuffix: string,
   idx: number,
-  expectedListType: string | null,
-) {
+  expectedListType: string,
+): Promise<StatusListItem> {
   try {
     logger.info("Querying DynamoDB for status list entry");
     const queryResult = await dynamoDBClient.send(
@@ -70,37 +113,22 @@ async function queryStatusListEntry(
       }),
     );
 
-    if (queryResult.Item) {
-      const item = queryResult.Item;
-
-      if (!item) {
-        logger.error(
-          `Entry not found in status list table for URI ${uriSuffix} and index ${idx}`,
-        );
-        throw new Error("Entry not found in status list table");
-      }
-
-      // Check list type if expectedListType is provided
-      if (
-        expectedListType &&
-        (!item.listType || item.listType.S !== expectedListType)
-      ) {
-        const actualListType = item.listType?.S || "undefined";
-        logger.error(
-          `List type mismatch: Expected ${expectedListType} but entry has ${actualListType}`,
-        );
-        throw new Error(
-          `List type mismatch: Expected ${expectedListType} but entry has ${actualListType}`,
-        );
-      }
-
-      return item;
+    const item = queryResult.Item as StatusListItem;
+    if (!item) {
+      throw new Error("Entry not found in status list table");
     }
 
-    logger.error(`No entries found in status list table for URI ${uriSuffix}`);
-    throw new Error("Entry not found in status list table");
+    // Validate list type
+    const actualListType = item.listType?.S;
+    if (actualListType !== expectedListType) {
+      throw new Error(
+        `List type mismatch: Expected ${expectedListType} but entry has ${actualListType || "undefined"}`,
+      );
+    }
+
+    return item;
   } catch (error) {
-    logger.error(`Error querying DynamoDB: ${error}`);
+    logger.error("Error querying status list entry:", error);
     throw error;
   }
 }
@@ -108,15 +136,15 @@ async function queryStatusListEntry(
 async function updateRevokedAt(
   uriSuffix: string,
   idx: number,
-  existingItem: StatusListItem,
-) {
+  entry: StatusListItem,
+): Promise<{ alreadyRevoked: boolean; timestamp: string }> {
   try {
     // Check if revokedAt field already exists and has a value
-    if (existingItem.revokedAt && existingItem.revokedAt.N) {
+    if (entry.revokedAt?.N) {
       logger.warn(
-        `Item was already revoked at timestamp ${existingItem.revokedAt.N}`,
+        `Item was already revoked at timestamp ${entry.revokedAt.N}`,
       );
-      return { alreadyRevoked: true, timestamp: existingItem.revokedAt.N };
+      return { alreadyRevoked: true, timestamp: entry.revokedAt.N };
     }
 
     // If not revoked, update the revokedAt field
@@ -136,7 +164,7 @@ async function updateRevokedAt(
       }),
     );
 
-    return { alreadyRevoked: false, timestamp: currentTime };
+    return { alreadyRevoked: false, timestamp: String(currentTime) };
   } catch (error) {
     logger.error("Error updating revokedAt field:", error);
     throw new Error("Error updating revokedAt field");
@@ -151,95 +179,52 @@ export async function handler(
   logger.info(LogMessage.REVOKE_LAMBDA_CALLED);
 
   if (!event.body) {
-    logger.error("No Request Body Found");
     return badRequestResponse("No Request Body Found");
   }
 
   let payload;
   try {
-    // payload = decodeJwt(event.body);
-    payload = JSON.parse(event.body); //temporary workaround for testing
-    logger.info("Successfully decoded JWT as JSON");
+    payload = JSON.parse(event.body); // Assuming payload is a JSON object for testing purposes, to be changed to JWT
+    logger.info("Successfully decoded payload");
   } catch (error) {
-    logger.error("Error decoding JWT", error);
-    return badRequestResponse("Error decoding JWT");
+    logger.error("Error decoding payload:", error);
+    return badRequestResponse("Error decoding payload");
   }
 
   const { iss, idx, uri } = payload;
   if (!iss || typeof idx !== "number" || !uri) {
-    logger.error("Missing required fields in JWT payload", payload);
-    return badRequestResponse("Missing required fields in JWT payload");
+    return badRequestResponse("Missing required fields: iss, idx, uri");
   }
 
-  // Extract list type indicator from URI
+  // Extract and validate URI components
   const uriParts = uri.split("/");
   const uriSuffix = uriParts.pop();
-  const listTypeIndicator = uriParts.length > 0 ? uriParts.pop() : null;
-  logger.info(`Extracted URI: ${uriSuffix}, List Type: ${listTypeIndicator}`);
+  const listTypeIndicator = uriParts.pop();
 
   if (!uriSuffix || !listTypeIndicator) {
-    logger.error(`Invalid URI format in JWT payload ${uri}`);
-    return badRequestResponse("Invalid URI format in JWT payload");
+    return badRequestResponse("Invalid URI format");
   }
 
-  // Map URI indicator to expected list type
-  const expectedListType =
-    listTypeIndicator === "t"
-      ? "TokenStatusList"
-      : listTypeIndicator === "b"
-        ? "BitstringStatusList"
-        : null;
-
+  const expectedListType = getExpectedListType(listTypeIndicator);
   if (!expectedListType) {
-    logger.error(`Invalid list type indicator in URI: ${listTypeIndicator}`);
     return badRequestResponse("Invalid list type in URI: must be /t/ or /b/");
   }
 
-  let foundItem;
   try {
-    foundItem = await queryStatusListEntry(uriSuffix, idx, expectedListType);
+    const foundItem = await queryStatusListEntry(
+      uriSuffix,
+      idx,
+      expectedListType,
+    );
     logger.info(`Found item in table: ${expectedListType} ${uriSuffix} ${idx}`);
-  } catch (error) {
-    if ((error as Error).message.includes("List type mismatch")) {
-      return notFoundResponse((error as Error).message);
-    } else if ((error as Error).message.includes("Entry not found")) {
-      return notFoundResponse((error as Error).message);
-    }
-    logger.error(`Error querying DynamoDB: ${error}`);
-    return badRequestResponse("Error querying DynamoDB");
-  }
 
-  try {
     const updateResult = await updateRevokedAt(uriSuffix, idx, foundItem);
+    logger.info(
+      `Revocation process completed for URI ${uriSuffix} and index ${idx}. Already revoked: ${updateResult.alreadyRevoked}`,
+    );
 
-    if (updateResult.alreadyRevoked) {
-      return {
-        statusCode: 200,
-        body: JSON.stringify({
-          message: "Credential already revoked",
-          revokedAt: updateResult.timestamp,
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      };
-    } else {
-      logger.info(
-        `Successfully updated revokedAt field in DynamoDB for URI ${uriSuffix} and index ${idx}`,
-      );
-      return {
-        statusCode: 202,
-        body: JSON.stringify({
-          message: "Request accepted for revocation",
-          revokedAt: updateResult.timestamp,
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      };
-    }
-  } catch {
-    logger.error("Error updating revokedAt field in DynamoDB");
-    return badRequestResponse("Error updating revokedAt field");
+    return createRevocationResponse(updateResult);
+  } catch (error) {
+    return handleRevocationError(error as Error);
   }
 }
