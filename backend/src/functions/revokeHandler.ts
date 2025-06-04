@@ -141,9 +141,7 @@ async function updateRevokedAt(
   try {
     // Check if revokedAt field already exists and has a value
     if (entry.revokedAt?.N) {
-      logger.warn(
-        `Item was already revoked at timestamp ${entry.revokedAt.N}`,
-      );
+      logger.warn(`Item was already revoked at timestamp ${entry.revokedAt.N}`);
       return { alreadyRevoked: true, timestamp: entry.revokedAt.N };
     }
 
