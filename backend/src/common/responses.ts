@@ -9,14 +9,14 @@ export const revocationSuccessResponse = (updateResult: {
     body: JSON.stringify({
       message: updateResult.alreadyRevoked
         ? "Credential already revoked"
-        : "Request accepted for revocation",
+        : "Request processed for revocation",
       revokedAt: updateResult.timestamp,
     }),
   };
 
   return {
     ...baseResponse,
-    statusCode: updateResult.alreadyRevoked ? 200 : 202,
+    statusCode: updateResult.alreadyRevoked ? 202 : 200,
   };
 };
 
