@@ -122,7 +122,7 @@ async function queryStatusListEntry(
     const actualListType = item.listType?.S;
     if (actualListType !== expectedListType) {
       throw new Error(
-        `List type mismatch: Expected ${expectedListType} but entry has ${actualListType || "undefined"}`,
+        `List type mismatch: Expected ${expectedListType} but entry has ${actualListType ?? "undefined"}`,
       );
     }
 
