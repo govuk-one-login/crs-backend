@@ -2,7 +2,6 @@
   "name": "crs-backend",
   "version": "1.0.0",
   "description": "place holder",
-  "type": "module",
   "engines": {
     "node": "22"
   },
@@ -43,9 +42,10 @@
   "dependencies": {
     "@aws-lambda-powertools/logger": "^2.19.1",
     "@aws-sdk/client-cloudwatch": "^3.817.0",
-    "@aws-sdk/client-dynamodb": "^3.816.0",
+    "@aws-sdk/client-dynamodb": "^3.821.0",
     "@aws-sdk/client-s3": "^3.808.0",
     "@aws-sdk/client-sqs": "^3.810.0",
+    "@aws-sdk/lib-dynamodb": "^3.821.0",
     "esbuild": "^0.25.4",
     "jose": "^5.10.0"
   }

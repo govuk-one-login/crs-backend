@@ -7,13 +7,23 @@ import {
 } from "aws-lambda";
 import {
   DynamoDBClient,
-  QueryCommand,
+  GetItemCommand,
   UpdateItemCommand,
 } from "@aws-sdk/client-dynamodb";
-import { decodeJwt } from "jose";
 
 const dynamoDBClient = new DynamoDBClient({});
 const STATUS_LIST_TABLE = process.env.STATUS_LIST_TABLE ?? "";
+
+type StatusListItem = {
+  uri: { S: string };
+  idx?: { N: string };
+  clientId?: { S: string };
+  exp?: { N: string };
+  issuedAt?: { N: string };
+  issuer?: { S: string };
+  listType?: { S: string };
+  revokedAt?: { N: string };
+};
 
 function setupLogger(context: Context) {
   logger.resetKeys();
@@ -43,30 +53,75 @@ function notFoundResponse(errorDescription: string): APIGatewayProxyResult {
   };
 }
 
-async function queryStatusListEntry(uriSuffix: string, idx: number) {
+async function queryStatusListEntry(
+  uriSuffix: string,
+  idx: number,
+  expectedListType: string | null,
+) {
   try {
+    logger.info("Querying DynamoDB for status list entry");
     const queryResult = await dynamoDBClient.send(
-      new QueryCommand({
+      new GetItemCommand({
         TableName: STATUS_LIST_TABLE,
-        KeyConditionExpression: "uri = :uri and idx = :idx",
-        ExpressionAttributeValues: {
-          ":uri": { S: uriSuffix },
-          ":idx": { N: String(idx) },
+        Key: {
+          uri: { S: uriSuffix },
+          idx: { N: String(idx) },
         },
       }),
     );
-    if (queryResult.Items && queryResult.Items.length > 0) {
-      return queryResult.Items[0];
+
+    if (queryResult.Item) {
+      const item = queryResult.Item;
+
+      if (!item) {
+        logger.error(
+          `Entry not found in status list table for URI ${uriSuffix} and index ${idx}`,
+        );
+        throw new Error("Entry not found in status list table");
+      }
+
+      // Check list type if expectedListType is provided
+      if (
+        expectedListType &&
+        (!item.listType || item.listType.S !== expectedListType)
+      ) {
+        const actualListType = item.listType?.S || "undefined";
+        logger.error(
+          `List type mismatch: Expected ${expectedListType} but entry has ${actualListType}`,
+        );
+        throw new Error(
+          `List type mismatch: Expected ${expectedListType} but entry has ${actualListType}`,
+        );
+      }
+
+      return item;
     }
-    return null;
+
+    logger.error(`No entries found in status list table for URI ${uriSuffix}`);
+    throw new Error("Entry not found in status list table");
   } catch (error) {
-    logger.error("Error querying DynamoDB:", error);
-    throw new Error("Error querying DynamoDB");
+    logger.error(`Error querying DynamoDB: ${error}`);
+    throw error;
   }
 }
 
-async function updateRevokedAt(uriSuffix: string, idx: number) {
+async function updateRevokedAt(
+  uriSuffix: string,
+  idx: number,
+  existingItem: StatusListItem,
+) {
   try {
+    // Check if revokedAt field already exists and has a value
+    if (existingItem.revokedAt && existingItem.revokedAt.N) {
+      logger.warn(
+        `Item was already revoked at timestamp ${existingItem.revokedAt.N}`,
+      );
+      return { alreadyRevoked: true, timestamp: existingItem.revokedAt.N };
+    }
+
+    // If not revoked, update the revokedAt field
+    logger.info("Updating revokedAt field in DynamoDB");
+    const currentTime = Math.floor(Date.now() / 1000);
     await dynamoDBClient.send(
       new UpdateItemCommand({
         TableName: STATUS_LIST_TABLE,
@@ -74,15 +129,17 @@ async function updateRevokedAt(uriSuffix: string, idx: number) {
           uri: { S: uriSuffix },
           idx: { N: String(idx) },
         },
-        UpdateExpression: "SET RevokedAt = :revokedAt",
+        UpdateExpression: "SET revokedAt = :revokedAt",
         ExpressionAttributeValues: {
-          ":revokedAt": { N: String(Math.floor(Date.now() / 1000)) },
+          ":revokedAt": { N: String(currentTime) },
         },
       }),
     );
+
+    return { alreadyRevoked: false, timestamp: currentTime };
   } catch (error) {
-    logger.error("Error updating RevokedAt field:", error);
-    throw new Error("Error updating RevokedAt field");
+    logger.error("Error updating revokedAt field:", error);
+    throw new Error("Error updating revokedAt field");
   }
 }
 
@@ -94,53 +151,95 @@ export async function handler(
   logger.info(LogMessage.REVOKE_LAMBDA_CALLED);
 
   if (!event.body) {
+    logger.error("No Request Body Found");
     return badRequestResponse("No Request Body Found");
   }
 
   let payload;
   try {
     // payload = decodeJwt(event.body);
-    payload = JSON.parse(event.body);
+    payload = JSON.parse(event.body); //temporary workaround for testing
     logger.info("Successfully decoded JWT as JSON");
   } catch (error) {
-    logger.error("Error decoding JWT:", error);
+    logger.error("Error decoding JWT", error);
     return badRequestResponse("Error decoding JWT");
   }
 
   const { iss, idx, uri } = payload;
   if (!iss || typeof idx !== "number" || !uri) {
+    logger.error("Missing required fields in JWT payload", payload);
     return badRequestResponse("Missing required fields in JWT payload");
   }
 
-  const uriSuffix = uri.split("/").pop();
-  if (!uriSuffix) {
+  // Extract list type indicator from URI
+  const uriParts = uri.split("/");
+  const uriSuffix = uriParts.pop();
+  const listTypeIndicator = uriParts.length > 0 ? uriParts.pop() : null;
+  logger.info(`Extracted URI: ${uriSuffix}, List Type: ${listTypeIndicator}`);
+
+  if (!uriSuffix || !listTypeIndicator) {
+    logger.error(`Invalid URI format in JWT payload ${uri}`);
     return badRequestResponse("Invalid URI format in JWT payload");
+  }
+
+  // Map URI indicator to expected list type
+  const expectedListType =
+    listTypeIndicator === "t"
+      ? "TokenStatusList"
+      : listTypeIndicator === "b"
+        ? "BitstringStatusList"
+        : null;
+
+  if (!expectedListType) {
+    logger.error(`Invalid list type indicator in URI: ${listTypeIndicator}`);
+    return badRequestResponse("Invalid list type in URI: must be /t/ or /b/");
   }
 
   let foundItem;
   try {
-    foundItem = await queryStatusListEntry(uriSuffix, idx);
-  } catch {
+    foundItem = await queryStatusListEntry(uriSuffix, idx, expectedListType);
+    logger.info(`Found item in table: ${expectedListType} ${uriSuffix} ${idx}`);
+  } catch (error) {
+    if ((error as Error).message.includes("List type mismatch")) {
+      return notFoundResponse((error as Error).message);
+    } else if ((error as Error).message.includes("Entry not found")) {
+      return notFoundResponse((error as Error).message);
+    }
+    logger.error(`Error querying DynamoDB: ${error}`);
     return badRequestResponse("Error querying DynamoDB");
   }
 
-  if (!foundItem) {
-    return notFoundResponse("Entry not found in status list table");
-  }
-
   try {
-    await updateRevokedAt(uriSuffix, idx);
-  } catch {
-    return badRequestResponse("Error updating RevokedAt field");
-  }
+    const updateResult = await updateRevokedAt(uriSuffix, idx, foundItem);
 
-  return {
-    statusCode: 202,
-    body: JSON.stringify({
-      message: "Request accepted for revocation",
-    }),
-    headers: {
-      "Content-Type": "application/json",
-    },
-  };
+    if (updateResult.alreadyRevoked) {
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          message: "Credential already revoked",
+          revokedAt: updateResult.timestamp,
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      };
+    } else {
+      logger.info(
+        `Successfully updated revokedAt field in DynamoDB for URI ${uriSuffix} and index ${idx}`,
+      );
+      return {
+        statusCode: 202,
+        body: JSON.stringify({
+          message: "Request accepted for revocation",
+          revokedAt: updateResult.timestamp,
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      };
+    }
+  } catch {
+    logger.error("Error updating revokedAt field in DynamoDB");
+    return badRequestResponse("Error updating revokedAt field");
+  }
 }
