@@ -1,7 +1,16 @@
+process.env.STATUS_LIST_TABLE = "StatusListTable";
 import { handler } from "../../../src/functions/revokeHandler";
 import { logger } from "../../../src/common/logging/logger";
 import { LogMessage } from "../../../src/common/logging/LogMessages";
 import { Context, APIGatewayProxyEvent } from "aws-lambda";
+import {
+  DynamoDBClient,
+  GetItemCommand,
+  UpdateItemCommand,
+} from "@aws-sdk/client-dynamodb";
+import { mockClient } from "aws-sdk-client-mock";
+import { buildLambdaContext } from "../../utils/mockContext";
+import { buildRequest } from "../../utils/mockRequest";
 
 // Mock the logger
 jest.mock("../../../src/common/logging/logger", () => ({
@@ -16,46 +25,465 @@ jest.mock("../../../src/common/logging/logger", () => ({
   },
 }));
 
+const mockDBClient = mockClient(DynamoDBClient);
+
 describe("revoke handler", () => {
-  const mockEvent = {} as APIGatewayProxyEvent;
-  const mockContext = { functionVersion: "1" } as Context;
+  let context: Context;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockDBClient.reset();
+    context = buildLambdaContext();
   });
 
-  it("should return 202 Accepted status code", async () => {
-    const response = await handler(mockEvent, mockContext);
-
-    expect(response.statusCode).toBe(202);
+  const createTestEvent = (payload: object): APIGatewayProxyEvent => ({
+    ...buildRequest(),
+    body: JSON.stringify(payload),
   });
 
-  it("should return correct message in response body", async () => {
-    const response = await handler(mockEvent, mockContext);
-    const body = JSON.parse(response.body);
+  describe("successful revocation scenarios", () => {
+    it("should return 202 Accepted for new revocation with TokenStatusList", async () => {
+      const payload = {
+        iss: "client1",
+        idx: 123,
+        uri: "https://dummy-uri/t/3B0F3BD087A7",
+      };
 
-    expect(body).toEqual({ message: "Request accepted for revocation" });
-  });
+      mockDBClient.on(GetItemCommand).resolves({
+        Item: {
+          uri: { S: "3B0F3BD087A7" },
+          idx: { N: "123" },
+          listType: { S: "TokenStatusList" },
+        },
+      });
+      mockDBClient.on(UpdateItemCommand).resolves({});
 
-  it("should return correct Content-Type header", async () => {
-    const response = await handler(mockEvent, mockContext);
+      const event = createTestEvent(payload);
+      const response = await handler(event, context);
 
-    expect(response.headers).toEqual({ "Content-Type": "application/json" });
-  });
+      expect(response.statusCode).toBe(202);
+      const body = JSON.parse(response.body);
+      expect(body.message).toBe("Request accepted for revocation");
+      expect(body.revokedAt).toBeDefined();
+      expect(mockDBClient.commandCalls(GetItemCommand)).toHaveLength(1);
+      expect(mockDBClient.commandCalls(UpdateItemCommand)).toHaveLength(1);
+    });
 
-  it("should setup logger with context", async () => {
-    await handler(mockEvent, mockContext);
+    it("should return 202 Accepted for new revocation with BitstringStatusList", async () => {
+      const payload = {
+        iss: "client1",
+        idx: 456,
+        uri: "https://dummy-uri/b/3B0F3BD087A7",
+      };
 
-    expect(logger.resetKeys).toHaveBeenCalledTimes(1);
-    expect(logger.addContext).toHaveBeenCalledWith(mockContext);
-    expect(logger.appendKeys).toHaveBeenCalledWith({
-      functionVersion: mockContext.functionVersion,
+      mockDBClient.on(GetItemCommand).resolves({
+        Item: {
+          uri: { S: "3B0F3BD087A7" },
+          idx: { N: "456" },
+          listType: { S: "BitstringStatusList" },
+        },
+      });
+      mockDBClient.on(UpdateItemCommand).resolves({});
+
+      const event = createTestEvent(payload);
+      const response = await handler(event, context);
+
+      expect(response.statusCode).toBe(202);
+      const body = JSON.parse(response.body);
+      expect(body.message).toBe("Request accepted for revocation");
+      expect(body.revokedAt).toBeDefined();
+    });
+
+    it("should return 200 OK for already revoked credential", async () => {
+      const payload = {
+        iss: "client1",
+        idx: 123,
+        uri: "https://dummy-uri/t/3B0F3BD087A7",
+      };
+
+      mockDBClient.on(GetItemCommand).resolves({
+        Item: {
+          uri: { S: "3B0F3BD087A7" },
+          idx: { N: "123" },
+          listType: { S: "TokenStatusList" },
+          revokedAt: { N: "1640995200" }, // Already revoked
+        },
+      });
+
+      const event = createTestEvent(payload);
+      const response = await handler(event, context);
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.message).toBe("Credential already revoked");
+      expect(body.revokedAt).toBe("1640995200");
+      expect(mockDBClient.commandCalls(GetItemCommand)).toHaveLength(1);
+      expect(mockDBClient.commandCalls(UpdateItemCommand)).toHaveLength(0);
     });
   });
 
-  it("should log the handler being called", async () => {
-    await handler(mockEvent, mockContext);
+  describe("error scenarios", () => {
+    it("should return 400 if request body is missing", async () => {
+      const event = { ...buildRequest(), body: null };
+      const response = await handler(event, context);
 
-    expect(logger.info).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_CALLED);
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.body).error).toBe("BAD_REQUEST");
+      expect(JSON.parse(response.body).error_description).toBe(
+        "No Request Body Found",
+      );
+    });
+
+    it("should return 400 if payload cannot be parsed", async () => {
+      const event = { ...buildRequest(), body: "invalid-json" };
+      const response = await handler(event, context);
+
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.body).error).toBe("BAD_REQUEST");
+      expect(JSON.parse(response.body).error_description).toBe(
+        "Error decoding payload",
+      );
+    });
+
+    it("should return 400 if URI format is invalid", async () => {
+      const payload = { iss: "client1", idx: 123, uri: "invalid-uri-format" };
+
+      const event = createTestEvent(payload);
+      const response = await handler(event, context);
+
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.body).error_description).toBe(
+        "Invalid URI format",
+      );
+    });
+
+    it("should return 400 if list type indicator is invalid", async () => {
+      const payload = {
+        iss: "client1",
+        idx: 123,
+        uri: "https://dummy-uri/x/3B0F3BD087A7",
+      };
+
+      const event = createTestEvent(payload);
+      const response = await handler(event, context);
+
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.body).error_description).toBe(
+        "Invalid list type in URI: must be /t/ or /b/",
+      );
+    });
+
+    it("should return 404 if entry does not exist in database", async () => {
+      const payload = {
+        iss: "client1",
+        idx: 123,
+        uri: "https://dummy-uri/t/3B0F3BD087A7",
+      };
+
+      mockDBClient.on(GetItemCommand).resolves({ Item: undefined });
+
+      const event = createTestEvent(payload);
+      const response = await handler(event, context);
+
+      expect(response.statusCode).toBe(404);
+      expect(JSON.parse(response.body).error).toBe("NOT_FOUND");
+      expect(JSON.parse(response.body).error_description).toBe(
+        "Entry not found in status list table",
+      );
+    });
+
+    it("should return 404 for list type mismatch", async () => {
+      const payload = {
+        iss: "client1",
+        idx: 123,
+        uri: "https://dummy-uri/t/3B0F3BD087A7",
+      };
+
+      mockDBClient.on(GetItemCommand).resolves({
+        Item: {
+          uri: { S: "3B0F3BD087A7" },
+          idx: { N: "123" },
+          listType: { S: "BitstringStatusList" }, // Mismatch: URI indicates TokenStatusList
+        },
+      });
+
+      const event = createTestEvent(payload);
+      const response = await handler(event, context);
+
+      expect(response.statusCode).toBe(404);
+      expect(JSON.parse(response.body).error).toBe("NOT_FOUND");
+      expect(JSON.parse(response.body).error_description).toContain(
+        "List type mismatch",
+      );
+      expect(JSON.parse(response.body).error_description).toContain(
+        "Expected TokenStatusList but entry has BitstringStatusList",
+      );
+    });
+
+    it("should return 404 for entry with undefined list type", async () => {
+      const payload = {
+        iss: "client1",
+        idx: 123,
+        uri: "https://dummy-uri/t/3B0F3BD087A7",
+      };
+
+      mockDBClient.on(GetItemCommand).resolves({
+        Item: {
+          uri: { S: "3B0F3BD087A7" },
+          idx: { N: "123" },
+          // listType is missing
+        },
+      });
+
+      const event = createTestEvent(payload);
+      const response = await handler(event, context);
+
+      expect(response.statusCode).toBe(404);
+      expect(JSON.parse(response.body).error_description).toContain(
+        "Expected TokenStatusList but entry has undefined",
+      );
+    });
+
+    it("should return 400 if DynamoDB query fails", async () => {
+      const payload = {
+        iss: "client1",
+        idx: 123,
+        uri: "https://dummy-uri/t/3B0F3BD087A7",
+      };
+
+      mockDBClient
+        .on(GetItemCommand)
+        .rejects(new Error("DynamoDB connection error"));
+
+      const event = createTestEvent(payload);
+      const response = await handler(event, context);
+
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.body).error).toBe("BAD_REQUEST");
+      expect(JSON.parse(response.body).error_description).toBe(
+        "Error processing revocation request",
+      );
+    });
+
+    it("should return 400 if DynamoDB update fails", async () => {
+      const payload = {
+        iss: "client1",
+        idx: 123,
+        uri: "https://dummy-uri/t/3B0F3BD087A7",
+      };
+
+      mockDBClient.on(GetItemCommand).resolves({
+        Item: {
+          uri: { S: "3B0F3BD087A7" },
+          idx: { N: "123" },
+          listType: { S: "TokenStatusList" },
+        },
+      });
+      mockDBClient
+        .on(UpdateItemCommand)
+        .rejects(new Error("Update operation failed"));
+
+      const event = createTestEvent(payload);
+      const response = await handler(event, context);
+
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.body).error).toBe("BAD_REQUEST");
+      expect(JSON.parse(response.body).error_description).toBe(
+        "Error processing revocation request",
+      );
+    });
+  });
+
+  describe("logging functionality", () => {
+    it("should setup logger correctly", async () => {
+      const payload = {
+        iss: "client1",
+        idx: 123,
+        uri: "https://dummy-uri/t/3B0F3BD087A7",
+      };
+
+      mockDBClient.on(GetItemCommand).resolves({
+        Item: {
+          uri: { S: "3B0F3BD087A7" },
+          idx: { N: "123" },
+          listType: { S: "TokenStatusList" },
+        },
+      });
+      mockDBClient.on(UpdateItemCommand).resolves({});
+
+      const event = createTestEvent(payload);
+      await handler(event, context);
+
+      expect(logger.resetKeys).toHaveBeenCalledTimes(1);
+      expect(logger.addContext).toHaveBeenCalledWith(context);
+      expect(logger.appendKeys).toHaveBeenCalledWith({
+        functionVersion: context.functionVersion,
+      });
+    });
+
+    it("should log the handler being called", async () => {
+      const payload = {
+        iss: "client1",
+        idx: 123,
+        uri: "https://dummy-uri/t/3B0F3BD087A7",
+      };
+
+      mockDBClient.on(GetItemCommand).resolves({
+        Item: {
+          uri: { S: "3B0F3BD087A7" },
+          idx: { N: "123" },
+          listType: { S: "TokenStatusList" },
+        },
+      });
+      mockDBClient.on(UpdateItemCommand).resolves({});
+
+      const event = createTestEvent(payload);
+      await handler(event, context);
+
+      expect(logger.info).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_CALLED);
+    });
+
+    it("should log successful operations appropriately", async () => {
+      const payload = {
+        iss: "client1",
+        idx: 123,
+        uri: "https://dummy-uri/t/3B0F3BD087A7",
+      };
+
+      mockDBClient.on(GetItemCommand).resolves({
+        Item: {
+          uri: { S: "3B0F3BD087A7" },
+          idx: { N: "123" },
+          listType: { S: "TokenStatusList" },
+        },
+      });
+      mockDBClient.on(UpdateItemCommand).resolves({});
+
+      const event = createTestEvent(payload);
+      await handler(event, context);
+
+      expect(logger.info).toHaveBeenCalledWith("Successfully decoded payload");
+      expect(logger.info).toHaveBeenCalledWith(
+        "Found item in table: TokenStatusList 3B0F3BD087A7 123",
+      );
+      expect(logger.info).toHaveBeenCalledWith(
+        "Revocation process completed for URI 3B0F3BD087A7 and index 123. Already revoked: false",
+      );
+    });
+  });
+
+  describe("DynamoDB command validation", () => {
+    it("should use correct GetItemCommand parameters", async () => {
+      const payload = {
+        iss: "client1",
+        idx: 123,
+        uri: "https://dummy-uri/t/3B0F3BD087A7",
+      };
+
+      mockDBClient.on(GetItemCommand).resolves({
+        Item: {
+          uri: { S: "3B0F3BD087A7" },
+          idx: { N: "123" },
+          listType: { S: "TokenStatusList" },
+        },
+      });
+      mockDBClient.on(UpdateItemCommand).resolves({});
+
+      const event = createTestEvent(payload);
+      await handler(event, context);
+
+      const getItemCall = mockDBClient.commandCalls(GetItemCommand)[0];
+      expect(getItemCall.args[0].input).toEqual({
+        TableName: "StatusListTable",
+        Key: {
+          uri: { S: "3B0F3BD087A7" },
+          idx: { N: "123" },
+        },
+      });
+    });
+
+    it("should use correct UpdateItemCommand parameters", async () => {
+      const payload = {
+        iss: "client1",
+        idx: 123,
+        uri: "https://dummy-uri/t/3B0F3BD087A7",
+      };
+
+      mockDBClient.on(GetItemCommand).resolves({
+        Item: {
+          uri: { S: "3B0F3BD087A7" },
+          idx: { N: "123" },
+          listType: { S: "TokenStatusList" },
+        },
+      });
+      mockDBClient.on(UpdateItemCommand).resolves({});
+
+      const event = createTestEvent(payload);
+      await handler(event, context);
+
+      const updateItemCall = mockDBClient.commandCalls(UpdateItemCommand)[0];
+      expect(updateItemCall.args[0].input).toEqual({
+        TableName: "StatusListTable",
+        Key: {
+          uri: { S: "3B0F3BD087A7" },
+          idx: { N: "123" },
+        },
+        UpdateExpression: "SET revokedAt = :revokedAt",
+        ExpressionAttributeValues: {
+          ":revokedAt": { N: expect.any(String) },
+        },
+      });
+    });
+  });
+
+  describe("URI parsing and validation", () => {
+    it("should correctly parse TokenStatusList URI", async () => {
+      const payload = {
+        iss: "client1",
+        idx: 123,
+        uri: "https://dummy-uri/path/t/ABCD1234",
+      };
+
+      mockDBClient.on(GetItemCommand).resolves({
+        Item: {
+          uri: { S: "ABCD1234" },
+          idx: { N: "123" },
+          listType: { S: "TokenStatusList" },
+        },
+      });
+      mockDBClient.on(UpdateItemCommand).resolves({});
+
+      const event = createTestEvent(payload);
+      const response = await handler(event, context);
+
+      expect(response.statusCode).toBe(202);
+      const getItemCall = mockDBClient.commandCalls(GetItemCommand)[0];
+      expect(getItemCall.args[0].input.Key).toEqual({
+        uri: { S: "ABCD1234" },
+        idx: { N: "123" },
+      });
+    });
+
+    it("should correctly parse BitstringStatusList URI", async () => {
+      const payload = {
+        iss: "client1",
+        idx: 456,
+        uri: "https://dummy-uri/path/b/XYZ9876",
+      };
+
+      mockDBClient.on(GetItemCommand).resolves({
+        Item: {
+          uri: { S: "XYZ9876" },
+          idx: { N: "456" },
+          listType: { S: "BitstringStatusList" },
+        },
+      });
+      mockDBClient.on(UpdateItemCommand).resolves({});
+
+      const event = createTestEvent(payload);
+      const response = await handler(event, context);
+
+      expect(response.statusCode).toBe(202);
+    });
   });
 });
