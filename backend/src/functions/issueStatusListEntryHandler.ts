@@ -3,7 +3,7 @@ import {
   APIGatewayProxyResult,
   Context,
 } from "aws-lambda";
-import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { S3Client } from "@aws-sdk/client-s3";
 import {
   DeleteMessageCommand,
   ReceiveMessageCommand,
@@ -26,13 +26,14 @@ import {
   jwtVerify,
   KeyLike,
 } from "jose";
-import { Readable } from "stream";
 import * as https from "node:https";
 import {
   INDEXISSUEDEVENT,
   ISSUANCEFAILEDEVENT,
   TxmaEvent,
 } from "../common/types";
+import {badRequestResponse, internalServerErrorResponse, unauthorizedResponse} from "../common/responses";
+import {getClientRegistryConfiguration} from "../common/clientRegistryService";
 
 // Define types for configuration
 interface StatusListEntry {
@@ -63,8 +64,6 @@ const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});
 const dynamoDBClient = new DynamoDBClient({});
 
-const CONFIG_BUCKET = process.env.CLIENT_REGISTRY_BUCKET ?? "";
-const CONFIG_KEY = process.env.CLIENT_REGISTRY_FILE_KEY ?? "";
 const TXMA_QUEUE_URL = process.env.TXMA_QUEUE_URL ?? "";
 const BITSTRING_QUEUE_URL = process.env.BITSTRING_QUEUE_URL ?? "";
 const TOKEN_STATUS_QUEUE_URL = process.env.TOKEN_STATUS_QUEUE_URL ?? "";
@@ -103,7 +102,7 @@ export async function handler(
     return badRequestResponse("Error decoding JWT or converting to JSON");
   }
 
-  const config: ClientRegistry = await getConfiguration();
+  const config: ClientRegistry = await getClientRegistryConfiguration(logger, s3Client);
 
   const validationResult = await validateJWT(
     event.body,
@@ -426,83 +425,12 @@ async function addCredentialToStatusListTable(
   }
 }
 
-/**
- * Fetch the configuration from S3
- */
-async function getConfiguration() {
-  logger.info("Fetching configuration from S3...");
-  logger.info(`Bucket: ${CONFIG_BUCKET}, Key: ${CONFIG_KEY}`);
-  try {
-    const command = new GetObjectCommand({
-      Bucket: CONFIG_BUCKET,
-      Key: CONFIG_KEY,
-    });
-
-    const response = await s3Client.send(command);
-    const bodyText = await streamToString(response.Body as Readable);
-    logger.info(`Fetched configuration: ${bodyText}`);
-    return JSON.parse(bodyText) as ClientRegistry;
-  } catch (error) {
-    logger.error("Error fetching configuration from S3:", error);
-    throw new Error("Error fetching configuration from S3");
-  }
-}
-
-/**
- * Convert a readable stream to string
- */
-async function streamToString(stream: Readable): Promise<string> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) {
-    chunks.push(Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks).toString("utf-8");
-}
 
 function setupLogger(context: Context) {
   logger.resetKeys();
   logger.addContext(context);
   logger.appendKeys({ functionVersion: context.functionVersion });
 }
-
-const badRequestResponse = (
-  errorDescription: string,
-): APIGatewayProxyResult => {
-  return {
-    headers: { "Content-Type": "application/json" },
-    statusCode: 400,
-    body: JSON.stringify({
-      error: "BAD_REQUEST",
-      error_description: errorDescription,
-    }),
-  };
-};
-
-const unauthorizedResponse = (
-  errorDescription: string,
-): APIGatewayProxyResult => {
-  return {
-    headers: { "Content-Type": "application/json" },
-    statusCode: 401,
-    body: JSON.stringify({
-      error: "UNAUTHORISED",
-      error_description: errorDescription,
-    }),
-  };
-};
-
-const internalServerErrorResponse = (
-  errorDescription: string,
-): APIGatewayProxyResult => {
-  return {
-    headers: { "Content-Type": "application/json" },
-    statusCode: 500,
-    body: JSON.stringify({
-      error: "INTERNAL_SERVER_ERROR",
-      error_description: errorDescription,
-    }),
-  };
-};
 
 const issueSuccessTXMAEvent = (
   client_id: string,
