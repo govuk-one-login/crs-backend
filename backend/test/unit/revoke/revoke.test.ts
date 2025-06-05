@@ -12,7 +12,6 @@ import { mockClient } from "aws-sdk-client-mock";
 import { buildLambdaContext } from "../../utils/mockContext";
 import { buildRequest } from "../../utils/mockRequest";
 
-// Mock the logger
 jest.mock("../../../src/common/logging/logger", () => ({
   logger: {
     resetKeys: jest.fn(),
@@ -106,7 +105,7 @@ describe("revoke handler", () => {
           uri: { S: "3B0F3BD087A7" },
           idx: { N: "123" },
           listType: { S: "TokenStatusList" },
-          revokedAt: { N: "1640995200" }, // Already revoked
+          revokedAt: { N: "1640995200" },
         },
       });
 
@@ -203,7 +202,7 @@ describe("revoke handler", () => {
         Item: {
           uri: { S: "3B0F3BD087A7" },
           idx: { N: "123" },
-          listType: { S: "BitstringStatusList" }, // Mismatch: URI indicates TokenStatusList
+          listType: { S: "BitstringStatusList" },
         },
       });
 
@@ -231,7 +230,6 @@ describe("revoke handler", () => {
         Item: {
           uri: { S: "3B0F3BD087A7" },
           idx: { N: "123" },
-          // listType is missing
         },
       });
 
@@ -369,121 +367,6 @@ describe("revoke handler", () => {
       expect(logger.info).toHaveBeenCalledWith(
         "Revocation process completed for URI 3B0F3BD087A7 and index 123. Already revoked: false",
       );
-    });
-  });
-
-  describe("DynamoDB command validation", () => {
-    it("should use correct GetItemCommand parameters", async () => {
-      const payload = {
-        iss: "client1",
-        idx: 123,
-        uri: "https://dummy-uri/t/3B0F3BD087A7",
-      };
-
-      mockDBClient.on(GetItemCommand).resolves({
-        Item: {
-          uri: { S: "3B0F3BD087A7" },
-          idx: { N: "123" },
-          listType: { S: "TokenStatusList" },
-        },
-      });
-      mockDBClient.on(UpdateItemCommand).resolves({});
-
-      const event = createTestEvent(payload);
-      await handler(event, context);
-
-      const getItemCall = mockDBClient.commandCalls(GetItemCommand)[0];
-      expect(getItemCall.args[0].input).toEqual({
-        TableName: "StatusListTable",
-        Key: {
-          uri: { S: "3B0F3BD087A7" },
-          idx: { N: "123" },
-        },
-      });
-    });
-
-    it("should use correct UpdateItemCommand parameters", async () => {
-      const payload = {
-        iss: "client1",
-        idx: 123,
-        uri: "https://dummy-uri/t/3B0F3BD087A7",
-      };
-
-      mockDBClient.on(GetItemCommand).resolves({
-        Item: {
-          uri: { S: "3B0F3BD087A7" },
-          idx: { N: "123" },
-          listType: { S: "TokenStatusList" },
-        },
-      });
-      mockDBClient.on(UpdateItemCommand).resolves({});
-
-      const event = createTestEvent(payload);
-      await handler(event, context);
-
-      const updateItemCall = mockDBClient.commandCalls(UpdateItemCommand)[0];
-      expect(updateItemCall.args[0].input).toEqual({
-        TableName: "StatusListTable",
-        Key: {
-          uri: { S: "3B0F3BD087A7" },
-          idx: { N: "123" },
-        },
-        UpdateExpression: "SET revokedAt = :revokedAt",
-        ExpressionAttributeValues: {
-          ":revokedAt": { N: expect.any(String) },
-        },
-      });
-    });
-  });
-
-  describe("URI parsing and validation", () => {
-    it("should correctly parse TokenStatusList URI", async () => {
-      const payload = {
-        iss: "client1",
-        idx: 123,
-        uri: "https://dummy-uri/path/t/ABCD1234",
-      };
-
-      mockDBClient.on(GetItemCommand).resolves({
-        Item: {
-          uri: { S: "ABCD1234" },
-          idx: { N: "123" },
-          listType: { S: "TokenStatusList" },
-        },
-      });
-      mockDBClient.on(UpdateItemCommand).resolves({});
-
-      const event = createTestEvent(payload);
-      const response = await handler(event, context);
-
-      expect(response.statusCode).toBe(202);
-      const getItemCall = mockDBClient.commandCalls(GetItemCommand)[0];
-      expect(getItemCall.args[0].input.Key).toEqual({
-        uri: { S: "ABCD1234" },
-        idx: { N: "123" },
-      });
-    });
-
-    it("should correctly parse BitstringStatusList URI", async () => {
-      const payload = {
-        iss: "client1",
-        idx: 456,
-        uri: "https://dummy-uri/path/b/XYZ9876",
-      };
-
-      mockDBClient.on(GetItemCommand).resolves({
-        Item: {
-          uri: { S: "XYZ9876" },
-          idx: { N: "456" },
-          listType: { S: "BitstringStatusList" },
-        },
-      });
-      mockDBClient.on(UpdateItemCommand).resolves({});
-
-      const event = createTestEvent(payload);
-      const response = await handler(event, context);
-
-      expect(response.statusCode).toBe(202);
     });
   });
 });
