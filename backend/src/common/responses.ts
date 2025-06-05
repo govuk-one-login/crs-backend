@@ -18,7 +18,7 @@ export const revocationSuccessResponse = (updateResult: {
     ...baseResponse,
     statusCode: updateResult.alreadyRevoked ? 200 : 202,
   };
-}
+};
 
 export const badRequestResponse = (
   errorDescription: string,
