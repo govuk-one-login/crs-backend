@@ -10,47 +10,20 @@ import {
   GetItemCommand,
   UpdateItemCommand,
 } from "@aws-sdk/client-dynamodb";
+import { StatusListItem } from "../common/types";
+import {
+  badRequestResponse,
+  notFoundResponse,
+  revocationSuccessResponse,
+} from "../common/responses";
 
 const dynamoDBClient = new DynamoDBClient({});
 const STATUS_LIST_TABLE = process.env.STATUS_LIST_TABLE ?? "";
-
-type StatusListItem = {
-  uri: { S: string };
-  idx?: { N: string };
-  clientId?: { S: string };
-  exp?: { N: string };
-  issuedAt?: { N: string };
-  issuer?: { S: string };
-  listType?: { S: string };
-  revokedAt?: { N: string };
-};
 
 function setupLogger(context: Context) {
   logger.resetKeys();
   logger.addContext(context);
   logger.appendKeys({ functionVersion: context.functionVersion });
-}
-
-function badRequestResponse(errorDescription: string): APIGatewayProxyResult {
-  return {
-    headers: { "Content-Type": "application/json" },
-    statusCode: 400,
-    body: JSON.stringify({
-      error: "BAD_REQUEST",
-      error_description: errorDescription,
-    }),
-  };
-}
-
-function notFoundResponse(errorDescription: string): APIGatewayProxyResult {
-  return {
-    headers: { "Content-Type": "application/json" },
-    statusCode: 404,
-    body: JSON.stringify({
-      error: "NOT_FOUND",
-      error_description: errorDescription,
-    }),
-  };
 }
 
 function getExpectedListType(indicator: string): string | null {
@@ -62,26 +35,6 @@ function getExpectedListType(indicator: string): string | null {
     default:
       return null;
   }
-}
-
-function createRevocationResponse(updateResult: {
-  alreadyRevoked: boolean;
-  timestamp: string;
-}) {
-  const baseResponse = {
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      message: updateResult.alreadyRevoked
-        ? "Credential already revoked"
-        : "Request accepted for revocation",
-      revokedAt: updateResult.timestamp,
-    }),
-  };
-
-  return {
-    ...baseResponse,
-    statusCode: updateResult.alreadyRevoked ? 200 : 202,
-  };
 }
 
 function handleRevocationError(error: Error): APIGatewayProxyResult {
@@ -182,7 +135,7 @@ export async function handler(
 
   let payload;
   try {
-    payload = JSON.parse(event.body); // Assuming payload is a JSON object for testing purposes, to be changed to JWT
+    payload = JSON.parse(event.body); //Using a JSON payload temporarily for testing purposes
     logger.info("Successfully decoded payload");
   } catch (error) {
     logger.error("Error decoding payload:", error);
@@ -221,7 +174,7 @@ export async function handler(
       `Revocation process completed for URI ${uriSuffix} and index ${idx}. Already revoked: ${updateResult.alreadyRevoked}`,
     );
 
-    return createRevocationResponse(updateResult);
+    return revocationSuccessResponse(updateResult);
   } catch (error) {
     return handleRevocationError(error as Error);
   }

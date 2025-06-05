@@ -144,6 +144,19 @@ describe("revoke handler", () => {
       );
     });
 
+    it("should return 400 for missing required fields", async () => {
+      const payload = { iss: "client1" }; // Missing idx and uri
+
+      const event = createTestEvent(payload);
+      const response = await handler(event, context);
+
+      expect(response.statusCode).toBe(400);
+      expect(JSON.parse(response.body).error).toBe("BAD_REQUEST");
+      expect(JSON.parse(response.body).error_description).toBe(
+        "Missing required fields: iss, idx, uri",
+      );
+    });
+
     it("should return 400 if URI format is invalid", async () => {
       const payload = { iss: "client1", idx: 123, uri: "invalid-uri-format" };
 
