@@ -5,10 +5,13 @@ import {
   APIGatewayProxyResult,
   Context,
 } from "aws-lambda";
-import {S3Client} from "@aws-sdk/client-s3";
-import {DynamoDBClient, } from "@aws-sdk/client-dynamodb";
-import {ClientRegistry, getClientRegistryConfiguration} from "./helper/clientRegistryFunctions";
-import {decodeJWT, validateRevokingJWT, } from "./helper/jwtFunctions";
+import { S3Client } from "@aws-sdk/client-s3";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import {
+  ClientRegistry,
+  getClientRegistryConfiguration,
+} from "./helper/clientRegistryFunctions";
+import { decodeJWT, validateRevokingJWT } from "./helper/jwtFunctions";
 
 function setupLogger(context: Context) {
   logger.resetKeys();
@@ -28,16 +31,25 @@ export async function handler(
 
   const decodedJWTPromise = await decodeJWT(event);
 
-  if(decodedJWTPromise.error) {
+  if (decodedJWTPromise.error) {
     return decodedJWTPromise.error;
   }
 
   const jsonPayload = decodedJWTPromise.payload;
   const jsonHeader = decodedJWTPromise.header;
 
-  const config: ClientRegistry = await getClientRegistryConfiguration(logger, s3Client);
+  const config: ClientRegistry = await getClientRegistryConfiguration(
+    logger,
+    s3Client,
+  );
 
-  const validationResult = await validateRevokingJWT(dynamoDBClient, <string>event.body, jsonPayload, jsonHeader, config);
+  const validationResult = await validateRevokingJWT(
+    dynamoDBClient,
+    <string>event.body,
+    jsonPayload,
+    jsonHeader,
+    config,
+  );
 
   if (!validationResult.isValid && validationResult.error) {
     return validationResult.error;
@@ -53,4 +65,3 @@ export async function handler(
     },
   });
 }
-

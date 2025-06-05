@@ -2,14 +2,18 @@ import { handler } from "../../../src/functions/revokeHandler";
 import { logger } from "../../../src/common/logging/logger";
 import { LogMessage } from "../../../src/common/logging/LogMessages";
 import { Context, APIGatewayProxyEvent } from "aws-lambda";
-import {buildLambdaContext} from "../../utils/mockContext";
-import {buildRequest} from "../../utils/mockRequest";
-import {mockClient} from "aws-sdk-client-mock";
-import {GetObjectCommand, S3Client} from "@aws-sdk/client-s3";
-import {SQSClient} from "@aws-sdk/client-sqs";
-import {DynamoDBClient, GetItemCommand, PutItemCommand} from "@aws-sdk/client-dynamodb";
-import {sdkStreamMixin} from "@smithy/util-stream-node";
-import {Readable} from "stream";
+import { buildLambdaContext } from "../../utils/mockContext";
+import { buildRequest } from "../../utils/mockRequest";
+import { mockClient } from "aws-sdk-client-mock";
+import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { SQSClient } from "@aws-sdk/client-sqs";
+import {
+  DynamoDBClient,
+  GetItemCommand,
+  PutItemCommand,
+} from "@aws-sdk/client-dynamodb";
+import { sdkStreamMixin } from "@smithy/util-stream-node";
+import { Readable } from "stream";
 import {
   EMPTY_SIGNING_KEY,
   ISSUE_GOLDEN_JWT_TOKEN_LIST,
@@ -24,7 +28,8 @@ import {
   PUBLIC_KEY,
   REVOKE_GOLDEN_JWT,
   REVOKE_JWT_WITH_NO_CLIENT_ID,
-  REVOKE_JWT_WITH_NO_INDEX, REVOKE_JWT_WITH_NO_JWKS_URI,
+  REVOKE_JWT_WITH_NO_INDEX,
+  REVOKE_JWT_WITH_NO_JWKS_URI,
   REVOKE_JWT_WITH_NO_KID,
   REVOKE_JWT_WITH_NO_URI,
   REVOKE_JWT_WITH_NON_MATCHING_CLIENT_ID,
@@ -32,11 +37,11 @@ import {
   REVOKE_JWT_WITH_NON_VERIFIED_SIGNATURE,
   TEST_CLIENT_ID,
   TEST_KID,
-  TEST_NON_MATCHING_KID
+  TEST_NON_MATCHING_KID,
 } from "../../utils/testConstants";
-import {importSPKI} from "jose";
+import { importSPKI } from "jose";
 import * as jose from "jose";
-import {describe, expect} from "@jest/globals";
+import { describe, expect } from "@jest/globals";
 import mock = jest.mock;
 
 // Mock the logger
@@ -55,9 +60,8 @@ jest.mock("../../../src/common/logging/logger", () => ({
 const mockS3Client = mockClient(S3Client);
 const mockDBClient = mockClient(DynamoDBClient);
 
-
 describe("revoke handler", () => {
-  const mockEvent = buildRequest({body: REVOKE_GOLDEN_JWT});
+  const mockEvent = buildRequest({ body: REVOKE_GOLDEN_JWT });
   const mockContext = buildLambdaContext();
 
   beforeEach(() => {
@@ -69,68 +73,65 @@ describe("revoke handler", () => {
 
     mockS3Client.on(GetObjectCommand).resolves({
       Body: sdkStreamMixin(
-          Readable.from([
-            JSON.stringify({
-              clients: [
-                {
-                  clientName: "OVA",
-                  clientId: "asKWnsjeEJEWjjwSHsIksIksIhBe",
-                  statusList: {
-                    jwksUri:
-                        "https://mobile.dev.account.gov.uk/.well-known/jwks.json",
-                    type: "BitstringStatusList",
-                    format: "vc+jwt",
-                  },
+        Readable.from([
+          JSON.stringify({
+            clients: [
+              {
+                clientName: "OVA",
+                clientId: "asKWnsjeEJEWjjwSHsIksIksIhBe",
+                statusList: {
+                  jwksUri:
+                    "https://mobile.dev.account.gov.uk/.well-known/jwks.json",
+                  type: "BitstringStatusList",
+                  format: "vc+jwt",
                 },
-                {
-                  clientName: "DVLA",
-                  clientId: "DNkekdNSkekSNljrwevOIUPenGeS",
-                  statusList: {
-                    jwksUri:
-                        "https://mobile.dev.account.gov.uk/.well-known/jwks.json",
-                    type: "TokenStatusList",
-                    format: "statuslist+jwt",
-                  },
+              },
+              {
+                clientName: "DVLA",
+                clientId: "DNkekdNSkekSNljrwevOIUPenGeS",
+                statusList: {
+                  jwksUri:
+                    "https://mobile.dev.account.gov.uk/.well-known/jwks.json",
+                  type: "TokenStatusList",
+                  format: "statuslist+jwt",
                 },
-                {
-                  clientName: "MOCK-WITH-NO-URI",
-                  clientId: "mockClientId",
-                  statusList: {
-                    jwksUri: "",
-                    type: "TokenStatusList",
-                    format: "statuslist+jwt",
-                  },
+              },
+              {
+                clientName: "MOCK-WITH-NO-URI",
+                clientId: "mockClientId",
+                statusList: {
+                  jwksUri: "",
+                  type: "TokenStatusList",
+                  format: "statuslist+jwt",
                 },
-              ],
-            }),
-          ]),
+              },
+            ],
+          }),
+        ]),
       ),
     });
 
     mockDBClient.on(GetItemCommand).resolves({
       Item: {
-        uri: {S: "B2757C3F6091"},
-        idx: {N: "1680"},
-        clientId: {S: "DNkekdNSkekSNljrwevOIUPenGeS"},
-        issuedAt: {N: String(Date.now())},
-        listType: {S: "BitstringStatusList"},
+        uri: { S: "B2757C3F6091" },
+        idx: { N: "1680" },
+        clientId: { S: "DNkekdNSkekSNljrwevOIUPenGeS" },
+        issuedAt: { N: String(Date.now()) },
+        listType: { S: "BitstringStatusList" },
       },
     });
 
     jest.spyOn(jose, "importJWK").mockResolvedValue(importedPublicKey);
-
   });
 
   describe("Golden Path", () => {
     it("should return correct status, headers and message in response body", async () => {
-
       const response = await handler(mockEvent, mockContext);
       const body = JSON.parse(response.body);
 
-      expect(body).toEqual({message: "Request accepted for revocation"});
+      expect(body).toEqual({ message: "Request accepted for revocation" });
       expect(response.statusCode).toBe(202);
-      expect(response.headers).toEqual({"Content-Type": "application/json"});
-
+      expect(response.headers).toEqual({ "Content-Type": "application/json" });
     });
 
     it("should setup logger with context", async () => {
@@ -181,20 +182,19 @@ describe("revoke handler", () => {
         "",
       ],
     ])(
-        "Returns 400 with correct descriptions",
-        async (event, errorDescription) => {
-          const result = await handler(event, mockContext);
+      "Returns 400 with correct descriptions",
+      async (event, errorDescription) => {
+        const result = await handler(event, mockContext);
 
-          expect(result).toStrictEqual({
-            headers: { "Content-Type": "application/json" },
-            statusCode: 400,
-            body: JSON.stringify({
-              error: "BAD_REQUEST",
-              error_description: errorDescription,
-            }),
-          });
-
-        },
+        expect(result).toStrictEqual({
+          headers: { "Content-Type": "application/json" },
+          statusCode: 400,
+          body: JSON.stringify({
+            error: "BAD_REQUEST",
+            error_description: errorDescription,
+          }),
+        });
+      },
     );
 
     it("Returns 400 on a empty request body", async () => {
@@ -226,32 +226,28 @@ describe("revoke handler", () => {
         "Failure verifying the signature of the jwt",
       ],
     ])(
-        "Returns 401 with correct descriptions",
-        async (
-            event,
-            errorDescription,
-        ) => {
-          const result = await handler(event, mockContext);
+      "Returns 401 with correct descriptions",
+      async (event, errorDescription) => {
+        const result = await handler(event, mockContext);
 
-          expect(result).toStrictEqual({
-            headers: { "Content-Type": "application/json" },
-            statusCode: 401,
-            body: JSON.stringify({
-              error: "UNAUTHORISED",
-              error_description: errorDescription,
-            }),
-          });
-        },
+        expect(result).toStrictEqual({
+          headers: { "Content-Type": "application/json" },
+          statusCode: 401,
+          body: JSON.stringify({
+            error: "UNAUTHORISED",
+            error_description: errorDescription,
+          }),
+        });
+      },
     );
     it("Returns 401 error when credential to revoke has different clientId than request", async () => {
-
       mockDBClient.on(GetItemCommand).resolves({
         Item: {
-          uri: {S: "B2757C3F6091"},
-          idx: {N: "1680"},
-          clientId: {S: "NONEXISTANT"},
-          issuedAt: {N: String(Date.now())},
-          listType: {S: "BitstringStatusList"},
+          uri: { S: "B2757C3F6091" },
+          idx: { N: "1680" },
+          clientId: { S: "NONEXISTANT" },
+          issuedAt: { N: String(Date.now()) },
+          listType: { S: "BitstringStatusList" },
         },
       });
 
@@ -263,7 +259,8 @@ describe("revoke handler", () => {
         statusCode: 401,
         body: JSON.stringify({
           error: "UNAUTHORISED",
-          error_description: "The original clientId is different to the clientId in the request",
+          error_description:
+            "The original clientId is different to the clientId in the request",
         }),
       });
     });
@@ -285,13 +282,12 @@ describe("revoke handler", () => {
     });
 
     it("Returns 500 error when no clientId exists on credential", async () => {
-
       mockDBClient.on(GetItemCommand).resolves({
         Item: {
-          uri: {S: "B2757C3F6091"},
-          idx: {N: "1680"},
-          issuedAt: {N: String(Date.now())},
-          listType: {S: "BitstringStatusList"},
+          uri: { S: "B2757C3F6091" },
+          idx: { N: "1680" },
+          issuedAt: { N: String(Date.now()) },
+          listType: { S: "BitstringStatusList" },
         },
       });
 
@@ -303,10 +299,10 @@ describe("revoke handler", () => {
         statusCode: 500,
         body: JSON.stringify({
           error: "INTERNAL_SERVER_ERROR",
-          error_description: "No client ID found on item index: 1680 and uri: B2757C3F6091",
+          error_description:
+            "No client ID found on item index: 1680 and uri: B2757C3F6091",
         }),
       });
     });
   });
-
 });

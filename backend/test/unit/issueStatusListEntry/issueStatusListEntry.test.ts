@@ -180,12 +180,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
 
       const dbItem =
         mockDBClient.commandCalls(PutItemCommand)[0].args[0].input.Item;
-      expect(dbItem).toEqual(
-        createTestDBItem(
-          "A671FED3E9AF",
-          "4",
-        ),
-      );
+      expect(dbItem).toEqual(createTestDBItem("A671FED3E9AF", "4"));
     });
     it("Returns 200,successful audit event, no existing index, token status list", async () => {
       Date.now = jest.fn(() => new Date(Date.UTC(2017, 1, 14)).valueOf());
@@ -271,12 +266,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
 
       const dbItem =
         mockDBClient.commandCalls(PutItemCommand)[0].args[0].input.Item;
-      expect(dbItem).toEqual(
-        createTestDBItem(
-          "BAT1FED3E9AF",
-          "2",
-        ),
-      );
+      expect(dbItem).toEqual(createTestDBItem("BAT1FED3E9AF", "2"));
     });
   });
 

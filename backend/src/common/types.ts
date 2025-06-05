@@ -1,6 +1,5 @@
 import { APIGatewayProxyResult } from "aws-lambda";
 
-
 export type StatusListItem = {
   uri: { S: string };
   idx?: { N: string };
@@ -59,12 +58,12 @@ export type EventNames =
   | "CRS_INDEX_EXPIRED";
 
 export const issueSuccessTXMAEvent = (
-    client_id: string,
-    signingKey: string,
-    keyId: string,
-    request: string,
-    index: number,
-    uri: string,
+  client_id: string,
+  signingKey: string,
+  keyId: string,
+  request: string,
+  index: number,
+  uri: string,
 ): INDEXISSUEDEVENT => {
   return {
     client_id: client_id,
@@ -85,11 +84,11 @@ export const issueSuccessTXMAEvent = (
 };
 
 export const issueFailTXMAEvent = (
-    client_id: string,
-    signingKey: string,
-    request: string,
-    error: APIGatewayProxyResult,
-    keyId: string = "null",
+  client_id: string,
+  signingKey: string,
+  request: string,
+  error: APIGatewayProxyResult,
+  keyId: string = "null",
 ): ISSUANCEFAILEDEVENT => {
   return {
     client_id: client_id,

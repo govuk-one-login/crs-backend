@@ -26,12 +26,14 @@ import {
 import * as https from "node:https";
 import {
   INDEXISSUEDEVENT,
-  ISSUANCEFAILEDEVENT, issueFailTXMAEvent, issueSuccessTXMAEvent,
+  ISSUANCEFAILEDEVENT,
+  issueFailTXMAEvent,
+  issueSuccessTXMAEvent,
   TxmaEvent,
 } from "../common/types";
-import {badRequestResponse} from "../common/responses";
-import {getClientRegistryConfiguration} from "./helper/clientRegistryFunctions";
-import {validateIssuingJWT} from "./helper/jwtFunctions";
+import { badRequestResponse } from "../common/responses";
+import { getClientRegistryConfiguration } from "./helper/clientRegistryFunctions";
+import { validateIssuingJWT } from "./helper/jwtFunctions";
 
 // Define types for configuration
 interface StatusListEntry {
@@ -92,7 +94,10 @@ export async function handler(
     return badRequestResponse("Error decoding JWT or converting to JSON");
   }
 
-  const config: ClientRegistry = await getClientRegistryConfiguration(logger, s3Client);
+  const config: ClientRegistry = await getClientRegistryConfiguration(
+    logger,
+    s3Client,
+  );
 
   const validationResult = await validateIssuingJWT(
     event.body,
@@ -154,7 +159,7 @@ export async function handler(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       idx: availableIndex.status_index,
-      uri: fullUri
+      uri: fullUri,
     }),
   };
 }
@@ -321,7 +326,6 @@ async function addCredentialToStatusListTable(
   }
 }
 
-
 function setupLogger(context: Context) {
   logger.resetKeys();
   logger.addContext(context);
@@ -329,10 +333,9 @@ function setupLogger(context: Context) {
 }
 
 function createUri(queueType: string, status_uri) {
-  if(queueType == "BitstringStatusList") {
+  if (queueType == "BitstringStatusList") {
     return `https://api.status-list.service.gov.uk/b/${status_uri}`;
   } else {
     return `https://api.status-list.service.gov.uk/t/${status_uri}`;
   }
 }
-
