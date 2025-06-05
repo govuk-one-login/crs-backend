@@ -24,6 +24,12 @@ Parameters:
       - production
     Default: dev
 
+  LambdaDeploymentPreference:
+    Description: |
+      Specifies the configuration to enable gradual Lambda deployments. Value can be 'AllAtOnce', a default deployment config, or name of custom DeploymentConfig.
+    Type: String
+    Default: AllAtOnce
+
   PermissionsBoundary:
     Description: |
       The ARN of the permissions boundary to apply to any role created by the template
@@ -180,6 +186,13 @@ Conditions:
       - !Ref DeployMetricFiltersInNonProdLikeEnvironment
       - true
 
+  UseCanaryDeployment: !And
+    - !Condition DeployAlarms
+    - !Not
+      - !Equals
+        - !Ref LambdaDeploymentPreference
+        - AllAtOnce
+
 Transform: AWS::Serverless-2016-10-31
 
 Globals:
@@ -249,6 +262,14 @@ Resources:
         EntryPoints:
           - src/functions/issueStatusListEntryHandler.ts
     Properties:
+      DeploymentPreference:
+        Alarms: !If
+          - UseCanaryDeployment
+          - - !Ref IssueStatusListEntryErrorsWarningAlarm
+            - !Ref IssueStatusListEntryLowCompletionAlarm
+          - - !Ref AWS::NoValue
+        Enabled: true
+        Type: !Ref LambdaDeploymentPreference
 
       #APIGw integration
       Events:
@@ -549,6 +570,14 @@ Resources:
         EntryPoints:
           - src/functions/findAvailableSlotsHandler.ts
     Properties:
+      DeploymentPreference:
+        Alarms: !If
+          - UseCanaryDeployment
+          - - !Ref FindAvailableSlotsErrorsWarningAlarm
+            - !Ref FindAvailableSlotsLowCompletionAlarm
+          - - !Ref AWS::NoValue
+        Enabled: true
+        Type: !Ref LambdaDeploymentPreference
       FunctionName: !Sub ${AWS::StackName}-find-available-slots
       Handler: src/functions/findAvailableSlotsHandler.findAvailableSlots
       Timeout: 900 # 15 minutes
@@ -950,6 +979,14 @@ Resources:
         EntryPoints:
           - src/functions/revokeHandler.ts
     Properties:
+      DeploymentPreference:
+        Alarms: !If
+          - UseCanaryDeployment
+          - - !Ref RevokeErrorsWarningAlarm
+            - !Ref RevokeLowCompletionAlarm
+          - - !Ref AWS::NoValue
+        Enabled: true
+        Type: !Ref LambdaDeploymentPreference
 
       #APIGw integration
       Events:
@@ -1003,7 +1040,7 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource: !GetAtt StatusListPublisherLogGroup.Arn
+                Resource: !GetAtt RevokeLogGroup.Arn
         - PolicyName: DynamoDBReadOnly
           PolicyDocument:
             Version: "2012-10-17"
@@ -1669,6 +1706,14 @@ Resources:
         EntryPoints:
           - src/functions/statusListPublisherHandler.ts
     Properties:
+      DeploymentPreference:
+        Alarms: !If
+          - UseCanaryDeployment
+          - - !Ref StatusListPublisherErrorsWarningAlarm
+            - !Ref StatusListPublisherLowCompletionAlarm
+          - - !Ref AWS::NoValue
+        Enabled: true
+        Type: !Ref LambdaDeploymentPreference
       FunctionName: !Sub ${AWS::StackName}-status-list-publisher
       Handler: src/functions/statusListPuslisherHandler.handler
       Policies:
