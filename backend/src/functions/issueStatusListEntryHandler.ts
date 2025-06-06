@@ -17,11 +17,7 @@ import {
 } from "@aws-sdk/client-dynamodb";
 import { logger } from "../common/logging/logger";
 import { LogMessage } from "../common/logging/LogMessages";
-import {
-  decodeJwt,
-  decodeProtectedHeader,
-  exportJWK,
-} from "jose";
+import { decodeJwt, decodeProtectedHeader, exportJWK } from "jose";
 import {
   issueFailTXMAEvent,
   issueSuccessTXMAEvent,

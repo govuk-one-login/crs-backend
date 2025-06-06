@@ -272,7 +272,6 @@ export async function verifyOriginalIssuer(
   };
 }
 
-
 /**
  * Helper function to fetch the JWKS from the URI
  */
