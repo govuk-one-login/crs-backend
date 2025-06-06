@@ -25,8 +25,6 @@ import {
 } from "jose";
 import * as https from "node:https";
 import {
-  INDEXISSUEDEVENT,
-  ISSUANCEFAILEDEVENT,
   issueFailTXMAEvent,
   issueSuccessTXMAEvent,
   TxmaEvent,
