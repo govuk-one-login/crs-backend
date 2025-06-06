@@ -21,9 +21,7 @@ import {
   decodeJwt,
   decodeProtectedHeader,
   exportJWK,
-  JSONWebKeySet,
 } from "jose";
-import * as https from "node:https";
 import {
   issueFailTXMAEvent,
   issueSuccessTXMAEvent,
@@ -267,36 +265,6 @@ async function writeToSqs(txmaEvent: TxmaEvent) {
       `Failed to send TXMA Event: ${txmaEvent} to sqs, error: ${error}`,
     );
   }
-}
-
-/**
- * Helper function to fetch the JWKS from the URI
- */
-export async function fetchJWKS(jwksUri): Promise<JSONWebKeySet> {
-  return new Promise((resolve, reject) => {
-    const req = https.request(jwksUri, (res) => {
-      let data = "";
-
-      res.on("data", (chunk) => {
-        data += chunk;
-      });
-
-      res.on("end", () => {
-        try {
-          const jwks: JSONWebKeySet = JSON.parse(data);
-          resolve(jwks);
-        } catch (error) {
-          reject(new Error(`Failed to parse JWKS data: ${error.message}`));
-        }
-      });
-    });
-
-    req.on("error", (error) => {
-      reject(new Error(`Failed to fetch JWKS: ${error.message}`));
-    });
-
-    req.end();
-  });
 }
 
 async function addCredentialToStatusListTable(

@@ -14,13 +14,13 @@ import {
   unauthorizedResponse,
 } from "../../common/responses";
 import { ClientEntry, ClientRegistry } from "./clientRegistryFunctions";
-import { fetchJWKS } from "../issueStatusListEntryHandler";
 import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { StatusListItem } from "../../common/types";
+import https from "node:https";
 
 const STATUS_LIST_TABLE = process.env.STATUS_LIST_TABLE ?? "";
 
-export interface decodedJWT {
+export interface DecodedJWT {
   payload?;
   header?;
   error?: APIGatewayProxyResult;
@@ -36,7 +36,7 @@ interface ValidationResult {
 
 export async function decodeJWT(
   event: APIGatewayProxyEvent,
-): Promise<decodedJWT> {
+): Promise<DecodedJWT> {
   let jsonPayload;
   let jsonHeader;
 
@@ -270,4 +270,35 @@ export async function verifyOriginalIssuer(
   return {
     isValid: true,
   };
+}
+
+
+/**
+ * Helper function to fetch the JWKS from the URI
+ */
+export async function fetchJWKS(jwksUri): Promise<JSONWebKeySet> {
+  return new Promise((resolve, reject) => {
+    const req = https.request(jwksUri, (res) => {
+      let data = "";
+
+      res.on("data", (chunk) => {
+        data += chunk;
+      });
+
+      res.on("end", () => {
+        try {
+          const jwks: JSONWebKeySet = JSON.parse(data);
+          resolve(jwks);
+        } catch (error) {
+          reject(new Error(`Failed to parse JWKS data: ${error.message}`));
+        }
+      });
+    });
+
+    req.on("error", (error) => {
+      reject(new Error(`Failed to fetch JWKS: ${error.message}`));
+    });
+
+    req.end();
+  });
 }
