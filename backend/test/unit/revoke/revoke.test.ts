@@ -60,10 +60,22 @@ describe("revoke handler", () => {
       const event = createTestEvent(payload);
       const response = await handler(event, context);
 
-      expect(response.statusCode).toBe(202);
-      const body = JSON.parse(response.body);
-      expect(body.message).toBe("Request accepted for revocation");
-      expect(body.revokedAt).toBeDefined();
+      // Parse response body to extract timestamp
+      const responseBody = JSON.parse(response.body);
+
+      expect(response).toStrictEqual({
+        statusCode: 202,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Request accepted for revocation",
+          revokedAt: responseBody.revokedAt,
+        }),
+      });
+
+      // Additional validation for timestamp format
+      expect(responseBody.revokedAt).toMatch(/^\d+$/);
+      expect(parseInt(responseBody.revokedAt)).toBeGreaterThan(0);
+
       expect(mockDBClient.commandCalls(GetItemCommand)).toHaveLength(1);
       expect(mockDBClient.commandCalls(UpdateItemCommand)).toHaveLength(1);
     });
@@ -86,11 +98,20 @@ describe("revoke handler", () => {
 
       const event = createTestEvent(payload);
       const response = await handler(event, context);
+      const responseBody = JSON.parse(response.body);
 
-      expect(response.statusCode).toBe(202);
-      const body = JSON.parse(response.body);
-      expect(body.message).toBe("Request accepted for revocation");
-      expect(body.revokedAt).toBeDefined();
+      expect(response).toStrictEqual({
+        statusCode: 202,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Request accepted for revocation",
+          revokedAt: responseBody.revokedAt,
+        }),
+      });
+
+      // Additional validation for timestamp format
+      expect(responseBody.revokedAt).toMatch(/^\d+$/);
+      expect(parseInt(responseBody.revokedAt)).toBeGreaterThan(0);
     });
 
     it("should return 200 OK for already revoked credential", async () => {
@@ -112,10 +133,15 @@ describe("revoke handler", () => {
       const event = createTestEvent(payload);
       const response = await handler(event, context);
 
-      expect(response.statusCode).toBe(200);
-      const body = JSON.parse(response.body);
-      expect(body.message).toBe("Credential already revoked");
-      expect(body.revokedAt).toBe("1640995200");
+      expect(response).toStrictEqual({
+        statusCode: 200,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Credential already revoked",
+          revokedAt: "1640995200",
+        }),
+      });
+
       expect(mockDBClient.commandCalls(GetItemCommand)).toHaveLength(1);
       expect(mockDBClient.commandCalls(UpdateItemCommand)).toHaveLength(0);
     });
@@ -126,22 +152,28 @@ describe("revoke handler", () => {
       const event = { ...buildRequest(), body: null };
       const response = await handler(event, context);
 
-      expect(response.statusCode).toBe(400);
-      expect(JSON.parse(response.body).error).toBe("BAD_REQUEST");
-      expect(JSON.parse(response.body).error_description).toBe(
-        "No Request Body Found",
-      );
+      expect(response).toStrictEqual({
+        statusCode: 400,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          error: "BAD_REQUEST",
+          error_description: "No Request Body Found",
+        }),
+      });
     });
 
     it("should return 400 if payload cannot be parsed", async () => {
       const event = { ...buildRequest(), body: "invalid-json" };
       const response = await handler(event, context);
 
-      expect(response.statusCode).toBe(400);
-      expect(JSON.parse(response.body).error).toBe("BAD_REQUEST");
-      expect(JSON.parse(response.body).error_description).toBe(
-        "Error decoding payload",
-      );
+      expect(response).toStrictEqual({
+        statusCode: 400,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          error: "BAD_REQUEST",
+          error_description: "Error decoding payload",
+        }),
+      });
     });
 
     it("should return 400 for missing required fields", async () => {
@@ -150,11 +182,14 @@ describe("revoke handler", () => {
       const event = createTestEvent(payload);
       const response = await handler(event, context);
 
-      expect(response.statusCode).toBe(400);
-      expect(JSON.parse(response.body).error).toBe("BAD_REQUEST");
-      expect(JSON.parse(response.body).error_description).toBe(
-        "Missing required fields: iss, idx, uri",
-      );
+      expect(response).toStrictEqual({
+        statusCode: 400,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          error: "BAD_REQUEST",
+          error_description: "Missing required fields: iss, idx, uri",
+        }),
+      });
     });
 
     it("should return 400 if URI format is invalid", async () => {
@@ -163,10 +198,14 @@ describe("revoke handler", () => {
       const event = createTestEvent(payload);
       const response = await handler(event, context);
 
-      expect(response.statusCode).toBe(400);
-      expect(JSON.parse(response.body).error_description).toBe(
-        "Invalid URI format",
-      );
+      expect(response).toStrictEqual({
+        statusCode: 400,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          error: "BAD_REQUEST",
+          error_description: "Invalid URI format",
+        }),
+      });
     });
 
     it("should return 400 if list type indicator is invalid", async () => {
@@ -179,10 +218,14 @@ describe("revoke handler", () => {
       const event = createTestEvent(payload);
       const response = await handler(event, context);
 
-      expect(response.statusCode).toBe(400);
-      expect(JSON.parse(response.body).error_description).toBe(
-        "Invalid list type in URI: must be /t/ or /b/",
-      );
+      expect(response).toStrictEqual({
+        statusCode: 400,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          error: "BAD_REQUEST",
+          error_description: "Invalid list type in URI: must be /t/ or /b/",
+        }),
+      });
     });
 
     it("should return 404 if entry does not exist in database", async () => {
@@ -197,11 +240,14 @@ describe("revoke handler", () => {
       const event = createTestEvent(payload);
       const response = await handler(event, context);
 
-      expect(response.statusCode).toBe(404);
-      expect(JSON.parse(response.body).error).toBe("NOT_FOUND");
-      expect(JSON.parse(response.body).error_description).toBe(
-        "Entry not found in status list table",
-      );
+      expect(response).toStrictEqual({
+        statusCode: 404,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          error: "NOT_FOUND",
+          error_description: "Entry not found in status list table",
+        }),
+      });
     });
 
     it("should return 404 for list type mismatch", async () => {
@@ -222,14 +268,15 @@ describe("revoke handler", () => {
       const event = createTestEvent(payload);
       const response = await handler(event, context);
 
-      expect(response.statusCode).toBe(404);
-      expect(JSON.parse(response.body).error).toBe("NOT_FOUND");
-      expect(JSON.parse(response.body).error_description).toContain(
-        "List type mismatch",
-      );
-      expect(JSON.parse(response.body).error_description).toContain(
-        "Expected TokenStatusList but entry has BitstringStatusList",
-      );
+      expect(response).toStrictEqual({
+        statusCode: 404,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          error: "NOT_FOUND",
+          error_description:
+            "List type mismatch: Expected TokenStatusList but entry has BitstringStatusList",
+        }),
+      });
     });
 
     it("should return 404 for entry with undefined list type", async () => {
@@ -249,10 +296,15 @@ describe("revoke handler", () => {
       const event = createTestEvent(payload);
       const response = await handler(event, context);
 
-      expect(response.statusCode).toBe(404);
-      expect(JSON.parse(response.body).error_description).toContain(
-        "Expected TokenStatusList but entry has undefined",
-      );
+      expect(response).toStrictEqual({
+        statusCode: 404,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          error: "NOT_FOUND",
+          error_description:
+            "List type mismatch: Expected TokenStatusList but entry has undefined",
+        }),
+      });
     });
 
     it("should return 400 if DynamoDB query fails", async () => {
@@ -269,11 +321,14 @@ describe("revoke handler", () => {
       const event = createTestEvent(payload);
       const response = await handler(event, context);
 
-      expect(response.statusCode).toBe(400);
-      expect(JSON.parse(response.body).error).toBe("BAD_REQUEST");
-      expect(JSON.parse(response.body).error_description).toBe(
-        "Error processing revocation request",
-      );
+      expect(response).toStrictEqual({
+        statusCode: 400,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          error: "BAD_REQUEST",
+          error_description: "Error processing revocation request",
+        }),
+      });
     });
 
     it("should return 400 if DynamoDB update fails", async () => {
@@ -297,11 +352,14 @@ describe("revoke handler", () => {
       const event = createTestEvent(payload);
       const response = await handler(event, context);
 
-      expect(response.statusCode).toBe(400);
-      expect(JSON.parse(response.body).error).toBe("BAD_REQUEST");
-      expect(JSON.parse(response.body).error_description).toBe(
-        "Error processing revocation request",
-      );
+      expect(response).toStrictEqual({
+        statusCode: 400,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          error: "BAD_REQUEST",
+          error_description: "Error processing revocation request",
+        }),
+      });
     });
   });
 

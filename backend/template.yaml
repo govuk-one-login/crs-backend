@@ -553,11 +553,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - dynamodb:BatchGetItem
-                  - dynamodb:DescribeTable
                   - dynamodb:GetItem
-                  - dynamodb:Query
-                  - dynamodb:Scan
                   - dynamodb:UpdateItem
                 Resource: !GetAtt StatusListTable.Arn
       PermissionsBoundary: !If
