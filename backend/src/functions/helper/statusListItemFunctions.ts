@@ -1,5 +1,5 @@
 import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
-import { StatusListItem } from "../../common/types";
+import {StatusListItem, ValidationResult} from "../../common/types";
 import {
   badRequestResponse,
   internalServerErrorResponse,
@@ -7,7 +7,6 @@ import {
   unauthorizedResponse,
 } from "../../common/responses";
 import { logger } from "../../common/logging/logger";
-import { ValidationResult } from "./jwtFunctions";
 
 const STATUS_LIST_TABLE = process.env.STATUS_LIST_TABLE ?? "";
 

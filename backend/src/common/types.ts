@@ -1,4 +1,15 @@
 import { APIGatewayProxyResult } from "aws-lambda";
+import {KeyLike} from "jose";
+import {ClientEntry} from "../functions/helper/clientRegistryFunctions";
+
+//Used for validation and returning values if successful
+export interface ValidationResult {
+  isValid: boolean;
+  signingKey?: KeyLike | Uint8Array<ArrayBufferLike>;
+  matchingClientEntry?: ClientEntry;
+  dbEntry?: StatusListItem;
+  error?: APIGatewayProxyResult;
+}
 
 export type StatusListItem = {
   uri: { S: string };

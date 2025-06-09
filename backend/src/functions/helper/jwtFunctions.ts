@@ -5,7 +5,6 @@ import {
   importJWK,
   JSONWebKeySet,
   jwtVerify,
-  KeyLike,
 } from "jose";
 import { logger } from "../../common/logging/logger";
 import {
@@ -13,24 +12,15 @@ import {
   internalServerErrorResponse,
   unauthorizedResponse,
 } from "../../common/responses";
-import { ClientEntry, ClientRegistry } from "./clientRegistryFunctions";
+import {ClientRegistry } from "./clientRegistryFunctions";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { StatusListItem } from "../../common/types";
 import https from "node:https";
 import { validateStatusListEntryAgainstRequest } from "./statusListItemFunctions";
+import {ValidationResult} from "../../common/types";
 
 export interface DecodedJWT {
   payload?;
   header?;
-  error?: APIGatewayProxyResult;
-}
-
-//Used for validation and returning values if successful
-export interface ValidationResult {
-  isValid: boolean;
-  signingKey?: KeyLike | Uint8Array<ArrayBufferLike>;
-  matchingClientEntry?: ClientEntry;
-  dbEntry?: StatusListItem;
   error?: APIGatewayProxyResult;
 }
 
