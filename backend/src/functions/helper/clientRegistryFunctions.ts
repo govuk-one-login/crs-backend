@@ -1,8 +1,8 @@
-// Define types for configuration
 import { Readable } from "stream";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { Logger } from "@aws-lambda-powertools/logger";
 
+// Define types for configuration
 export interface StatusListEntry {
   jwksUri: string;
   type: string;

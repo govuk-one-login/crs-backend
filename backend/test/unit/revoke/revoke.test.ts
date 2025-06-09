@@ -117,7 +117,7 @@ describe("Testing Revoke Lambda", () => {
   });
 
   describe("successful revocation scenarios", () => {
-    it("should return 200 revoke success with BitStringStatusList", async () => {
+    it("should return 202 revoke success with BitStringStatusList", async () => {
       mockDBClient.on(UpdateItemCommand).resolves({});
 
       const response = await handler(mockEvent, mockContext);
@@ -126,7 +126,7 @@ describe("Testing Revoke Lambda", () => {
       const responseBody = JSON.parse(response.body);
 
       expect(response).toStrictEqual({
-        statusCode: 200,
+        statusCode: 202,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: "Request processed for revocation",
@@ -142,7 +142,7 @@ describe("Testing Revoke Lambda", () => {
       expect(mockDBClient.commandCalls(UpdateItemCommand)).toHaveLength(1);
     });
 
-    it("should return 200 revoke success with TokenStatusList", async () => {
+    it("should return 202 revoke success with TokenStatusList", async () => {
       mockDBClient.on(GetItemCommand).resolves({
         Item: {
           clientId: { S: "DNkekdNSkekSNljrwevOIUPenGeS" },
@@ -158,7 +158,7 @@ describe("Testing Revoke Lambda", () => {
       const responseBody = JSON.parse(response.body);
 
       expect(response).toStrictEqual({
-        statusCode: 200,
+        statusCode: 202,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: "Request processed for revocation",
@@ -492,7 +492,7 @@ describe("Testing Revoke Lambda", () => {
       const responseBody = JSON.parse(response.body);
 
       expect(response).toStrictEqual({
-        statusCode: 200,
+        statusCode: 202,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: "Request processed for revocation",
