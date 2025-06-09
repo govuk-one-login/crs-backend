@@ -11,13 +11,10 @@ import {
   getClientRegistryConfiguration,
 } from "./helper/clientRegistryFunctions";
 import { decodeJWT, validateRevokingJWT } from "./helper/jwtFunctions";
-import {
-  DynamoDBClient,
-  UpdateItemCommand,
-} from "@aws-sdk/client-dynamodb";
+import { DynamoDBClient, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
 import { StatusListItem } from "../common/types";
 import {
-  badRequestResponse, internalServerErrorResponse,
+  internalServerErrorResponse,
   notFoundResponse,
   revocationSuccessResponse,
 } from "../common/responses";
@@ -39,8 +36,8 @@ const dynamoDBClient = new DynamoDBClient({});
  * @param context
  */
 export async function handler(
-    event: APIGatewayProxyEvent,
-    context: Context,
+  event: APIGatewayProxyEvent,
+  context: Context,
 ): Promise<APIGatewayProxyResult> {
   setupLogger(context);
   logger.info(LogMessage.REVOKE_LAMBDA_CALLED);
@@ -54,9 +51,18 @@ export async function handler(
   const jsonPayload = decodedJWTPromise.payload;
   const jsonHeader = decodedJWTPromise.header;
 
-  const config: ClientRegistry = await getClientRegistryConfiguration(logger, s3Client);
+  const config: ClientRegistry = await getClientRegistryConfiguration(
+    logger,
+    s3Client,
+  );
 
-  const validationResult = await validateRevokingJWT(dynamoDBClient, <string>event.body, jsonPayload, jsonHeader, config,);
+  const validationResult = await validateRevokingJWT(
+    dynamoDBClient,
+    <string>event.body,
+    jsonPayload,
+    jsonHeader,
+    config,
+  );
 
   if (!validationResult.isValid && validationResult.error) {
     return validationResult.error;
@@ -66,10 +72,13 @@ export async function handler(
   const statusListEntryIndex = jsonPayload.idx;
 
   try {
-
-    const updateResult = await updateRevokedAt(foundItem.uri.S, statusListEntryIndex, foundItem);
+    const updateResult = await updateRevokedAt(
+      foundItem.uri.S,
+      statusListEntryIndex,
+      foundItem,
+    );
     logger.info(
-        `Revocation process completed for URI ${foundItem.uri.S} and index ${statusListEntryIndex}. Already revoked: ${updateResult.alreadyRevoked}`,
+      `Revocation process completed for URI ${foundItem.uri.S} and index ${statusListEntryIndex}. Already revoked: ${updateResult.alreadyRevoked}`,
     );
 
     return revocationSuccessResponse(updateResult);
@@ -78,51 +87,50 @@ export async function handler(
   }
 }
 
-  function handleRevocationError(error: Error): APIGatewayProxyResult {
-    if (
-        error.message.includes("List type mismatch") ||
-        error.message.includes("Entry not found")
-    ) {
-      return notFoundResponse(error.message);
-    }
-
-    logger.error("Error during revocation process:", error);
-    return internalServerErrorResponse("Error processing revocation request");
+function handleRevocationError(error: Error): APIGatewayProxyResult {
+  if (
+    error.message.includes("List type mismatch") ||
+    error.message.includes("Entry not found")
+  ) {
+    return notFoundResponse(error.message);
   }
 
-  async function updateRevokedAt(
-      uriSuffix: string,
-      idx: number,
-      entry: StatusListItem,
-  ): Promise<{ alreadyRevoked: boolean; timestamp: string }> {
-    try {
-      // Check if revokedAt field already exists and has a value
-      if (entry.revokedAt?.N) {
-        logger.warn(`Item was already revoked at timestamp ${entry.revokedAt.N}`);
-        return {alreadyRevoked: true, timestamp: entry.revokedAt.N};
-      }
+  logger.error("Error during revocation process:", error);
+  return internalServerErrorResponse("Error processing revocation request");
+}
 
-      // If not revoked, update the revokedAt field
-      logger.info("Updating revokedAt field in DynamoDB");
-      const currentTime = Math.floor(Date.now() / 1000);
-      await dynamoDBClient.send(
-          new UpdateItemCommand({
-            TableName: STATUS_LIST_TABLE,
-            Key: {
-              uri: {S: uriSuffix},
-              idx: {N: String(idx)},
-            },
-            UpdateExpression: "SET revokedAt = :revokedAt",
-            ExpressionAttributeValues: {
-              ":revokedAt": {N: String(currentTime)},
-            },
-          }),
-      );
-
-      return {alreadyRevoked: false, timestamp: String(currentTime)};
-    } catch (error) {
-      logger.error("Error updating revokedAt field:", error);
-      throw new Error("Error updating revokedAt field");
+async function updateRevokedAt(
+  uriSuffix: string,
+  idx: number,
+  entry: StatusListItem,
+): Promise<{ alreadyRevoked: boolean; timestamp: string }> {
+  try {
+    // Check if revokedAt field already exists and has a value
+    if (entry.revokedAt?.N) {
+      logger.warn(`Item was already revoked at timestamp ${entry.revokedAt.N}`);
+      return { alreadyRevoked: true, timestamp: entry.revokedAt.N };
     }
-  }
 
+    // If not revoked, update the revokedAt field
+    logger.info("Updating revokedAt field in DynamoDB");
+    const currentTime = Math.floor(Date.now() / 1000);
+    await dynamoDBClient.send(
+      new UpdateItemCommand({
+        TableName: STATUS_LIST_TABLE,
+        Key: {
+          uri: { S: uriSuffix },
+          idx: { N: String(idx) },
+        },
+        UpdateExpression: "SET revokedAt = :revokedAt",
+        ExpressionAttributeValues: {
+          ":revokedAt": { N: String(currentTime) },
+        },
+      }),
+    );
+
+    return { alreadyRevoked: false, timestamp: String(currentTime) };
+  } catch (error) {
+    logger.error("Error updating revokedAt field:", error);
+    throw new Error("Error updating revokedAt field");
+  }
+}

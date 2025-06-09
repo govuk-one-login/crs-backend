@@ -10,15 +10,14 @@ import {
 import { logger } from "../../common/logging/logger";
 import {
   badRequestResponse,
-  internalServerErrorResponse, notFoundResponse,
+  internalServerErrorResponse,
   unauthorizedResponse,
 } from "../../common/responses";
 import { ClientEntry, ClientRegistry } from "./clientRegistryFunctions";
-import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { StatusListItem } from "../../common/types";
 import https from "node:https";
-import {validateStatusListEntryAgainstRequest} from "./statusListItemFunctions";
-
+import { validateStatusListEntryAgainstRequest } from "./statusListItemFunctions";
 
 export interface DecodedJWT {
   payload?;
@@ -119,12 +118,15 @@ export async function validateRevokingJWT(
   const listTypeIndicator = uriParts.pop();
 
   if (!uriSuffix || !listTypeIndicator) {
-    return { isValid: false, error: badRequestResponse("Invalid URI format")}
+    return { isValid: false, error: badRequestResponse("Invalid URI format") };
   }
 
   const expectedListType = getExpectedListType(listTypeIndicator);
   if (!expectedListType) {
-    return { isValid: false, error: badRequestResponse("Invalid list type in URI: must be /t/ or /b/")}
+    return {
+      isValid: false,
+      error: badRequestResponse("Invalid list type in URI: must be /t/ or /b/"),
+    };
   }
 
   const originalIssuerResult = await validateStatusListEntryAgainstRequest(
@@ -132,7 +134,7 @@ export async function validateRevokingJWT(
     jsonPayload.uri,
     jsonPayload.idx,
     jsonPayload.iss,
-    expectedListType
+    expectedListType,
   );
 
   if (!originalIssuerResult.isValid) {
@@ -141,7 +143,7 @@ export async function validateRevokingJWT(
 
   return {
     isValid: true,
-    dbEntry: originalIssuerResult.dbEntry
+    dbEntry: originalIssuerResult.dbEntry,
   };
 }
 
