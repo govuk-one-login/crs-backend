@@ -1,5 +1,5 @@
 import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
-import {StatusListItem, ValidationResult} from "../../common/types";
+import { StatusListItem, ValidationResult } from "../../common/types";
 import {
   badRequestResponse,
   internalServerErrorResponse,

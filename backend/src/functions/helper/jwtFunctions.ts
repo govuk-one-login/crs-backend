@@ -12,11 +12,11 @@ import {
   internalServerErrorResponse,
   unauthorizedResponse,
 } from "../../common/responses";
-import {ClientRegistry } from "./clientRegistryFunctions";
+import { ClientRegistry } from "./clientRegistryFunctions";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import https from "node:https";
 import { validateStatusListEntryAgainstRequest } from "./statusListItemFunctions";
-import {ValidationResult} from "../../common/types";
+import { ValidationResult } from "../../common/types";
 
 export interface DecodedJWT {
   payload?;
