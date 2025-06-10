@@ -127,7 +127,7 @@ export async function handler(
     matchingClientEntry,
   );
 
-  const fullUri = createUri(queueType, availableIndex.status_uri);
+  const fullUri = createUri(matchingClientEntry.statusList.type, availableIndex.status_uri);
 
   await sendTxmaEventToSQSQueue(
     sqsClient,
@@ -281,7 +281,7 @@ function createUri(listType: string, status_uri) {
       return `https://api.status-list.service.gov.uk/t/${status_uri}`;
     default:
       throw new Error(
-        `Client entry does not have a valid list type: ${listType}`,
+          `Client entry does not have a valid list type: ${listType}`,
       );
   }
 }
