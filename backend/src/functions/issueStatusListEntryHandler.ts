@@ -7,7 +7,6 @@ import { S3Client } from "@aws-sdk/client-s3";
 import {
   DeleteMessageCommand,
   ReceiveMessageCommand,
-  SendMessageCommand,
   SQSClient,
 } from "@aws-sdk/client-sqs";
 import {
@@ -18,14 +17,11 @@ import {
 import { logger } from "../common/logging/logger";
 import { LogMessage } from "../common/logging/LogMessages";
 import { decodeJwt, decodeProtectedHeader, exportJWK } from "jose";
-import {
-  issueFailTXMAEvent,
-  issueSuccessTXMAEvent,
-  TxmaEvent,
-} from "../common/types";
+import { issueFailTXMAEvent, issueSuccessTXMAEvent } from "../common/types";
 import { badRequestResponse } from "../common/responses";
 import { getClientRegistryConfiguration } from "./helper/clientRegistryFunctions";
 import { validateIssuingJWT } from "./helper/jwtFunctions";
+import { sendTxmaEventToSQSQueue } from "./helper/sqsFunctions";
 
 // Define types for configuration
 interface StatusListEntry {
@@ -48,7 +44,6 @@ const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});
 const dynamoDBClient = new DynamoDBClient({});
 
-const TXMA_QUEUE_URL = process.env.TXMA_QUEUE_URL ?? "";
 const BITSTRING_QUEUE_URL = process.env.BITSTRING_QUEUE_URL ?? "";
 const TOKEN_STATUS_QUEUE_URL = process.env.TOKEN_STATUS_QUEUE_URL ?? "";
 const STATUS_LIST_TABLE = process.env.STATUS_LIST_TABLE ?? "";
@@ -105,7 +100,8 @@ export async function handler(
   }
 
   if (!validationResult.isValid && validationResult.error) {
-    await writeToSqs(
+    await sendTxmaEventToSQSQueue(
+      sqsClient,
       issueFailTXMAEvent(
         jsonPayload.iss,
         signingKeyString,
@@ -133,7 +129,8 @@ export async function handler(
 
   const fullUri = createUri(queueType, availableIndex.status_uri);
 
-  await writeToSqs(
+  await sendTxmaEventToSQSQueue(
+    sqsClient,
     issueSuccessTXMAEvent(
       jsonPayload.iss,
       signingKeyString,
@@ -242,24 +239,6 @@ async function deleteMessage(
     logger.info("Message deleted successfully.");
   } catch (error) {
     logger.error(`Error deleting message: ${error}`, error);
-  }
-}
-
-async function writeToSqs(txmaEvent: TxmaEvent) {
-  try {
-    await sqsClient.send(
-      new SendMessageCommand({
-        QueueUrl: TXMA_QUEUE_URL,
-        MessageBody: JSON.stringify(txmaEvent),
-      }),
-    );
-  } catch (error) {
-    logger.error(LogMessage.SEND_MESSAGE_TO_SQS_FAILURE, {
-      error,
-    });
-    throw Error(
-      `Failed to send TXMA Event: ${txmaEvent} to sqs, error: ${error}`,
-    );
   }
 }
 
