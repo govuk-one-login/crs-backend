@@ -221,7 +221,8 @@ Globals:
       LogFormat: JSON
 
 Resources:
-# Status List DynamoDB Table
+
+  # Status List DynamoDB Table
   StatusListTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -249,7 +250,7 @@ Resources:
         - Key: BackupFrequency
           Value: Bihourly
 
-# IssueStatusListEntry Lambda and supporting resources
+          # IssueStatusListEntry Lambda and supporting resources
   IssueStatusListEntryFunction:
     Type: AWS::Serverless::Function
     DependsOn:
@@ -419,9 +420,8 @@ Resources:
       LogGroupName: !Ref IssueStatusListEntryLogGroup
     Condition: IsProdLikeEnvironment
 
-# Canary error alarm
+    # Canary error alarm
   IssueStatusListEntryErrorsWarningAlarm:
-    Condition: DeployAlarms
     Type: AWS::CloudWatch::Alarm
     Properties:
       ActionsEnabled: true
@@ -430,20 +430,20 @@ Resources:
       OKActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       AlarmDescription: !Sub
-          - 'The number of Issue Status List Entry Lambda errors is greater than or equal to 10% for the latest function version. See runbook: ${WarningAlarmsRunbookUrl}'
-          - WarningAlarmsRunbookUrl: !FindInMap
-              - StaticVariables
-              - urls
-              - WarningAlarmsRunbook
+        - 'The number of Issue Status List Entry Lambda errors is greater than or equal to 10% for the latest function version. See runbook: ${WarningAlarmsRunbookUrl}'
+        - WarningAlarmsRunbookUrl: !FindInMap
+            - StaticVariables
+            - urls
+            - WarningAlarmsRunbook
       AlarmName: !Sub ${AWS::StackName}-issue-status-list-entry-error-rate
-      DatapointsToAlarm: 1 
+      DatapointsToAlarm: 1
       EvaluationPeriods: 1
       Threshold: 10
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
       Metrics:
         - Id: lambdaInvocations
-          Label: "Sum of invocations for latest Lambda version"
+          Label: Sum of invocations for latest Lambda version
           ReturnData: false
           MetricStat:
             Metric:
@@ -451,7 +451,7 @@ Resources:
               MetricName: Invocations
               Dimensions:
                 - Name: Resource
-                  Value: !Sub "${IssueStatusListEntryFunction}:live"
+                  Value: !Sub ${IssueStatusListEntryFunction}:live
                 - Name: FunctionName
                   Value: !Ref IssueStatusListEntryFunction
                 - Name: ExecutedVersion
@@ -459,7 +459,7 @@ Resources:
             Period: 60
             Stat: Sum
         - Id: lambdaErrors
-          Label: "Sum of function errors for latest Lambda version"
+          Label: Sum of function errors for latest Lambda version
           ReturnData: false
           MetricStat:
             Metric:
@@ -467,7 +467,7 @@ Resources:
               MetricName: Errors
               Dimensions:
                 - Name: Resource
-                  Value: !Sub "${IssueStatusListEntryFunction}:live"
+                  Value: !Sub ${IssueStatusListEntryFunction}:live
                 - Name: FunctionName
                   Value: !Ref IssueStatusListEntryFunction
                 - Name: ExecutedVersion
@@ -475,45 +475,46 @@ Resources:
             Period: 60
             Stat: Sum
         - Id: lambdaErrorPercentage
-          Label: "Percentage of invocations that result in a function error"
+          Label: Percentage of invocations that result in a function error
           ReturnData: false
           Expression: (lambdaErrors/lambdaInvocations)*100
         - Id: lambdaErrorRateThreshold
-          Label: "Error threshold calculation"
+          Label: Error threshold calculation
           ReturnData: true
           Expression: IF(lambdaErrors >= 5,lambdaErrorPercentage)
 
-# Canary incomplete journeys ratio log filter and alarm
-  IssueStatusListEntryCompletionMetricFilter:
+          # Canary incomplete journeys ratio log filter and alarm
     Condition: DeployAlarms
-    Type: AWS::Logs::MetricFilter    
+
+  IssueStatusListEntryCompletionMetricFilter:
+    Type: AWS::Logs::MetricFilter
     Properties:
       LogGroupName: !Ref IssueStatusListEntryLogGroup
-      FilterPattern: "{ ($.messageCode = *) && ($.functionVersion = *) }"
+      FilterPattern: '{ ($.messageCode = *) && ($.functionVersion = *) }'
       MetricTransformations:
         - MetricValue: "1"
-          MetricNamespace: !Sub "${AWS::StackName}/LogMessages"
-          MetricName: "IssueStatusListEntryMessageCode"
+          MetricNamespace: !Sub ${AWS::StackName}/LogMessages
+          MetricName: IssueStatusListEntryMessageCode
           Dimensions:
             - Key: MessageCode
               Value: $.messageCode
             - Key: Version
               Value: $.functionVersion
+    Condition: DeployAlarms
 
   IssueStatusListEntryLowCompletionAlarm:
-    Condition: DeployAlarms
-    Type: AWS::CloudWatch::Alarm    
+    Type: AWS::CloudWatch::Alarm
     DependsOn:
-      - "IssueStatusListEntryCompletionMetricFilter"
+      - IssueStatusListEntryCompletionMetricFilter
     Properties:
       ActionsEnabled: true
       AlarmActions:
-        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning"
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       OKActions:
-        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning"
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       InsufficientDataActions: []
-      AlarmDescription: "A large proportion of Issue Status List Entry  requests have not completed successfully."
-      AlarmName: !Sub "${AWS::StackName}-issue-status-list-entry-lambda-low-completion"
+      AlarmDescription: A large proportion of Issue Status List Entry  requests have not completed successfully.
+      AlarmName: !Sub ${AWS::StackName}-issue-status-list-entry-lambda-low-completion
       EvaluationPeriods: 1
       DatapointsToAlarm: 1
       Threshold: 80
@@ -521,43 +522,45 @@ Resources:
       TreatMissingData: notBreaching
       Metrics:
         - Id: lambdaLogStarted
-          Label: "Sum of ISSUE_STATUS_LIST_ENTRY_STARTED messageCodes for latest Lambda version"
+          Label: Sum of ISSUE_STATUS_LIST_ENTRY_STARTED messageCodes for latest Lambda version
           ReturnData: false
           MetricStat:
             Metric:
-              Namespace: !Sub "${AWS::StackName}/LogMessages"
+              Namespace: !Sub ${AWS::StackName}/LogMessages
               MetricName: IssueStatusListEntryMessageCode
               Dimensions:
                 - Name: MessageCode
-                  Value: ISSUE_STATUS_LIST_ENTRY_STARTED                
+                  Value: ISSUE_STATUS_LIST_ENTRY_STARTED
                 - Name: Version
                   Value: !GetAtt IssueStatusListEntryFunction.Version.Version
             Period: 60
             Stat: Sum
         - Id: lambdaLogCompleted
-          Label: "Sum of ISSUE_STATUS_LIST_ENTRY_COMPLETED messageCodes for latest Lambda version"
+          Label: Sum of ISSUE_STATUS_LIST_ENTRY_COMPLETED messageCodes for latest Lambda version
           ReturnData: false
           MetricStat:
             Metric:
-              Namespace: !Sub "${AWS::StackName}/LogMessages"
+              Namespace: !Sub ${AWS::StackName}/LogMessages
               MetricName: IssueStatusListEntryMessageCode
               Dimensions:
                 - Name: MessageCode
-                  Value: ISSUE_STATUS_LIST_ENTRY_COMPLETED                
+                  Value: ISSUE_STATUS_LIST_ENTRY_COMPLETED
                 - Name: Version
                   Value: !GetAtt IssueStatusListEntryFunction.Version.Version
             Period: 60
             Stat: Sum
         - Id: lambdaLogCompletePercentage
-          Label: "Percentage of invocations that complete successfully"
+          Label: Percentage of invocations that complete successfully
           ReturnData: false
           Expression: (lambdaLogCompleted/lambdaLogStarted)*100
         - Id: lowCompletionRateThreshold
-          Label: "Error threshold calculation"
+          Label: Error threshold calculation
           ReturnData: true
           Expression: IF((lambdaLogStarted-lambdaLogCompleted)>= 5, lambdaLogCompletePercentage)
 
-# FindAvailableSlots Lambda and supporting resources
+          # FindAvailableSlots Lambda and supporting resources
+    Condition: DeployAlarms
+
   FindAvailableSlotsFunction:
     Type: AWS::Serverless::Function
     DependsOn:
@@ -639,9 +642,8 @@ Resources:
           - !ImportValue
             Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
 
-# Canary error alarm
+            # Canary error alarm
   FindAvailableSlotsErrorsWarningAlarm:
-    Condition: DeployAlarms
     Type: AWS::CloudWatch::Alarm
     Properties:
       ActionsEnabled: true
@@ -650,20 +652,20 @@ Resources:
       OKActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       AlarmDescription: !Sub
-          - 'The number of Find Available Slots Lambda errors is greater than or equal to 10% for the latest function version. See runbook: ${WarningAlarmsRunbookUrl}'
-          - WarningAlarmsRunbookUrl: !FindInMap
-              - StaticVariables
-              - urls
-              - WarningAlarmsRunbook
+        - 'The number of Find Available Slots Lambda errors is greater than or equal to 10% for the latest function version. See runbook: ${WarningAlarmsRunbookUrl}'
+        - WarningAlarmsRunbookUrl: !FindInMap
+            - StaticVariables
+            - urls
+            - WarningAlarmsRunbook
       AlarmName: !Sub ${AWS::StackName}-find-available-slots-error-rate
-      DatapointsToAlarm: 1 
+      DatapointsToAlarm: 1
       EvaluationPeriods: 1
       Threshold: 10
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
       Metrics:
         - Id: lambdaInvocations
-          Label: "Sum of invocations for latest Lambda version"
+          Label: Sum of invocations for latest Lambda version
           ReturnData: false
           MetricStat:
             Metric:
@@ -671,7 +673,7 @@ Resources:
               MetricName: Invocations
               Dimensions:
                 - Name: Resource
-                  Value: !Sub "${FindAvailableSlotsFunction}:live"
+                  Value: !Sub ${FindAvailableSlotsFunction}:live
                 - Name: FunctionName
                   Value: !Ref FindAvailableSlotsFunction
                 - Name: ExecutedVersion
@@ -679,7 +681,7 @@ Resources:
             Period: 60
             Stat: Sum
         - Id: lambdaErrors
-          Label: "Sum of function errors for latest Lambda version"
+          Label: Sum of function errors for latest Lambda version
           ReturnData: false
           MetricStat:
             Metric:
@@ -687,7 +689,7 @@ Resources:
               MetricName: Errors
               Dimensions:
                 - Name: Resource
-                  Value: !Sub "${FindAvailableSlotsFunction}:live"
+                  Value: !Sub ${FindAvailableSlotsFunction}:live
                 - Name: FunctionName
                   Value: !Ref FindAvailableSlotsFunction
                 - Name: ExecutedVersion
@@ -695,45 +697,46 @@ Resources:
             Period: 60
             Stat: Sum
         - Id: lambdaErrorPercentage
-          Label: "Percentage of invocations that result in a function error"
+          Label: Percentage of invocations that result in a function error
           ReturnData: false
           Expression: (lambdaErrors/lambdaInvocations)*100
         - Id: lambdaErrorRateThreshold
-          Label: "Error threshold calculation"
+          Label: Error threshold calculation
           ReturnData: true
           Expression: IF(lambdaErrors >= 5,lambdaErrorPercentage)
 
-# Canary incomplete journeys ratio log filter and alarm
-  FindAvailableSlotsCompletionMetricFilter:
+          # Canary incomplete journeys ratio log filter and alarm
     Condition: DeployAlarms
-    Type: AWS::Logs::MetricFilter    
+
+  FindAvailableSlotsCompletionMetricFilter:
+    Type: AWS::Logs::MetricFilter
     Properties:
       LogGroupName: !Ref FindAvailableSlotsLogGroup
-      FilterPattern: "{ ($.messageCode = *) && ($.functionVersion = *) }"
+      FilterPattern: '{ ($.messageCode = *) && ($.functionVersion = *) }'
       MetricTransformations:
         - MetricValue: "1"
-          MetricNamespace: !Sub "${AWS::StackName}/LogMessages"
-          MetricName: "FindAvailableSlotsMessageCode"
+          MetricNamespace: !Sub ${AWS::StackName}/LogMessages
+          MetricName: FindAvailableSlotsMessageCode
           Dimensions:
             - Key: MessageCode
               Value: $.messageCode
             - Key: Version
               Value: $.functionVersion
+    Condition: DeployAlarms
 
   FindAvailableSlotsLowCompletionAlarm:
-    Condition: DeployAlarms
-    Type: AWS::CloudWatch::Alarm    
+    Type: AWS::CloudWatch::Alarm
     DependsOn:
-      - "FindAvailableSlotsCompletionMetricFilter"
+      - FindAvailableSlotsCompletionMetricFilter
     Properties:
       ActionsEnabled: true
       AlarmActions:
-        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning"
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       OKActions:
-        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning"
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       InsufficientDataActions: []
-      AlarmDescription: "A large proportion of Find Available Slots requests have not completed successfully."
-      AlarmName: !Sub "${AWS::StackName}-find-available-slots-lambda-low-completion"
+      AlarmDescription: A large proportion of Find Available Slots requests have not completed successfully.
+      AlarmName: !Sub ${AWS::StackName}-find-available-slots-lambda-low-completion
       EvaluationPeriods: 1
       DatapointsToAlarm: 1
       Threshold: 80
@@ -741,41 +744,42 @@ Resources:
       TreatMissingData: notBreaching
       Metrics:
         - Id: lambdaLogStarted
-          Label: "Sum of FIND_AVAILABLE_SLOTS_STARTED messageCodes for latest Lambda version"
+          Label: Sum of FIND_AVAILABLE_SLOTS_STARTED messageCodes for latest Lambda version
           ReturnData: false
           MetricStat:
             Metric:
-              Namespace: !Sub "${AWS::StackName}/LogMessages"
+              Namespace: !Sub ${AWS::StackName}/LogMessages
               MetricName: FindAvailableSlotsMessageCode
               Dimensions:
                 - Name: MessageCode
-                  Value: FIND_AVAILABLE_SLOTS_STARTED                
+                  Value: FIND_AVAILABLE_SLOTS_STARTED
                 - Name: Version
                   Value: !GetAtt FindAvailableSlotsFunction.Version.Version
             Period: 60
             Stat: Sum
         - Id: lambdaLogCompleted
-          Label: "Sum of FIND_AVAILABLE_SLOTS_COMPLETED messageCodes for latest Lambda version"
+          Label: Sum of FIND_AVAILABLE_SLOTS_COMPLETED messageCodes for latest Lambda version
           ReturnData: false
           MetricStat:
             Metric:
-              Namespace: !Sub "${AWS::StackName}/LogMessages"
+              Namespace: !Sub ${AWS::StackName}/LogMessages
               MetricName: FindAvailableSlotsMessageCode
               Dimensions:
                 - Name: MessageCode
-                  Value: FIND_AVAILABLE_SLOTS_COMPLETED                
+                  Value: FIND_AVAILABLE_SLOTS_COMPLETED
                 - Name: Version
                   Value: !GetAtt FindAvailableSlotsFunction.Version.Version
             Period: 60
             Stat: Sum
         - Id: lambdaLogCompletePercentage
-          Label: "Percentage of invocations that complete successfully"
+          Label: Percentage of invocations that complete successfully
           ReturnData: false
           Expression: (lambdaLogCompleted/lambdaLogStarted)*100
         - Id: lowCompletionRateThreshold
-          Label: "Error threshold calculation"
+          Label: Error threshold calculation
           ReturnData: true
           Expression: IF((lambdaLogStarted-lambdaLogCompleted)>= 5, lambdaLogCompletePercentage)
+    Condition: DeployAlarms
 
   # Revoke Lambda
   RevokeFunction:
@@ -1313,10 +1317,9 @@ Resources:
       Threshold: 60
       TreatMissingData: notBreaching
     Condition: DeployAlarms
-  
-# Canary error alarm
+
+    # Canary error alarm
   RevokeErrorsWarningAlarm:
-    Condition: DeployAlarms
     Type: AWS::CloudWatch::Alarm
     Properties:
       ActionsEnabled: true
@@ -1325,20 +1328,20 @@ Resources:
       OKActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       AlarmDescription: !Sub
-          - 'The number of Revoke Lambda errors is greater than or equal to 10% for the latest function version. See runbook: ${WarningAlarmsRunbookUrl}'
-          - WarningAlarmsRunbookUrl: !FindInMap
-              - StaticVariables
-              - urls
-              - WarningAlarmsRunbook
+        - 'The number of Revoke Lambda errors is greater than or equal to 10% for the latest function version. See runbook: ${WarningAlarmsRunbookUrl}'
+        - WarningAlarmsRunbookUrl: !FindInMap
+            - StaticVariables
+            - urls
+            - WarningAlarmsRunbook
       AlarmName: !Sub ${AWS::StackName}-revoke-error-rate
-      DatapointsToAlarm: 1 
+      DatapointsToAlarm: 1
       EvaluationPeriods: 1
       Threshold: 10
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
       Metrics:
         - Id: lambdaInvocations
-          Label: "Sum of invocations for latest Lambda version"
+          Label: Sum of invocations for latest Lambda version
           ReturnData: false
           MetricStat:
             Metric:
@@ -1346,7 +1349,7 @@ Resources:
               MetricName: Invocations
               Dimensions:
                 - Name: Resource
-                  Value: !Sub "${RevokeFunction}:live"
+                  Value: !Sub ${RevokeFunction}:live
                 - Name: FunctionName
                   Value: !Ref RevokeFunction
                 - Name: ExecutedVersion
@@ -1354,7 +1357,7 @@ Resources:
             Period: 60
             Stat: Sum
         - Id: lambdaErrors
-          Label: "Sum of function errors for latest Lambda version"
+          Label: Sum of function errors for latest Lambda version
           ReturnData: false
           MetricStat:
             Metric:
@@ -1362,7 +1365,7 @@ Resources:
               MetricName: Errors
               Dimensions:
                 - Name: Resource
-                  Value: !Sub "${RevokeFunction}:live"
+                  Value: !Sub ${RevokeFunction}:live
                 - Name: FunctionName
                   Value: !Ref RevokeFunction
                 - Name: ExecutedVersion
@@ -1370,45 +1373,46 @@ Resources:
             Period: 60
             Stat: Sum
         - Id: lambdaErrorPercentage
-          Label: "Percentage of invocations that result in a function error"
+          Label: Percentage of invocations that result in a function error
           ReturnData: false
           Expression: (lambdaErrors/lambdaInvocations)*100
         - Id: lambdaErrorRateThreshold
-          Label: "Error threshold calculation"
+          Label: Error threshold calculation
           ReturnData: true
           Expression: IF(lambdaErrors >= 5,lambdaErrorPercentage)
 
-# Canary incomplete journeys ratio log filter and alarm
-  RevokeCompletionMetricFilter:
+          # Canary incomplete journeys ratio log filter and alarm
     Condition: DeployAlarms
-    Type: AWS::Logs::MetricFilter    
+
+  RevokeCompletionMetricFilter:
+    Type: AWS::Logs::MetricFilter
     Properties:
       LogGroupName: !Ref RevokeLogGroup
-      FilterPattern: "{ ($.messageCode = *) && ($.functionVersion = *) }"
+      FilterPattern: '{ ($.messageCode = *) && ($.functionVersion = *) }'
       MetricTransformations:
         - MetricValue: "1"
-          MetricNamespace: !Sub "${AWS::StackName}/LogMessages"
-          MetricName: "RevokeMessageCode"
+          MetricNamespace: !Sub ${AWS::StackName}/LogMessages
+          MetricName: RevokeMessageCode
           Dimensions:
             - Key: MessageCode
               Value: $.messageCode
             - Key: Version
               Value: $.functionVersion
+    Condition: DeployAlarms
 
   RevokeLowCompletionAlarm:
-    Condition: DeployAlarms
-    Type: AWS::CloudWatch::Alarm    
+    Type: AWS::CloudWatch::Alarm
     DependsOn:
-      - "RevokeCompletionMetricFilter"
+      - RevokeCompletionMetricFilter
     Properties:
       ActionsEnabled: true
       AlarmActions:
-        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning"
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       OKActions:
-        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning"
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       InsufficientDataActions: []
-      AlarmDescription: "A large proportion of Revoke requests have not completed successfully."
-      AlarmName: !Sub "${AWS::StackName}-revoke-lambda-low-completion"
+      AlarmDescription: A large proportion of Revoke requests have not completed successfully.
+      AlarmName: !Sub ${AWS::StackName}-revoke-lambda-low-completion
       EvaluationPeriods: 1
       DatapointsToAlarm: 1
       Threshold: 80
@@ -1416,43 +1420,45 @@ Resources:
       TreatMissingData: notBreaching
       Metrics:
         - Id: lambdaLogStarted
-          Label: "Sum of REVOKE_STARTED messageCodes for latest Lambda version"
+          Label: Sum of REVOKE_STARTED messageCodes for latest Lambda version
           ReturnData: false
           MetricStat:
             Metric:
-              Namespace: !Sub "${AWS::StackName}/LogMessages"
+              Namespace: !Sub ${AWS::StackName}/LogMessages
               MetricName: RevokeMessageCode
               Dimensions:
                 - Name: MessageCode
-                  Value: REVOKE_STARTED                
+                  Value: REVOKE_STARTED
                 - Name: Version
                   Value: !GetAtt RevokeFunction.Version.Version
             Period: 60
             Stat: Sum
         - Id: lambdaLogCompleted
-          Label: "Sum of REVOKE_COMPLETED messageCodes for latest Lambda version"
+          Label: Sum of REVOKE_COMPLETED messageCodes for latest Lambda version
           ReturnData: false
           MetricStat:
             Metric:
-              Namespace: !Sub "${AWS::StackName}/LogMessages"
+              Namespace: !Sub ${AWS::StackName}/LogMessages
               MetricName: RevokeMessageCode
               Dimensions:
                 - Name: MessageCode
-                  Value: REVOKE_COMPLETED                
+                  Value: REVOKE_COMPLETED
                 - Name: Version
                   Value: !GetAtt RevokeFunction.Version.Version
             Period: 60
             Stat: Sum
         - Id: lambdaLogCompletePercentage
-          Label: "Percentage of invocations that complete successfully"
+          Label: Percentage of invocations that complete successfully
           ReturnData: false
           Expression: (lambdaLogCompleted/lambdaLogStarted)*100
         - Id: lowCompletionRateThreshold
-          Label: "Error threshold calculation"
+          Label: Error threshold calculation
           ReturnData: true
           Expression: IF((lambdaLogStarted-lambdaLogCompleted)>= 5, lambdaLogCompletePercentage)
 
-    # SNS Topics
+          # SNS Topics
+    Condition: DeployAlarms
+
   AlarmWarningSNSTopic:
     Type: AWS::SNS::Topic
     Properties:
@@ -1624,9 +1630,8 @@ Resources:
       LogGroupName: !Ref StatusListPublisherAccessLogs
     Condition: IsProdLikeEnvironment
 
-# Canary error alarm
+    # Canary error alarm
   StatusListPublisherErrorsWarningAlarm:
-    Condition: DeployAlarms
     Type: AWS::CloudWatch::Alarm
     Properties:
       ActionsEnabled: true
@@ -1635,20 +1640,20 @@ Resources:
       OKActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       AlarmDescription: !Sub
-          - 'The number of Status List Publisher Lambda errors is greater than or equal to 10% for the latest function version. See runbook: ${WarningAlarmsRunbookUrl}'
-          - WarningAlarmsRunbookUrl: !FindInMap
-              - StaticVariables
-              - urls
-              - WarningAlarmsRunbook
+        - 'The number of Status List Publisher Lambda errors is greater than or equal to 10% for the latest function version. See runbook: ${WarningAlarmsRunbookUrl}'
+        - WarningAlarmsRunbookUrl: !FindInMap
+            - StaticVariables
+            - urls
+            - WarningAlarmsRunbook
       AlarmName: !Sub ${AWS::StackName}-status-list-publisher-error-rate
-      DatapointsToAlarm: 1 
+      DatapointsToAlarm: 1
       EvaluationPeriods: 1
       Threshold: 10
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
       Metrics:
         - Id: lambdaInvocations
-          Label: "Sum of invocations for latest Lambda version"
+          Label: Sum of invocations for latest Lambda version
           ReturnData: false
           MetricStat:
             Metric:
@@ -1656,7 +1661,7 @@ Resources:
               MetricName: Invocations
               Dimensions:
                 - Name: Resource
-                  Value: !Sub "${StatusListPublisherFunction}:live"
+                  Value: !Sub ${StatusListPublisherFunction}:live
                 - Name: FunctionName
                   Value: !Ref StatusListPublisherFunction
                 - Name: ExecutedVersion
@@ -1664,7 +1669,7 @@ Resources:
             Period: 60
             Stat: Sum
         - Id: lambdaErrors
-          Label: "Sum of function errors for latest Lambda version"
+          Label: Sum of function errors for latest Lambda version
           ReturnData: false
           MetricStat:
             Metric:
@@ -1672,7 +1677,7 @@ Resources:
               MetricName: Errors
               Dimensions:
                 - Name: Resource
-                  Value: !Sub "${StatusListPublisherFunction}:live"
+                  Value: !Sub ${StatusListPublisherFunction}:live
                 - Name: FunctionName
                   Value: !Ref StatusListPublisherFunction
                 - Name: ExecutedVersion
@@ -1680,45 +1685,46 @@ Resources:
             Period: 60
             Stat: Sum
         - Id: lambdaErrorPercentage
-          Label: "Percentage of invocations that result in a function error"
+          Label: Percentage of invocations that result in a function error
           ReturnData: false
           Expression: (lambdaErrors/lambdaInvocations)*100
         - Id: lambdaErrorRateThreshold
-          Label: "Error threshold calculation"
+          Label: Error threshold calculation
           ReturnData: true
           Expression: IF(lambdaErrors >= 5,lambdaErrorPercentage)
 
-# Canary incomplete journeys ratio log filter and alarm
-  StatusListPublisherCompletionMetricFilter:
+          # Canary incomplete journeys ratio log filter and alarm
     Condition: DeployAlarms
-    Type: AWS::Logs::MetricFilter    
+
+  StatusListPublisherCompletionMetricFilter:
+    Type: AWS::Logs::MetricFilter
     Properties:
       LogGroupName: !Ref StatusListPublisherLogGroup
-      FilterPattern: "{ ($.messageCode = *) && ($.functionVersion = *) }"
+      FilterPattern: '{ ($.messageCode = *) && ($.functionVersion = *) }'
       MetricTransformations:
         - MetricValue: "1"
-          MetricNamespace: !Sub "${AWS::StackName}/LogMessages"
-          MetricName: "StatusListPublisherMessageCode"
+          MetricNamespace: !Sub ${AWS::StackName}/LogMessages
+          MetricName: StatusListPublisherMessageCode
           Dimensions:
             - Key: MessageCode
               Value: $.messageCode
             - Key: Version
               Value: $.functionVersion
+    Condition: DeployAlarms
 
   StatusListPublisherLowCompletionAlarm:
-    Condition: DeployAlarms
-    Type: AWS::CloudWatch::Alarm    
+    Type: AWS::CloudWatch::Alarm
     DependsOn:
-      - "StatusListPublisherCompletionMetricFilter"
+      - StatusListPublisherCompletionMetricFilter
     Properties:
       ActionsEnabled: true
       AlarmActions:
-        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning"
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       OKActions:
-        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning"
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       InsufficientDataActions: []
-      AlarmDescription: "A large proportion of Status List Publisher requests have not completed successfully."
-      AlarmName: !Sub "${AWS::StackName}-status-list-publisher-lambda-low-completion"
+      AlarmDescription: A large proportion of Status List Publisher requests have not completed successfully.
+      AlarmName: !Sub ${AWS::StackName}-status-list-publisher-lambda-low-completion
       EvaluationPeriods: 1
       DatapointsToAlarm: 1
       Threshold: 80
@@ -1726,41 +1732,42 @@ Resources:
       TreatMissingData: notBreaching
       Metrics:
         - Id: lambdaLogStarted
-          Label: "Sum of STATUS_LIST_PUBLISHER_STARTED messageCodes for latest Lambda version"
+          Label: Sum of STATUS_LIST_PUBLISHER_STARTED messageCodes for latest Lambda version
           ReturnData: false
           MetricStat:
             Metric:
-              Namespace: !Sub "${AWS::StackName}/LogMessages"
+              Namespace: !Sub ${AWS::StackName}/LogMessages
               MetricName: StatusListPublisherMessageCode
               Dimensions:
                 - Name: MessageCode
-                  Value: STATUS_LIST_PUBLISHER_STARTED                
+                  Value: STATUS_LIST_PUBLISHER_STARTED
                 - Name: Version
                   Value: !GetAtt StatusListPublisherFunction.Version.Version
             Period: 60
             Stat: Sum
         - Id: lambdaLogCompleted
-          Label: "Sum of STATUS_LIST_PUBLISHER_COMPLETED messageCodes for latest Lambda version"
+          Label: Sum of STATUS_LIST_PUBLISHER_COMPLETED messageCodes for latest Lambda version
           ReturnData: false
           MetricStat:
             Metric:
-              Namespace: !Sub "${AWS::StackName}/LogMessages"
+              Namespace: !Sub ${AWS::StackName}/LogMessages
               MetricName: StatusListPublisherMessageCode
               Dimensions:
                 - Name: MessageCode
-                  Value: STATUS_LIST_PUBLISHER_COMPLETED                
+                  Value: STATUS_LIST_PUBLISHER_COMPLETED
                 - Name: Version
                   Value: !GetAtt StatusListPublisherFunction.Version.Version
             Period: 60
             Stat: Sum
         - Id: lambdaLogCompletePercentage
-          Label: "Percentage of invocations that complete successfully"
+          Label: Percentage of invocations that complete successfully
           ReturnData: false
           Expression: (lambdaLogCompleted/lambdaLogStarted)*100
         - Id: lowCompletionRateThreshold
-          Label: "Error threshold calculation"
+          Label: Error threshold calculation
           ReturnData: true
           Expression: IF((lambdaLogStarted-lambdaLogCompleted)>= 5, lambdaLogCompletePercentage)
+    Condition: DeployAlarms
 
   # API Gateway
   PrivateApi:
@@ -2515,42 +2522,10 @@ Resources:
         - !Ref PermissionsBoundary
         - !Ref AWS::NoValue
 
-# Base alarms in progress
+        # Base alarms in progress
 
-####
-#  Error Alarm
+        ####
+        #  Error Alarm
 
-# Do I need to change name to denote it's specifically looking at latest version aka for canary deployments
-# This is for one error occuring as ticket denotes, however this is likely too sensitive
-  # RevokeErrorsWarningAlarm:
-  #   Type: AWS::CloudWatch::Alarm
-  #   Properties:
-  #     ActionsEnabled: true
-  #     AlarmActions:
-  #       - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
-  #     OKActions:
-  #       - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
-  #     AlarmDescription: !Sub
-  #         - 'The number of Revoke Lambda errors is greater than or equal to 10% for the latest function version. See runbook: ${WarningAlarmsRunbookUrl}'
-  #         - WarningAlarmsRunbookUrl: !FindInMap
-  #             - StaticVariables
-  #             - urls
-  #             - WarningAlarmsRunbook
-  #     AlarmName: !Sub ${AWS::StackName}-revoke-error-rate
-  #     MetricName: Errors
-  #     Namespace: AWS/Lambda
-  #     Statistic: Sum
-  #     Period: 60
-  #     DatapointsToAlarm: 1 
-  #     EvaluationPeriods: 1
-  #     Threshold: 1
-  #     ComparisonOperator: GreaterThanThreshold
-  #     TreatMissingData: notBreaching
-  #     Dimensions:
-  #       - Name: FunctionName
-  #         Value: !Ref RevokeFunction
-  #       - Name: ExecutedVersion
-  #         Value: !GetAtt RevokeFunction.Version.Version
-
-
-  
+        # Do I need to change name to denote it's specifically looking at latest version aka for canary deployments
+        # This is for one error occuring as ticket denotes, however this is likely too sensitive
