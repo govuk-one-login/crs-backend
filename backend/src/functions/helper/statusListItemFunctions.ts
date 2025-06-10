@@ -24,7 +24,7 @@ export async function validateStatusListEntryAgainstRequest(
         Key: {
           uri: { S: uriSuffix },
           idx: { N: String(idx) },
-        }
+        },
       }),
     );
   } catch (error) {
