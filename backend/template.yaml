@@ -508,6 +508,9 @@ Resources:
       Environment:
         Variables:
           POWERTOOLS_SERVICE_NAME: Revoke
+          CLIENT_REGISTRY_BUCKET: !Ref ClientRegistryBucket
+          CLIENT_REGISTRY_FILE_KEY: mockClientRegistry.json #remove "mock" when using the real file
+          TXMA_QUEUE_URL: !Ref TxMASQSQueue
           STATUS_LIST_TABLE: !Ref StatusListTable
 
   RevokeFunctionLambdaRole:
@@ -535,6 +538,30 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: !GetAtt StatusListPublisherLogGroup.Arn
+        - PolicyName: S3BucketReadAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource: !Sub arn:aws:s3:::${AWS::StackName}-${Environment}-client-registry/*
+        - PolicyName: RevokeFunctionSQSPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  - sqs:SendMessage
+                Effect: Allow
+                Resource:
+                  - !GetAtt TxMASQSQueue.Arn
+              - Action:
+                  - kms:Decrypt
+                  - kms:GenerateDataKey
+                Effect: Allow
+                Resource:
+                  - !GetAtt TxMAKMSEncryptionKey.Arn
         - PolicyName: DynamoDBReadOnly
           PolicyDocument:
             Version: "2012-10-17"
@@ -1524,7 +1551,9 @@ Resources:
             Resource: !Sub arn:aws:s3:::${ClientRegistryBucket}/*
             Condition:
               StringEquals:
-                AWS:SourceArn: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${IssueStatusListEntryFunction}
+                AWS:SourceArn:
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${IssueStatusListEntryFunction}
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${RevokeFunction}
           - Effect: Deny
             Action: '*'
             Principal: '*'

@@ -117,7 +117,7 @@ export async function handler(
     config.clients.find((i) => i.clientId == jsonPayload.iss)
   );
 
-  const queueType = getListType(matchingClientEntry);
+  const queueType = getQueueType(matchingClientEntry);
 
   const availableIndex = await findNextAvailableIndexPoll(queueType);
 
@@ -211,7 +211,7 @@ async function findNextAvailableIndex(queue_url: string | undefined): Promise<{
   return { status_index, status_uri };
 }
 
-function getListType(matchingClientEntry: ClientEntry | undefined) {
+function getQueueType(matchingClientEntry: ClientEntry | undefined) {
   if (matchingClientEntry?.statusList.type === "BitstringStatusList") {
     return BITSTRING_QUEUE_URL;
   } else if (matchingClientEntry?.statusList.type == "TokenStatusList") {
@@ -273,8 +273,8 @@ function setupLogger(context: Context) {
   logger.appendKeys({ functionVersion: context.functionVersion });
 }
 
-function createUri(queueType: string, status_uri) {
-  if (queueType == "BitstringStatusList") {
+function createUri(listType: string, status_uri) {
+  if (listType == "BitstringStatusList") {
     return `https://api.status-list.service.gov.uk/b/${status_uri}`;
   } else {
     return `https://api.status-list.service.gov.uk/t/${status_uri}`;

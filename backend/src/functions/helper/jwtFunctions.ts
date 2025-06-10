@@ -126,7 +126,7 @@ export async function validateRevokingJWT(
 
   const originalIssuerResult = await validateStatusListEntryAgainstRequest(
     dynamoDBClient,
-    jsonPayload.uri,
+    uriSuffix,
     jsonPayload.idx,
     jsonPayload.iss,
     expectedListType,

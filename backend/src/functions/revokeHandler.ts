@@ -86,7 +86,7 @@ export async function handler(
         jsonPayload.iss,
         signingKeyString,
         <string>event.body,
-        <APIGatewayProxyResult>validationResult.error,
+        validationResult.error,
         jsonHeader.kid,
       ),
     );
@@ -126,7 +126,7 @@ export async function handler(
         jsonPayload.iss,
         signingKeyString,
         <string>event.body,
-        <APIGatewayProxyResult>revocationError,
+        revocationError,
         jsonHeader.kid,
       ),
     );
