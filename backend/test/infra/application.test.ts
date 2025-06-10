@@ -25,6 +25,14 @@ describe("Backend application infrastructure", () => {
       ["high-threshold-revoke-5xx-api-gw"],
       ["low-threshold-revoke-5xx-api-gw"],
       ["api-gateway-latency"],
+      ["issue-status-list-entry-error-rate"],
+      ["issue-status-list-entry-lambda-low-completion"],
+      ["find-available-slots-error-rate"],
+      ["find-available-slots-lambda-low-completion"],
+      ["revoke-error-rate"],
+      ["revoke-lambda-low-completion"],
+      ["status-list-publisher-error-rate"],
+      ["status-list-publisher-lambda-low-completion"],
     ])(
       "The %s alarm is configured to send an event to the warnings SNS topic on Alarm and OK actions",
       (alarmName: string) => {
