@@ -202,6 +202,9 @@ Globals:
       - UseCodeSigning
       - !Ref CodeSigningConfigArn
       - !Ref AWS::NoValue
+    DeploymentPreference:
+      Enabled: false
+      Role: !GetAtt CodeDeployServiceRole.Arn
     MemorySize: 512
     PermissionsBoundary: !If
       - UsePermissionsBoundary
@@ -221,6 +224,24 @@ Globals:
       LogFormat: JSON
 
 Resources:
+  CodeDeployServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - codedeploy.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRoleForLambda
+      PermissionsBoundary: !If
+        - UsePermissionsBoundary
+        - !Ref PermissionsBoundary
+        - !Ref AWS::NoValue
 
   # Status List DynamoDB Table
   StatusListTable:
@@ -420,9 +441,9 @@ Resources:
       LogGroupName: !Ref IssueStatusListEntryLogGroup
     Condition: IsProdLikeEnvironment
 
-    # Canary error alarm
   IssueStatusListEntryErrorsWarningAlarm:
     Type: AWS::CloudWatch::Alarm
+    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -483,11 +504,9 @@ Resources:
           ReturnData: true
           Expression: IF(lambdaErrors >= 5,lambdaErrorPercentage)
 
-          # Canary incomplete journeys ratio log filter and alarm
-    Condition: DeployAlarms
-
   IssueStatusListEntryCompletionMetricFilter:
     Type: AWS::Logs::MetricFilter
+    Condition: DeployAlarms
     Properties:
       LogGroupName: !Ref IssueStatusListEntryLogGroup
       FilterPattern: '{ ($.messageCode = *) && ($.functionVersion = *) }'
@@ -500,10 +519,10 @@ Resources:
               Value: $.messageCode
             - Key: Version
               Value: $.functionVersion
-    Condition: DeployAlarms
 
   IssueStatusListEntryLowCompletionAlarm:
     Type: AWS::CloudWatch::Alarm
+    Condition: DeployAlarms
     DependsOn:
       - IssueStatusListEntryCompletionMetricFilter
     Properties:
@@ -557,9 +576,6 @@ Resources:
           Label: Error threshold calculation
           ReturnData: true
           Expression: IF((lambdaLogStarted-lambdaLogCompleted)>= 5, lambdaLogCompletePercentage)
-
-          # FindAvailableSlots Lambda and supporting resources
-    Condition: DeployAlarms
 
   FindAvailableSlotsFunction:
     Type: AWS::Serverless::Function
@@ -642,9 +658,10 @@ Resources:
           - !ImportValue
             Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
 
-            # Canary error alarm
+
   FindAvailableSlotsErrorsWarningAlarm:
     Type: AWS::CloudWatch::Alarm
+    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -705,11 +722,9 @@ Resources:
           ReturnData: true
           Expression: IF(lambdaErrors >= 5,lambdaErrorPercentage)
 
-          # Canary incomplete journeys ratio log filter and alarm
-    Condition: DeployAlarms
-
   FindAvailableSlotsCompletionMetricFilter:
     Type: AWS::Logs::MetricFilter
+    Condition: DeployAlarms
     Properties:
       LogGroupName: !Ref FindAvailableSlotsLogGroup
       FilterPattern: '{ ($.messageCode = *) && ($.functionVersion = *) }'
@@ -722,10 +737,10 @@ Resources:
               Value: $.messageCode
             - Key: Version
               Value: $.functionVersion
-    Condition: DeployAlarms
 
   FindAvailableSlotsLowCompletionAlarm:
     Type: AWS::CloudWatch::Alarm
+    Condition: DeployAlarms
     DependsOn:
       - FindAvailableSlotsCompletionMetricFilter
     Properties:
@@ -779,7 +794,6 @@ Resources:
           Label: Error threshold calculation
           ReturnData: true
           Expression: IF((lambdaLogStarted-lambdaLogCompleted)>= 5, lambdaLogCompletePercentage)
-    Condition: DeployAlarms
 
   # Revoke Lambda
   RevokeFunction:
@@ -923,6 +937,7 @@ Resources:
     # Revoke Alarms
   Revoke4XXHighThresholdAlarm:
     Type: AWS::CloudWatch::Alarm
+    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -985,10 +1000,10 @@ Resources:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       Threshold: 80
       TreatMissingData: notBreaching
-    Condition: DeployAlarms
 
   Revoke4XXLowThresholdAlarm:
     Type: AWS::CloudWatch::Alarm
+    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -1051,10 +1066,10 @@ Resources:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       Threshold: 1
       TreatMissingData: notBreaching
-    Condition: DeployAlarms
 
   Revoke5XXHighThresholdAlarm:
     Type: AWS::CloudWatch::Alarm
+    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -1117,10 +1132,10 @@ Resources:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       Threshold: 80
       TreatMissingData: notBreaching
-    Condition: DeployAlarms
 
   Revoke5XXLowThresholdAlarm:
     Type: AWS::CloudWatch::Alarm
+    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -1183,10 +1198,10 @@ Resources:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       Threshold: 1
       TreatMissingData: notBreaching
-    Condition: DeployAlarms
 
   ApiGatewayLatencyAlarm:
     Type: AWS::CloudWatch::Alarm
+    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -1238,10 +1253,10 @@ Resources:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       Threshold: 1
       TreatMissingData: notBreaching
-    Condition: DeployAlarms
 
   RevokeConcurrencyAlarm:
     Type: AWS::CloudWatch::Alarm
+    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -1267,10 +1282,10 @@ Resources:
       Statistic: Maximum
       Threshold: 64
       TreatMissingData: notBreaching
-    Condition: DeployAlarms
 
   RevokeThroughputAlarm:
     Type: AWS::CloudWatch::Alarm
+    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -1316,11 +1331,10 @@ Resources:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       Threshold: 60
       TreatMissingData: notBreaching
-    Condition: DeployAlarms
 
-    # Canary error alarm
   RevokeErrorsWarningAlarm:
     Type: AWS::CloudWatch::Alarm
+    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -1381,11 +1395,9 @@ Resources:
           ReturnData: true
           Expression: IF(lambdaErrors >= 5,lambdaErrorPercentage)
 
-          # Canary incomplete journeys ratio log filter and alarm
-    Condition: DeployAlarms
-
   RevokeCompletionMetricFilter:
     Type: AWS::Logs::MetricFilter
+    Condition: DeployAlarms
     Properties:
       LogGroupName: !Ref RevokeLogGroup
       FilterPattern: '{ ($.messageCode = *) && ($.functionVersion = *) }'
@@ -1398,10 +1410,10 @@ Resources:
               Value: $.messageCode
             - Key: Version
               Value: $.functionVersion
-    Condition: DeployAlarms
 
   RevokeLowCompletionAlarm:
     Type: AWS::CloudWatch::Alarm
+    Condition: DeployAlarms
     DependsOn:
       - RevokeCompletionMetricFilter
     Properties:
@@ -1455,9 +1467,6 @@ Resources:
           Label: Error threshold calculation
           ReturnData: true
           Expression: IF((lambdaLogStarted-lambdaLogCompleted)>= 5, lambdaLogCompletePercentage)
-
-          # SNS Topics
-    Condition: DeployAlarms
 
   AlarmWarningSNSTopic:
     Type: AWS::SNS::Topic
@@ -1633,6 +1642,7 @@ Resources:
     # Canary error alarm
   StatusListPublisherErrorsWarningAlarm:
     Type: AWS::CloudWatch::Alarm
+    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -1693,11 +1703,9 @@ Resources:
           ReturnData: true
           Expression: IF(lambdaErrors >= 5,lambdaErrorPercentage)
 
-          # Canary incomplete journeys ratio log filter and alarm
-    Condition: DeployAlarms
-
   StatusListPublisherCompletionMetricFilter:
     Type: AWS::Logs::MetricFilter
+    Condition: DeployAlarms
     Properties:
       LogGroupName: !Ref StatusListPublisherLogGroup
       FilterPattern: '{ ($.messageCode = *) && ($.functionVersion = *) }'
@@ -1710,10 +1718,10 @@ Resources:
               Value: $.messageCode
             - Key: Version
               Value: $.functionVersion
-    Condition: DeployAlarms
 
   StatusListPublisherLowCompletionAlarm:
     Type: AWS::CloudWatch::Alarm
+    Condition: DeployAlarms
     DependsOn:
       - StatusListPublisherCompletionMetricFilter
     Properties:
@@ -1767,7 +1775,6 @@ Resources:
           Label: Error threshold calculation
           ReturnData: true
           Expression: IF((lambdaLogStarted-lambdaLogCompleted)>= 5, lambdaLogCompletePercentage)
-    Condition: DeployAlarms
 
   # API Gateway
   PrivateApi:
@@ -2299,6 +2306,7 @@ Resources:
 
   BitstringQueueCapacityAlarm:
     Type: AWS::CloudWatch::Alarm
+    Condition: DeployAlarms
     Properties:
       AlarmName: !Sub ${AWS::StackName}-BitstringQueueCapacityAlarm
       AlarmDescription: Alarm if Bitstring queue drops below 25% capacity
@@ -2317,6 +2325,7 @@ Resources:
 
   TokenStatusQueueCapacityAlarm:
     Type: AWS::CloudWatch::Alarm
+    Condition: DeployAlarms
     Properties:
       AlarmName: !Sub ${AWS::StackName}-TokenStatusQueueCapacityAlarm
       AlarmDescription: Alarm if TokenStatus queue drops below 25% capacity
