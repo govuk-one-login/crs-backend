@@ -280,6 +280,8 @@ function createUri(listType: string, status_uri) {
     case "TokenStatusList":
       return `https://api.status-list.service.gov.uk/t/${status_uri}`;
     default:
-      throw new Error(`Client entry does not have a valid list type: ${listType}`);
+      throw new Error(
+        `Client entry does not have a valid list type: ${listType}`,
+      );
   }
 }
