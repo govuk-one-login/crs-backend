@@ -12,12 +12,19 @@ import {
 } from "./helper/clientRegistryFunctions";
 import { decodeJWT, validateRevokingJWT } from "./helper/jwtFunctions";
 import { DynamoDBClient, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
-import { StatusListItem } from "../common/types";
+import {
+  revokeFailTXMAEvent,
+  revokeSuccessTXMAEvent,
+  StatusListItem,
+} from "../common/types";
 import {
   internalServerErrorResponse,
   notFoundResponse,
   revocationSuccessResponse,
 } from "../common/responses";
+import { exportJWK } from "jose";
+import { sendTxmaEventToSQSQueue } from "./helper/sqsFunctions";
+import { SQSClient } from "@aws-sdk/client-sqs";
 
 const STATUS_LIST_TABLE = process.env.STATUS_LIST_TABLE ?? "";
 
@@ -27,6 +34,7 @@ function setupLogger(context: Context) {
   logger.appendKeys({ functionVersion: context.functionVersion });
 }
 
+const sqsClient = new SQSClient({});
 const s3Client = new S3Client({});
 const dynamoDBClient = new DynamoDBClient({});
 
@@ -64,7 +72,24 @@ export async function handler(
     config,
   );
 
+  let signingKeyString = "";
+
+  if (validationResult.signingKey) {
+    const jwk = await exportJWK(validationResult.signingKey);
+    signingKeyString = JSON.stringify(jwk);
+  }
+
   if (!validationResult.isValid && validationResult.error) {
+    await sendTxmaEventToSQSQueue(
+      sqsClient,
+      revokeFailTXMAEvent(
+        jsonPayload.iss,
+        signingKeyString,
+        <string>event.body,
+        validationResult.error,
+        jsonHeader.kid,
+      ),
+    );
     return validationResult.error;
   }
 
@@ -81,17 +106,37 @@ export async function handler(
       `Revocation process completed for URI ${foundItem.uri.S} and index ${statusListEntryIndex}. Already revoked: ${updateResult.alreadyRevoked}`,
     );
 
+    await sendTxmaEventToSQSQueue(
+      sqsClient,
+      revokeSuccessTXMAEvent(
+        jsonPayload.iss,
+        signingKeyString,
+        <string>event.body,
+        jsonHeader.kid,
+      ),
+    );
+
     return revocationSuccessResponse(updateResult);
   } catch (error) {
-    return handleRevocationError(error as Error);
+    const revocationError = handleRevocationError(error as Error);
+
+    await sendTxmaEventToSQSQueue(
+      sqsClient,
+      revokeFailTXMAEvent(
+        jsonPayload.iss,
+        signingKeyString,
+        <string>event.body,
+        revocationError,
+        jsonHeader.kid,
+      ),
+    );
+
+    return revocationError;
   }
 }
 
 function handleRevocationError(error: Error): APIGatewayProxyResult {
-  if (
-    error.message.includes("List type mismatch") ||
-    error.message.includes("Entry not found")
-  ) {
+  if (error.message.includes("Entry not found")) {
     return notFoundResponse(error.message);
   }
 

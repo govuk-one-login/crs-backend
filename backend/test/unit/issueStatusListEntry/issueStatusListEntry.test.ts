@@ -40,10 +40,11 @@ import {
   ISSUE_JWT_WITH_NON_MATCHING_KID,
   ISSUE_JWT_WITH_NON_VERIFIED_SIGNATURE,
   PUBLIC_KEY,
-  TEST_CLIENT_ID,
   TEST_KID,
   TEST_NON_MATCHING_KID,
   EMPTY_SIGNING_KEY,
+  TEST_CLIENT_ID_TOKEN,
+  TEST_CLIENT_ID_BITSTRING,
 } from "../../utils/testConstants";
 
 const mockS3Client = mockClient(S3Client);
@@ -216,8 +217,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         createTestDBItem(
           "A671FED3E9AF",
           "4",
-          "DNkekdNSkekSNljrwevOIUPenGeS",
-
+          TEST_CLIENT_ID_TOKEN,
           "TokenStatusList",
           "DVLA",
         ),
@@ -277,14 +277,14 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         "No Expiry Date in Payload",
         ISSUE_JWT_WITH_NO_EXPIRES,
         TEST_KID,
-        TEST_CLIENT_ID,
+        TEST_CLIENT_ID_TOKEN,
       ],
       [
         buildRequest({ body: ISSUE_JWT_WITH_NO_KID }),
         "No Kid in Header",
         ISSUE_JWT_WITH_NO_KID,
         "null",
-        TEST_CLIENT_ID,
+        TEST_CLIENT_ID_TOKEN,
       ],
       [
         buildRequest({ body: ISSUE_JWT_WITH_NO_ISS }),
@@ -349,7 +349,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         buildRequest({ body: ISSUE_JWT_WITH_NON_MATCHING_KID }),
         `No matching Key ID found in JWKS Endpoint for Kid: ${TEST_NON_MATCHING_KID}`,
         ISSUE_JWT_WITH_NON_MATCHING_KID,
-        TEST_CLIENT_ID,
+        TEST_CLIENT_ID_TOKEN,
         TEST_NON_MATCHING_KID,
         EMPTY_SIGNING_KEY,
       ],
@@ -357,7 +357,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         buildRequest({ body: ISSUE_JWT_WITH_NON_VERIFIED_SIGNATURE }),
         "Failure verifying the signature of the jwt",
         ISSUE_JWT_WITH_NON_VERIFIED_SIGNATURE,
-        TEST_CLIENT_ID,
+        TEST_CLIENT_ID_TOKEN,
         TEST_KID,
         JWKS_SIGNING_KEY,
       ],
@@ -447,7 +447,7 @@ function assertAndValidateIssuedTXMAEvent(
   sqsMessageBody,
   index: string = '"index":4',
   uri: string = '"uri":"https://api.status-list.service.gov.uk/b/A671FED3E9AF"',
-  clientId: string = '"client_id":"asKWnsjeEJEWjjwSHsIksIksIhBe"',
+  clientId: string = TEST_CLIENT_ID_BITSTRING,
   jwtRequest: string = ISSUE_GOLDEN_JWT,
 ) {
   expect(mockSQSClient.commandCalls(SendMessageCommand)).toHaveLength(1);
