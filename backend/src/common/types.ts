@@ -21,6 +21,7 @@ export type StatusListItem = {
   listType?: { S: string };
   revokedAt?: { N: string };
 };
+
 export interface TxmaEvent {
   timestamp: number;
   event_timestamp_ms: number;
@@ -45,7 +46,7 @@ export interface INDEXISSUEDEVENT extends TxmaEvent {
   };
 }
 
-export interface ISSUANCEFAILEDEVENT extends TxmaEvent {
+export interface FAILEDEVENT extends TxmaEvent {
   client_id: string;
   timestamp: number;
   event_timestamp_ms: number;
@@ -57,6 +58,21 @@ export interface ISSUANCEFAILEDEVENT extends TxmaEvent {
       keyId: string;
       request: string;
       failure_reason: APIGatewayProxyResult;
+    };
+  };
+}
+
+export interface CRSINDEXREVOKED extends TxmaEvent {
+  client_id: string;
+  timestamp: number;
+  event_timestamp_ms: number;
+  event_name: EventNames;
+  component_id: string;
+  extensions: {
+    status_list: {
+      signingKey: string;
+      keyId: string;
+      request: string;
     };
   };
 }
@@ -100,12 +116,58 @@ export const issueFailTXMAEvent = (
   request: string,
   error: APIGatewayProxyResult,
   keyId: string = "null",
-): ISSUANCEFAILEDEVENT => {
+): FAILEDEVENT => {
   return {
     client_id: client_id,
     timestamp: Math.floor(Date.now() / 1000),
     event_timestamp_ms: Date.now(),
     event_name: "CRS_ISSUANCE_FAILED",
+    component_id: "https://api.status-list.service.gov.uk",
+    extensions: {
+      status_list: {
+        signingKey: signingKey,
+        keyId: keyId,
+        request: request,
+        failure_reason: error,
+      },
+    },
+  };
+};
+
+export const revokeSuccessTXMAEvent = (
+  client_id: string,
+  signingKey: string,
+  request: string,
+  keyId: string = "null",
+): CRSINDEXREVOKED => {
+  return {
+    client_id: client_id,
+    timestamp: Math.floor(Date.now() / 1000),
+    event_timestamp_ms: Date.now(),
+    event_name: "CRS_INDEX_REVOKED",
+    component_id: "https://api.status-list.service.gov.uk",
+    extensions: {
+      status_list: {
+        signingKey: signingKey,
+        keyId: keyId,
+        request: request,
+      },
+    },
+  };
+};
+
+export const revokeFailTXMAEvent = (
+  client_id: string,
+  signingKey: string,
+  request: string,
+  error: APIGatewayProxyResult,
+  keyId: string = "null",
+): FAILEDEVENT => {
+  return {
+    client_id: client_id,
+    timestamp: Math.floor(Date.now() / 1000),
+    event_timestamp_ms: Date.now(),
+    event_name: "CRS_INDEX_REVOCATION_FAILED",
     component_id: "https://api.status-list.service.gov.uk",
     extensions: {
       status_list: {

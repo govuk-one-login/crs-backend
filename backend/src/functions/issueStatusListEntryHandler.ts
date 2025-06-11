@@ -7,7 +7,6 @@ import { S3Client } from "@aws-sdk/client-s3";
 import {
   DeleteMessageCommand,
   ReceiveMessageCommand,
-  SendMessageCommand,
   SQSClient,
 } from "@aws-sdk/client-sqs";
 import {
@@ -18,14 +17,11 @@ import {
 import { logger } from "../common/logging/logger";
 import { LogMessage } from "../common/logging/LogMessages";
 import { decodeJwt, decodeProtectedHeader, exportJWK } from "jose";
-import {
-  issueFailTXMAEvent,
-  issueSuccessTXMAEvent,
-  TxmaEvent,
-} from "../common/types";
+import { issueFailTXMAEvent, issueSuccessTXMAEvent } from "../common/types";
 import { badRequestResponse } from "../common/responses";
 import { getClientRegistryConfiguration } from "./helper/clientRegistryFunctions";
 import { validateIssuingJWT } from "./helper/jwtFunctions";
+import { sendTxmaEventToSQSQueue } from "./helper/sqsFunctions";
 
 // Define types for configuration
 interface StatusListEntry {
@@ -48,7 +44,6 @@ const s3Client = new S3Client({});
 const sqsClient = new SQSClient({});
 const dynamoDBClient = new DynamoDBClient({});
 
-const TXMA_QUEUE_URL = process.env.TXMA_QUEUE_URL ?? "";
 const BITSTRING_QUEUE_URL = process.env.BITSTRING_QUEUE_URL ?? "";
 const TOKEN_STATUS_QUEUE_URL = process.env.TOKEN_STATUS_QUEUE_URL ?? "";
 const STATUS_LIST_TABLE = process.env.STATUS_LIST_TABLE ?? "";
@@ -105,7 +100,8 @@ export async function handler(
   }
 
   if (!validationResult.isValid && validationResult.error) {
-    await writeToSqs(
+    await sendTxmaEventToSQSQueue(
+      sqsClient,
       issueFailTXMAEvent(
         jsonPayload.iss,
         signingKeyString,
@@ -121,7 +117,7 @@ export async function handler(
     config.clients.find((i) => i.clientId == jsonPayload.iss)
   );
 
-  const queueType = getListType(matchingClientEntry);
+  const queueType = getQueueType(matchingClientEntry);
 
   const availableIndex = await findNextAvailableIndexPoll(queueType);
 
@@ -133,7 +129,8 @@ export async function handler(
 
   const fullUri = createUri(queueType, availableIndex.status_uri);
 
-  await writeToSqs(
+  await sendTxmaEventToSQSQueue(
+    sqsClient,
     issueSuccessTXMAEvent(
       jsonPayload.iss,
       signingKeyString,
@@ -214,7 +211,7 @@ async function findNextAvailableIndex(queue_url: string | undefined): Promise<{
   return { status_index, status_uri };
 }
 
-function getListType(matchingClientEntry: ClientEntry | undefined) {
+function getQueueType(matchingClientEntry: ClientEntry | undefined) {
   if (matchingClientEntry?.statusList.type === "BitstringStatusList") {
     return BITSTRING_QUEUE_URL;
   } else if (matchingClientEntry?.statusList.type == "TokenStatusList") {
@@ -242,24 +239,6 @@ async function deleteMessage(
     logger.info("Message deleted successfully.");
   } catch (error) {
     logger.error(`Error deleting message: ${error}`, error);
-  }
-}
-
-async function writeToSqs(txmaEvent: TxmaEvent) {
-  try {
-    await sqsClient.send(
-      new SendMessageCommand({
-        QueueUrl: TXMA_QUEUE_URL,
-        MessageBody: JSON.stringify(txmaEvent),
-      }),
-    );
-  } catch (error) {
-    logger.error(LogMessage.SEND_MESSAGE_TO_SQS_FAILURE, {
-      error,
-    });
-    throw Error(
-      `Failed to send TXMA Event: ${txmaEvent} to sqs, error: ${error}`,
-    );
   }
 }
 
@@ -294,10 +273,15 @@ function setupLogger(context: Context) {
   logger.appendKeys({ functionVersion: context.functionVersion });
 }
 
-function createUri(queueType: string, status_uri) {
-  if (queueType == "BitstringStatusList") {
-    return `https://api.status-list.service.gov.uk/b/${status_uri}`;
-  } else {
-    return `https://api.status-list.service.gov.uk/t/${status_uri}`;
+function createUri(listType: string, status_uri) {
+  switch (listType) {
+    case "BitstringStatusList":
+      return `https://api.status-list.service.gov.uk/b/${status_uri}`;
+    case "TokenStatusList":
+      return `https://api.status-list.service.gov.uk/t/${status_uri}`;
+    default:
+      throw new Error(
+        `Client entry does not have a valid list type: ${listType}`,
+      );
   }
 }

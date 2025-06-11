@@ -108,31 +108,42 @@ export async function validateRevokingJWT(
   const listTypeIndicator = uriParts.pop();
 
   if (!uriSuffix || !listTypeIndicator) {
-    return { isValid: false, error: badRequestResponse("Invalid URI format") };
+    return {
+      isValid: false,
+      signingKey: commonValidationResult.signingKey,
+      error: badRequestResponse("Invalid URI format"),
+    };
   }
 
   const expectedListType = getExpectedListType(listTypeIndicator);
   if (!expectedListType) {
     return {
       isValid: false,
+      signingKey: commonValidationResult.signingKey,
       error: badRequestResponse("Invalid list type in URI: must be /t/ or /b/"),
     };
   }
 
   const originalIssuerResult = await validateStatusListEntryAgainstRequest(
     dynamoDBClient,
-    jsonPayload.uri,
+    uriSuffix,
     jsonPayload.idx,
     jsonPayload.iss,
     expectedListType,
   );
 
   if (!originalIssuerResult.isValid) {
-    return originalIssuerResult;
+    return {
+      isValid: false,
+      signingKey: commonValidationResult.signingKey,
+      error: originalIssuerResult.error,
+    };
   }
 
   return {
     isValid: true,
+    signingKey: commonValidationResult.signingKey,
+    matchingClientEntry: commonValidationResult.matchingClientEntry,
     dbEntry: originalIssuerResult.dbEntry,
   };
 }

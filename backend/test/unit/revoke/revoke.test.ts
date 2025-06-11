@@ -12,9 +12,11 @@ import {
 import { mockClient } from "aws-sdk-client-mock";
 import { buildLambdaContext } from "../../utils/mockContext";
 import { buildRequest } from "../../utils/mockRequest";
-import { describe } from "@jest/globals";
+import { describe, expect } from "@jest/globals";
 import {
   ALREADY_REVOKED_JWT,
+  EMPTY_SIGNING_KEY,
+  JWKS_SIGNING_KEY,
   PUBLIC_KEY,
   REVOKE_GOLDEN_JWT,
   REVOKE_GOLDEN_TOKEN_JWT,
@@ -28,7 +30,8 @@ import {
   REVOKE_JWT_WITH_NON_MATCHING_CLIENT_ID,
   REVOKE_JWT_WITH_NON_MATCHING_KID,
   REVOKE_JWT_WITH_NON_VERIFIED_SIGNATURE,
-  TEST_CLIENT_ID,
+  TEST_CLIENT_ID_BITSTRING,
+  TEST_CLIENT_ID_TOKEN,
   TEST_KID,
   TEST_NON_MATCHING_KID,
 } from "../../utils/testConstants";
@@ -36,6 +39,7 @@ import { importSPKI } from "jose";
 import * as jose from "jose";
 import { sdkStreamMixin } from "@smithy/util-stream-node";
 import { Readable } from "stream";
+import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 
 jest.mock("../../../src/common/logging/logger", () => ({
   logger: {
@@ -51,6 +55,7 @@ jest.mock("../../../src/common/logging/logger", () => ({
 
 const mockS3Client = mockClient(S3Client);
 const mockDBClient = mockClient(DynamoDBClient);
+const mockSQSClient = mockClient(SQSClient);
 
 describe("Testing Revoke Lambda", () => {
   const mockEvent = buildRequest({ body: REVOKE_GOLDEN_JWT });
@@ -60,6 +65,7 @@ describe("Testing Revoke Lambda", () => {
     jest.clearAllMocks();
     mockDBClient.reset();
     mockS3Client.reset();
+    mockSQSClient.reset();
 
     const importedPublicKey = importSPKI(PUBLIC_KEY, "ES256");
 
@@ -107,7 +113,7 @@ describe("Testing Revoke Lambda", () => {
       Item: {
         uri: { S: "B2757C3F6091" },
         idx: { N: "1680" },
-        clientId: { S: "DNkekdNSkekSNljrwevOIUPenGeS" },
+        clientId: { S: TEST_CLIENT_ID_BITSTRING },
         issuedAt: { N: String(Date.now()) },
         listType: { S: "BitstringStatusList" },
       },
@@ -133,6 +139,8 @@ describe("Testing Revoke Lambda", () => {
           revokedAt: responseBody.revokedAt,
         }),
       });
+
+      assertAndValidateRevokeSuccessTXMAEvent();
 
       // Additional validation for timestamp format
       expect(responseBody.revokedAt).toMatch(/^\d+$/);
@@ -169,6 +177,11 @@ describe("Testing Revoke Lambda", () => {
       // Additional validation for timestamp format
       expect(responseBody.revokedAt).toMatch(/^\d+$/);
       expect(parseInt(responseBody.revokedAt)).toBeGreaterThan(0);
+
+      assertAndValidateRevokeSuccessTXMAEvent(
+        TEST_CLIENT_ID_TOKEN,
+        REVOKE_GOLDEN_TOKEN_JWT,
+      );
     });
 
     it("should return 202 OK for already revoked credential", async () => {
@@ -196,6 +209,11 @@ describe("Testing Revoke Lambda", () => {
 
       expect(mockDBClient.commandCalls(GetItemCommand)).toHaveLength(1);
       expect(mockDBClient.commandCalls(UpdateItemCommand)).toHaveLength(0);
+
+      assertAndValidateRevokeSuccessTXMAEvent(
+        TEST_CLIENT_ID_TOKEN,
+        REVOKE_GOLDEN_TOKEN_JWT,
+      );
     });
   });
 
@@ -206,14 +224,16 @@ describe("Testing Revoke Lambda", () => {
         "No Kid in Header",
         REVOKE_JWT_WITH_NO_KID,
         "null",
-        TEST_CLIENT_ID,
+        TEST_CLIENT_ID_BITSTRING,
+        EMPTY_SIGNING_KEY,
       ],
       [
         buildRequest({ body: REVOKE_JWT_WITH_NO_INDEX }),
         "No Index in Payload",
         REVOKE_JWT_WITH_NO_INDEX,
         TEST_KID,
-        TEST_CLIENT_ID,
+        TEST_CLIENT_ID_BITSTRING,
+        EMPTY_SIGNING_KEY,
       ],
       [
         buildRequest({ body: REVOKE_JWT_WITH_NO_URI }),
@@ -221,6 +241,7 @@ describe("Testing Revoke Lambda", () => {
         REVOKE_JWT_WITH_NO_URI,
         TEST_KID,
         "",
+        EMPTY_SIGNING_KEY,
       ],
       [
         buildRequest({ body: REVOKE_JWT_WITH_NO_CLIENT_ID }),
@@ -228,6 +249,7 @@ describe("Testing Revoke Lambda", () => {
         REVOKE_JWT_WITH_NO_CLIENT_ID,
         TEST_KID,
         "",
+        EMPTY_SIGNING_KEY,
       ],
       [
         buildRequest({ body: REVOKE_JWT_WITH_INVALID_URI }),
@@ -235,6 +257,7 @@ describe("Testing Revoke Lambda", () => {
         REVOKE_JWT_WITH_INVALID_URI,
         TEST_KID,
         "",
+        JWKS_SIGNING_KEY,
       ],
       [
         buildRequest({ body: REVOKE_JWT_WITH_INVALID_LIST_TYPE }),
@@ -242,10 +265,11 @@ describe("Testing Revoke Lambda", () => {
         REVOKE_JWT_WITH_INVALID_LIST_TYPE,
         TEST_KID,
         "",
+        JWKS_SIGNING_KEY,
       ],
     ])(
       "Returns 400 with correct descriptions",
-      async (event, errorDescription) => {
+      async (event, errorDescription, request, kid, clientId, signingKey) => {
         const result = await handler(event, mockContext);
 
         expect(result).toStrictEqual({
@@ -256,6 +280,16 @@ describe("Testing Revoke Lambda", () => {
             error_description: errorDescription,
           }),
         });
+
+        assertAndValidateRevokeErrorTXMAEvent(
+          clientId,
+          "CRS_INDEX_REVOCATION_FAILED",
+          signingKey,
+          kid,
+          request,
+          "400",
+          "BAD_REQUEST",
+        );
       },
     );
 
@@ -278,18 +312,30 @@ describe("Testing Revoke Lambda", () => {
       [
         buildRequest({ body: REVOKE_JWT_WITH_NON_MATCHING_CLIENT_ID }),
         "No matching client found with ID: asvvnsjeEJEWjjwSHsIksIksIhBe ",
+        REVOKE_JWT_WITH_NON_MATCHING_CLIENT_ID,
+        TEST_KID,
+        "asvvnsjeEJEWjjwSHsIksIksIhBe",
+        EMPTY_SIGNING_KEY,
       ],
       [
         buildRequest({ body: REVOKE_JWT_WITH_NON_MATCHING_KID }),
         `No matching Key ID found in JWKS Endpoint for Kid: ${TEST_NON_MATCHING_KID}`,
+        REVOKE_JWT_WITH_NON_MATCHING_KID,
+        TEST_NON_MATCHING_KID,
+        TEST_CLIENT_ID_BITSTRING,
+        EMPTY_SIGNING_KEY,
       ],
       [
         buildRequest({ body: REVOKE_JWT_WITH_NON_VERIFIED_SIGNATURE }),
         "Failure verifying the signature of the jwt",
+        REVOKE_JWT_WITH_NON_VERIFIED_SIGNATURE,
+        TEST_KID,
+        TEST_CLIENT_ID_TOKEN,
+        JWKS_SIGNING_KEY,
       ],
     ])(
       "Returns 401 with correct descriptions",
-      async (event, errorDescription) => {
+      async (event, errorDescription, request, kid, clientId, signingKey) => {
         const result = await handler(event, mockContext);
 
         expect(result).toStrictEqual({
@@ -300,6 +346,16 @@ describe("Testing Revoke Lambda", () => {
             error_description: errorDescription,
           }),
         });
+
+        assertAndValidateRevokeErrorTXMAEvent(
+          clientId,
+          "CRS_INDEX_REVOCATION_FAILED",
+          signingKey,
+          kid,
+          request,
+          "401",
+          "UNAUTHORISED",
+        );
       },
     );
 
@@ -326,6 +382,16 @@ describe("Testing Revoke Lambda", () => {
             "The original clientId is different to the clientId in the request",
         }),
       });
+
+      assertAndValidateRevokeErrorTXMAEvent(
+        TEST_CLIENT_ID_BITSTRING,
+        "CRS_INDEX_REVOCATION_FAILED",
+        JWKS_SIGNING_KEY,
+        TEST_KID,
+        REVOKE_GOLDEN_JWT,
+        "401",
+        "UNAUTHORISED",
+      );
     });
   });
 
@@ -343,6 +409,16 @@ describe("Testing Revoke Lambda", () => {
           error_description: "Entry not found in status list table",
         }),
       });
+
+      assertAndValidateRevokeErrorTXMAEvent(
+        TEST_CLIENT_ID_BITSTRING,
+        "CRS_INDEX_REVOCATION_FAILED",
+        JWKS_SIGNING_KEY,
+        TEST_KID,
+        REVOKE_GOLDEN_JWT,
+        "404",
+        "NOT_FOUND",
+      );
     });
 
     it("should return 404 for list type mismatch", async () => {
@@ -365,6 +441,16 @@ describe("Testing Revoke Lambda", () => {
             "List type mismatch: Expected BitstringStatusList but entry has TokenStatusList",
         }),
       });
+
+      assertAndValidateRevokeErrorTXMAEvent(
+        TEST_CLIENT_ID_BITSTRING,
+        "CRS_INDEX_REVOCATION_FAILED",
+        JWKS_SIGNING_KEY,
+        TEST_KID,
+        REVOKE_GOLDEN_JWT,
+        "404",
+        "NOT_FOUND",
+      );
     });
 
     it("should return 404 for entry with undefined list type", async () => {
@@ -386,6 +472,16 @@ describe("Testing Revoke Lambda", () => {
             "List type mismatch: Expected BitstringStatusList but entry has undefined",
         }),
       });
+
+      assertAndValidateRevokeErrorTXMAEvent(
+        TEST_CLIENT_ID_BITSTRING,
+        "CRS_INDEX_REVOCATION_FAILED",
+        JWKS_SIGNING_KEY,
+        TEST_KID,
+        REVOKE_GOLDEN_JWT,
+        "404",
+        "NOT_FOUND",
+      );
     });
   });
 
@@ -403,6 +499,16 @@ describe("Testing Revoke Lambda", () => {
           error_description: "No jwksUri found on client ID: mockClientId",
         }),
       });
+
+      assertAndValidateRevokeErrorTXMAEvent(
+        "mockClientId",
+        "CRS_INDEX_REVOCATION_FAILED",
+        EMPTY_SIGNING_KEY,
+        TEST_NON_MATCHING_KID,
+        REVOKE_JWT_WITH_NO_JWKS_URI,
+        "500",
+        "INTERNAL_SERVER_ERROR",
+      );
     });
 
     it("Returns 500 error when no clientId exists on credential", async () => {
@@ -427,6 +533,16 @@ describe("Testing Revoke Lambda", () => {
             "No client ID found on item index: 1680 and uri: B2757C3F6091",
         }),
       });
+
+      assertAndValidateRevokeErrorTXMAEvent(
+        TEST_CLIENT_ID_BITSTRING,
+        "CRS_INDEX_REVOCATION_FAILED",
+        JWKS_SIGNING_KEY,
+        TEST_KID,
+        REVOKE_GOLDEN_JWT,
+        "500",
+        "INTERNAL_SERVER_ERROR",
+      );
     });
 
     it("should return 500 if DynamoDB query fails", async () => {
@@ -445,12 +561,22 @@ describe("Testing Revoke Lambda", () => {
             "Error querying database: Error: DynamoDB connection error",
         }),
       });
+
+      assertAndValidateRevokeErrorTXMAEvent(
+        TEST_CLIENT_ID_BITSTRING,
+        "CRS_INDEX_REVOCATION_FAILED",
+        JWKS_SIGNING_KEY,
+        TEST_KID,
+        REVOKE_GOLDEN_JWT,
+        "500",
+        "INTERNAL_SERVER_ERROR",
+      );
     });
 
     it("should return 500 if DynamoDB update fails", async () => {
       mockDBClient.on(GetItemCommand).resolves({
         Item: {
-          clientId: { S: TEST_CLIENT_ID },
+          clientId: { S: TEST_CLIENT_ID_TOKEN },
           uri: { S: "3B0F3BD087A7" },
           idx: { N: "123" },
           listType: { S: "TokenStatusList" },
@@ -473,6 +599,16 @@ describe("Testing Revoke Lambda", () => {
           error_description: "Error processing revocation request",
         }),
       });
+
+      assertAndValidateRevokeErrorTXMAEvent(
+        TEST_CLIENT_ID_TOKEN,
+        "CRS_INDEX_REVOCATION_FAILED",
+        JWKS_SIGNING_KEY,
+        TEST_KID,
+        REVOKE_GOLDEN_TOKEN_JWT,
+        "500",
+        "INTERNAL_SERVER_ERROR",
+      );
     });
   });
 
@@ -520,7 +656,7 @@ describe("Testing Revoke Lambda", () => {
     it("should log successful operations appropriately", async () => {
       mockDBClient.on(GetItemCommand).resolves({
         Item: {
-          clientId: { S: TEST_CLIENT_ID },
+          clientId: { S: TEST_CLIENT_ID_BITSTRING },
           uri: { S: "3B0F3BD087A7" },
           idx: { N: "123" },
           listType: { S: "BitstringStatusList" },
@@ -541,3 +677,41 @@ describe("Testing Revoke Lambda", () => {
     });
   });
 });
+
+function assertAndValidateRevokeErrorTXMAEvent(
+  clientId: string,
+  eventName: string,
+  signingKey: string,
+  kid: string | null,
+  jwtRequest: string | null,
+  statusCode: string,
+  error: string,
+) {
+  const sqsMessageBody =
+    mockSQSClient.commandCalls(SendMessageCommand)[0].args[0].input.MessageBody;
+  expect(mockSQSClient.commandCalls(SendMessageCommand)).toHaveLength(1);
+  expect(sqsMessageBody).toContain(clientId);
+  expect(sqsMessageBody).toContain(eventName);
+  expect(sqsMessageBody).toContain(signingKey);
+  expect(sqsMessageBody).toContain(kid);
+  expect(sqsMessageBody).toContain(jwtRequest);
+  expect(sqsMessageBody).toContain(statusCode);
+  expect(sqsMessageBody).toContain(error);
+}
+
+function assertAndValidateRevokeSuccessTXMAEvent(
+  clientId: string = '"client_id":"asKWnsjeEJEWjjwSHsIksIksIhBe"',
+  jwtRequest: string = REVOKE_GOLDEN_JWT,
+) {
+  const sqsMessageBody =
+    mockSQSClient.commandCalls(SendMessageCommand)[0].args[0].input.MessageBody;
+
+  expect(mockSQSClient.commandCalls(SendMessageCommand)).toHaveLength(1);
+  expect(sqsMessageBody).toContain(clientId);
+  expect(sqsMessageBody).toContain("CRS_INDEX_REVOKED");
+  expect(sqsMessageBody).toContain(JWKS_SIGNING_KEY);
+  expect(sqsMessageBody).toContain(jwtRequest);
+  expect(sqsMessageBody).toContain(
+    '"keyId":"cc2c3738-03ec-4214-a65e-7f0461a34e7b"',
+  );
+}

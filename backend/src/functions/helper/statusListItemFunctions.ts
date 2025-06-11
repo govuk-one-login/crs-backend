@@ -1,7 +1,6 @@
 import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { StatusListItem, ValidationResult } from "../../common/types";
 import {
-  badRequestResponse,
   internalServerErrorResponse,
   notFoundResponse,
   unauthorizedResponse,
@@ -12,7 +11,7 @@ const STATUS_LIST_TABLE = process.env.STATUS_LIST_TABLE ?? "";
 
 export async function validateStatusListEntryAgainstRequest(
   dynamoDBClient: DynamoDBClient,
-  uri: string,
+  uriSuffix: string,
   idx: number,
   clientId: string,
   expectedListType: string,
@@ -23,10 +22,9 @@ export async function validateStatusListEntryAgainstRequest(
       new GetItemCommand({
         TableName: STATUS_LIST_TABLE,
         Key: {
-          uri: { S: uri },
+          uri: { S: uriSuffix },
           idx: { N: String(idx) },
         },
-        ProjectionExpression: "clientId",
       }),
     );
   } catch (error) {
@@ -44,12 +42,7 @@ export async function validateStatusListEntryAgainstRequest(
       error: notFoundResponse("Entry not found in status list table"),
     };
   }
-  if (!statusListItem.idx?.N) {
-    return {
-      isValid: false,
-      error: badRequestResponse(`The index hasn't be issued to be revoked`),
-    };
-  }
+
   // Validate list type
   const actualListType = statusListItem.listType?.S;
   if (actualListType !== expectedListType) {
@@ -67,7 +60,7 @@ export async function validateStatusListEntryAgainstRequest(
     return {
       isValid: false,
       error: internalServerErrorResponse(
-        `No client ID found on item index: ${statusListItem.idx.N} and uri: ${statusListItem.uri.S}`,
+        `No client ID found on item index: ${statusListItem.idx?.N} and uri: ${statusListItem.uri.S}`,
       ),
     };
   } else if (originalClientId.S != clientId) {
