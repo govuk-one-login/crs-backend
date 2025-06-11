@@ -443,7 +443,6 @@ Resources:
 
   IssueStatusListEntryErrorsWarningAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -503,10 +502,10 @@ Resources:
           Label: Error threshold calculation
           ReturnData: true
           Expression: IF(lambdaErrors >= 5,lambdaErrorPercentage)
+    Condition: DeployAlarms
 
   IssueStatusListEntryCompletionMetricFilter:
     Type: AWS::Logs::MetricFilter
-    Condition: DeployAlarms
     Properties:
       LogGroupName: !Ref IssueStatusListEntryLogGroup
       FilterPattern: '{ ($.messageCode = *) && ($.functionVersion = *) }'
@@ -519,10 +518,10 @@ Resources:
               Value: $.messageCode
             - Key: Version
               Value: $.functionVersion
+    Condition: DeployAlarms
 
   IssueStatusListEntryLowCompletionAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: DeployAlarms
     DependsOn:
       - IssueStatusListEntryCompletionMetricFilter
     Properties:
@@ -576,6 +575,7 @@ Resources:
           Label: Error threshold calculation
           ReturnData: true
           Expression: IF((lambdaLogStarted-lambdaLogCompleted)>= 5, lambdaLogCompletePercentage)
+    Condition: DeployAlarms
 
   FindAvailableSlotsFunction:
     Type: AWS::Serverless::Function
@@ -658,10 +658,8 @@ Resources:
           - !ImportValue
             Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
 
-
   FindAvailableSlotsErrorsWarningAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -721,10 +719,10 @@ Resources:
           Label: Error threshold calculation
           ReturnData: true
           Expression: IF(lambdaErrors >= 5,lambdaErrorPercentage)
+    Condition: DeployAlarms
 
   FindAvailableSlotsCompletionMetricFilter:
     Type: AWS::Logs::MetricFilter
-    Condition: DeployAlarms
     Properties:
       LogGroupName: !Ref FindAvailableSlotsLogGroup
       FilterPattern: '{ ($.messageCode = *) && ($.functionVersion = *) }'
@@ -737,10 +735,10 @@ Resources:
               Value: $.messageCode
             - Key: Version
               Value: $.functionVersion
+    Condition: DeployAlarms
 
   FindAvailableSlotsLowCompletionAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: DeployAlarms
     DependsOn:
       - FindAvailableSlotsCompletionMetricFilter
     Properties:
@@ -794,6 +792,7 @@ Resources:
           Label: Error threshold calculation
           ReturnData: true
           Expression: IF((lambdaLogStarted-lambdaLogCompleted)>= 5, lambdaLogCompletePercentage)
+    Condition: DeployAlarms
 
   # Revoke Lambda
   RevokeFunction:
@@ -937,7 +936,6 @@ Resources:
     # Revoke Alarms
   Revoke4XXHighThresholdAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -1000,10 +998,10 @@ Resources:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       Threshold: 80
       TreatMissingData: notBreaching
+    Condition: DeployAlarms
 
   Revoke4XXLowThresholdAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -1066,10 +1064,10 @@ Resources:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       Threshold: 1
       TreatMissingData: notBreaching
+    Condition: DeployAlarms
 
   Revoke5XXHighThresholdAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -1132,10 +1130,10 @@ Resources:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       Threshold: 80
       TreatMissingData: notBreaching
+    Condition: DeployAlarms
 
   Revoke5XXLowThresholdAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -1198,10 +1196,10 @@ Resources:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       Threshold: 1
       TreatMissingData: notBreaching
+    Condition: DeployAlarms
 
   ApiGatewayLatencyAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -1253,10 +1251,10 @@ Resources:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       Threshold: 1
       TreatMissingData: notBreaching
+    Condition: DeployAlarms
 
   RevokeConcurrencyAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -1282,10 +1280,10 @@ Resources:
       Statistic: Maximum
       Threshold: 64
       TreatMissingData: notBreaching
+    Condition: DeployAlarms
 
   RevokeThroughputAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -1331,10 +1329,10 @@ Resources:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       Threshold: 60
       TreatMissingData: notBreaching
+    Condition: DeployAlarms
 
   RevokeErrorsWarningAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -1394,10 +1392,10 @@ Resources:
           Label: Error threshold calculation
           ReturnData: true
           Expression: IF(lambdaErrors >= 5,lambdaErrorPercentage)
+    Condition: DeployAlarms
 
   RevokeCompletionMetricFilter:
     Type: AWS::Logs::MetricFilter
-    Condition: DeployAlarms
     Properties:
       LogGroupName: !Ref RevokeLogGroup
       FilterPattern: '{ ($.messageCode = *) && ($.functionVersion = *) }'
@@ -1410,10 +1408,10 @@ Resources:
               Value: $.messageCode
             - Key: Version
               Value: $.functionVersion
+    Condition: DeployAlarms
 
   RevokeLowCompletionAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: DeployAlarms
     DependsOn:
       - RevokeCompletionMetricFilter
     Properties:
@@ -1467,6 +1465,7 @@ Resources:
           Label: Error threshold calculation
           ReturnData: true
           Expression: IF((lambdaLogStarted-lambdaLogCompleted)>= 5, lambdaLogCompletePercentage)
+    Condition: DeployAlarms
 
   AlarmWarningSNSTopic:
     Type: AWS::SNS::Topic
@@ -1642,7 +1641,6 @@ Resources:
     # Canary error alarm
   StatusListPublisherErrorsWarningAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: DeployAlarms
     Properties:
       ActionsEnabled: true
       AlarmActions:
@@ -1702,10 +1700,10 @@ Resources:
           Label: Error threshold calculation
           ReturnData: true
           Expression: IF(lambdaErrors >= 5,lambdaErrorPercentage)
+    Condition: DeployAlarms
 
   StatusListPublisherCompletionMetricFilter:
     Type: AWS::Logs::MetricFilter
-    Condition: DeployAlarms
     Properties:
       LogGroupName: !Ref StatusListPublisherLogGroup
       FilterPattern: '{ ($.messageCode = *) && ($.functionVersion = *) }'
@@ -1718,10 +1716,10 @@ Resources:
               Value: $.messageCode
             - Key: Version
               Value: $.functionVersion
+    Condition: DeployAlarms
 
   StatusListPublisherLowCompletionAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: DeployAlarms
     DependsOn:
       - StatusListPublisherCompletionMetricFilter
     Properties:
@@ -1775,6 +1773,7 @@ Resources:
           Label: Error threshold calculation
           ReturnData: true
           Expression: IF((lambdaLogStarted-lambdaLogCompleted)>= 5, lambdaLogCompletePercentage)
+    Condition: DeployAlarms
 
   # API Gateway
   PrivateApi:
@@ -2306,7 +2305,6 @@ Resources:
 
   BitstringQueueCapacityAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: DeployAlarms
     Properties:
       AlarmName: !Sub ${AWS::StackName}-BitstringQueueCapacityAlarm
       AlarmDescription: Alarm if Bitstring queue drops below 25% capacity
@@ -2322,10 +2320,10 @@ Resources:
       Dimensions:
         - Name: QueueName
           Value: !GetAtt BitstringAvailableSlotsSQS.QueueName
+    Condition: DeployAlarms
 
   TokenStatusQueueCapacityAlarm:
     Type: AWS::CloudWatch::Alarm
-    Condition: DeployAlarms
     Properties:
       AlarmName: !Sub ${AWS::StackName}-TokenStatusQueueCapacityAlarm
       AlarmDescription: Alarm if TokenStatus queue drops below 25% capacity
@@ -2341,6 +2339,7 @@ Resources:
       Dimensions:
         - Name: QueueName
           Value: !GetAtt TokenStatusAvailableSlotsSQS.QueueName
+    Condition: DeployAlarms
 
   # Alerts for FAS Lambda errors and auto retry
   FindAvailableSlotsErrorsSNSTopic:
