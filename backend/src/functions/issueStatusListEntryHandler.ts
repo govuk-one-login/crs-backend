@@ -274,9 +274,12 @@ function setupLogger(context: Context) {
 }
 
 function createUri(listType: string, status_uri) {
-  if (listType == "BitstringStatusList") {
-    return `https://api.status-list.service.gov.uk/b/${status_uri}`;
-  } else {
-    return `https://api.status-list.service.gov.uk/t/${status_uri}`;
+  switch (listType) {
+    case "BitstringStatusList":
+      return `https://api.status-list.service.gov.uk/b/${status_uri}`;
+    case "TokenStatusList":
+      return `https://api.status-list.service.gov.uk/t/${status_uri}`;
+    default:
+      throw new Error(`Client entry does not have a valid list type: ${listType}`);
   }
 }
