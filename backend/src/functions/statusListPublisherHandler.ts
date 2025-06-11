@@ -1,6 +1,6 @@
-export function handler(): Response {
-  return new Response(null, {
-    status: 501,
-    statusText: "Not Implemented",
-  });
+export async function handler() {
+  return {
+    statusCode: 501,
+    body: JSON.stringify({ message: "Not Implemented" }),
+  };
 }
