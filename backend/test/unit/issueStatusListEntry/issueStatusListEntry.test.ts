@@ -1,3 +1,6 @@
+process.env.BITSTRING_QUEUE_URL = "BitstringStatusList";
+process.env.TOKEN_STATUS_QUEUE_URL = "TokenStatusList";
+
 import { handler } from "../../../src/functions/issueStatusListEntryHandler";
 import {
   APIGatewayProxyEvent,
@@ -27,20 +30,21 @@ import * as jose from "jose";
 import { importSPKI } from "jose";
 import {
   JWKS_SIGNING_KEY,
-  GOLDEN_JWT,
-  GOLDEN_JWT_TOKEN_LIST,
-  JWT_WITH_NO_EXPIRES,
-  JWT_WITH_NO_ISS,
-  JWT_WITH_NO_JWKS_URI,
-  JWT_WITH_NO_KID,
-  JWT_WITH_NON_MATCHING_CLIENT_ID,
-  JWT_WITH_NON_MATCHING_KID,
-  JWT_WITH_NON_VERIFIED_SIGNATURE,
+  ISSUE_GOLDEN_JWT,
+  ISSUE_GOLDEN_JWT_TOKEN_LIST,
+  ISSUE_JWT_WITH_NO_EXPIRES,
+  ISSUE_JWT_WITH_NO_ISS,
+  ISSUE_JWT_WITH_NO_JWKS_URI,
+  ISSUE_JWT_WITH_NO_KID,
+  ISSUE_JWT_WITH_NON_MATCHING_CLIENT_ID,
+  ISSUE_JWT_WITH_NON_MATCHING_KID,
+  ISSUE_JWT_WITH_NON_VERIFIED_SIGNATURE,
   PUBLIC_KEY,
-  TEST_CLIENT_ID,
   TEST_KID,
   TEST_NON_MATCHING_KID,
   EMPTY_SIGNING_KEY,
+  TEST_CLIENT_ID_TOKEN,
+  TEST_CLIENT_ID_BITSTRING,
 } from "../../utils/testConstants";
 
 const mockS3Client = mockClient(S3Client);
@@ -110,7 +114,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
           {
             Body: JSON.stringify({
               idx: 4,
-              uri: "https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AF",
+              uri: "A671FED3E9AF",
             }),
             ReceiptHandle: "mockReceiptHandle",
           },
@@ -121,7 +125,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
           {
             Body: JSON.stringify({
               idx: 2,
-              uri: "https://douglast-backend.crs.dev.account.gov.uk/b/BAT1FED3E9AF",
+              uri: "BAT1FED3E9AF",
             }),
             ReceiptHandle: "mockReceiptHandle",
           },
@@ -166,7 +170,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         },
         body: JSON.stringify({
           idx: 4,
-          uri: "https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AF",
+          uri: "https://api.status-list.service.gov.uk/b/A671FED3E9AF",
         }),
       });
 
@@ -177,16 +181,11 @@ describe("Testing IssueStatusListEntry Lambda", () => {
 
       const dbItem =
         mockDBClient.commandCalls(PutItemCommand)[0].args[0].input.Item;
-      expect(dbItem).toEqual(
-        createTestDBItem(
-          "https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AF",
-          "4",
-        ),
-      );
+      expect(dbItem).toEqual(createTestDBItem("A671FED3E9AF", "4"));
     });
     it("Returns 200,successful audit event, no existing index, token status list", async () => {
       Date.now = jest.fn(() => new Date(Date.UTC(2017, 1, 14)).valueOf());
-      event = buildRequest(buildRequest({ body: GOLDEN_JWT_TOKEN_LIST }));
+      event = buildRequest({ body: ISSUE_GOLDEN_JWT_TOKEN_LIST });
       result = await handler(event, context);
 
       expect(result).toEqual({
@@ -196,7 +195,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         },
         body: JSON.stringify({
           idx: 4,
-          uri: "https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AF",
+          uri: "https://api.status-list.service.gov.uk/t/A671FED3E9AF",
         }),
       });
 
@@ -207,19 +206,18 @@ describe("Testing IssueStatusListEntry Lambda", () => {
       assertAndValidateIssuedTXMAEvent(
         sqsMessageBody,
         '"index":4',
-        "https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AF",
+        "https://api.status-list.service.gov.uk/t/A671FED3E9AF",
         '"client_id":"DNkekdNSkekSNljrwevOIUPenGeS"',
-        GOLDEN_JWT_TOKEN_LIST,
+        ISSUE_GOLDEN_JWT_TOKEN_LIST,
       );
 
       const dbItem =
         mockDBClient.commandCalls(PutItemCommand)[0].args[0].input.Item;
       expect(dbItem).toEqual(
         createTestDBItem(
-          "https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AF",
+          "A671FED3E9AF",
           "4",
-          "DNkekdNSkekSNljrwevOIUPenGeS",
-
+          TEST_CLIENT_ID_TOKEN,
           "TokenStatusList",
           "DVLA",
         ),
@@ -251,7 +249,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         },
         body: JSON.stringify({
           idx: 2,
-          uri: "https://douglast-backend.crs.dev.account.gov.uk/b/BAT1FED3E9AF",
+          uri: "https://api.status-list.service.gov.uk/b/BAT1FED3E9AF",
         }),
       });
 
@@ -261,42 +259,37 @@ describe("Testing IssueStatusListEntry Lambda", () => {
       assertAndValidateIssuedTXMAEvent(
         sqsMessageBody,
         '"index":2',
-        '"https://douglast-backend.crs.dev.account.gov.uk/b/BAT1FED3E9AF"',
+        '"https://api.status-list.service.gov.uk/b/BAT1FED3E9AF"',
         '"client_id":"asKWnsjeEJEWjjwSHsIksIksIhBe"',
-        GOLDEN_JWT,
+        ISSUE_GOLDEN_JWT,
       );
 
       const dbItem =
         mockDBClient.commandCalls(PutItemCommand)[0].args[0].input.Item;
-      expect(dbItem).toEqual(
-        createTestDBItem(
-          "https://douglast-backend.crs.dev.account.gov.uk/b/BAT1FED3E9AF",
-          "2",
-        ),
-      );
+      expect(dbItem).toEqual(createTestDBItem("BAT1FED3E9AF", "2"));
     });
   });
 
   describe("Bad Request Error Scenarios", () => {
     test.each([
       [
-        buildRequest({ body: JWT_WITH_NO_EXPIRES }),
+        buildRequest({ body: ISSUE_JWT_WITH_NO_EXPIRES }),
         "No Expiry Date in Payload",
-        JWT_WITH_NO_EXPIRES,
+        ISSUE_JWT_WITH_NO_EXPIRES,
         TEST_KID,
-        TEST_CLIENT_ID,
+        TEST_CLIENT_ID_TOKEN,
       ],
       [
-        buildRequest({ body: JWT_WITH_NO_KID }),
+        buildRequest({ body: ISSUE_JWT_WITH_NO_KID }),
         "No Kid in Header",
-        JWT_WITH_NO_KID,
+        ISSUE_JWT_WITH_NO_KID,
         "null",
-        TEST_CLIENT_ID,
+        TEST_CLIENT_ID_TOKEN,
       ],
       [
-        buildRequest({ body: JWT_WITH_NO_ISS }),
+        buildRequest({ body: ISSUE_JWT_WITH_NO_ISS }),
         "No Issuer in Payload",
-        JWT_WITH_NO_ISS,
+        ISSUE_JWT_WITH_NO_ISS,
         TEST_KID,
         "",
       ],
@@ -345,26 +338,26 @@ describe("Testing IssueStatusListEntry Lambda", () => {
   describe("Unauthorized Request Error Scenarios", () => {
     test.each([
       [
-        buildRequest({ body: JWT_WITH_NON_MATCHING_CLIENT_ID }),
+        buildRequest({ body: ISSUE_JWT_WITH_NON_MATCHING_CLIENT_ID }),
         "No matching client found with ID: DAkekdNSkekSNljrwevOIUPenGeS ",
-        JWT_WITH_NON_MATCHING_CLIENT_ID,
+        ISSUE_JWT_WITH_NON_MATCHING_CLIENT_ID,
         "DAkekdNSkekSNljrwevOIUPenGeS",
         TEST_NON_MATCHING_KID,
         EMPTY_SIGNING_KEY,
       ],
       [
-        buildRequest({ body: JWT_WITH_NON_MATCHING_KID }),
+        buildRequest({ body: ISSUE_JWT_WITH_NON_MATCHING_KID }),
         `No matching Key ID found in JWKS Endpoint for Kid: ${TEST_NON_MATCHING_KID}`,
-        JWT_WITH_NON_MATCHING_KID,
-        TEST_CLIENT_ID,
+        ISSUE_JWT_WITH_NON_MATCHING_KID,
+        TEST_CLIENT_ID_TOKEN,
         TEST_NON_MATCHING_KID,
         EMPTY_SIGNING_KEY,
       ],
       [
-        buildRequest({ body: JWT_WITH_NON_VERIFIED_SIGNATURE }),
+        buildRequest({ body: ISSUE_JWT_WITH_NON_VERIFIED_SIGNATURE }),
         "Failure verifying the signature of the jwt",
-        JWT_WITH_NON_VERIFIED_SIGNATURE,
-        TEST_CLIENT_ID,
+        ISSUE_JWT_WITH_NON_VERIFIED_SIGNATURE,
+        TEST_CLIENT_ID_TOKEN,
         TEST_KID,
         JWKS_SIGNING_KEY,
       ],
@@ -404,7 +397,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
 
   describe("Internal Server Error Scenarios", () => {
     it("Returns 500 and the error description", async () => {
-      event = buildRequest({ body: JWT_WITH_NO_JWKS_URI });
+      event = buildRequest({ body: ISSUE_JWT_WITH_NO_JWKS_URI });
       result = await handler(event, context);
 
       expect(result).toStrictEqual({
@@ -420,7 +413,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         "CRS_ISSUANCE_FAILED",
         'signingKey"',
         TEST_KID,
-        JWT_WITH_NO_JWKS_URI,
+        ISSUE_JWT_WITH_NO_JWKS_URI,
         "500",
         "INTERNAL_SERVER_ERROR",
       );
@@ -453,9 +446,9 @@ function assertAndValidateErrorTXMAEvent(
 function assertAndValidateIssuedTXMAEvent(
   sqsMessageBody,
   index: string = '"index":4',
-  uri: string = '"uri":"https://douglast-backend.crs.dev.account.gov.uk/b/A671FED3E9AF"',
-  clientId: string = '"client_id":"asKWnsjeEJEWjjwSHsIksIksIhBe"',
-  jwtRequest: string = GOLDEN_JWT,
+  uri: string = '"uri":"https://api.status-list.service.gov.uk/b/A671FED3E9AF"',
+  clientId: string = TEST_CLIENT_ID_BITSTRING,
+  jwtRequest: string = ISSUE_GOLDEN_JWT,
 ) {
   expect(mockSQSClient.commandCalls(SendMessageCommand)).toHaveLength(1);
   expect(sqsMessageBody).toContain(clientId);
