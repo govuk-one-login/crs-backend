@@ -501,7 +501,7 @@ Resources:
         - Id: lambdaErrorRateThreshold
           Label: Error threshold calculation
           ReturnData: true
-          Expression: IF(lambdaErrors >= 5,lambdaErrorPercentage)
+          Expression: IF(lambdaInvocations >= 5,lambdaErrorPercentage)
     Condition: DeployAlarms
 
   IssueStatusListEntryCompletionMetricFilter:
@@ -574,7 +574,7 @@ Resources:
         - Id: lowCompletionRateThreshold
           Label: Error threshold calculation
           ReturnData: true
-          Expression: IF((lambdaLogStarted-lambdaLogCompleted)>= 5, lambdaLogCompletePercentage)
+          Expression: IF(lambdaLogStarted>= 5, lambdaLogCompletePercentage)
     Condition: DeployAlarms
 
   FindAvailableSlotsFunction:
@@ -718,7 +718,7 @@ Resources:
         - Id: lambdaErrorRateThreshold
           Label: Error threshold calculation
           ReturnData: true
-          Expression: IF(lambdaErrors >= 5,lambdaErrorPercentage)
+          Expression: IF(lambdaInvocations >= 5,lambdaErrorPercentage)
     Condition: DeployAlarms
 
   FindAvailableSlotsCompletionMetricFilter:
@@ -791,7 +791,7 @@ Resources:
         - Id: lowCompletionRateThreshold
           Label: Error threshold calculation
           ReturnData: true
-          Expression: IF((lambdaLogStarted-lambdaLogCompleted)>= 5, lambdaLogCompletePercentage)
+          Expression: IF(lambdaLogStarted>= 5, lambdaLogCompletePercentage)
     Condition: DeployAlarms
 
   # Revoke Lambda
@@ -1426,7 +1426,7 @@ Resources:
         - Id: lambdaErrorRateThreshold
           Label: Error threshold calculation
           ReturnData: true
-          Expression: IF(lambdaErrors >= 5,lambdaErrorPercentage)
+          Expression: IF(lambdaInvocations >= 5,lambdaErrorPercentage)
     Condition: DeployAlarms
 
   RevokeCompletionMetricFilter:
@@ -1499,7 +1499,7 @@ Resources:
         - Id: lowCompletionRateThreshold
           Label: Error threshold calculation
           ReturnData: true
-          Expression: IF((lambdaLogStarted-lambdaLogCompleted)>= 5, lambdaLogCompletePercentage)
+          Expression: IF(lambdaLogStarted>= 5, lambdaLogCompletePercentage)
     Condition: DeployAlarms
 
   AlarmWarningSNSTopic:
@@ -1734,7 +1734,7 @@ Resources:
         - Id: lambdaErrorRateThreshold
           Label: Error threshold calculation
           ReturnData: true
-          Expression: IF(lambdaErrors >= 5,lambdaErrorPercentage)
+          Expression: IF(lambdaInvocations >= 5,lambdaErrorPercentage)
     Condition: DeployAlarms
 
   StatusListPublisherCompletionMetricFilter:
@@ -1807,7 +1807,7 @@ Resources:
         - Id: lowCompletionRateThreshold
           Label: Error threshold calculation
           ReturnData: true
-          Expression: IF((lambdaLogStarted-lambdaLogCompleted)>= 5, lambdaLogCompletePercentage)
+          Expression: IF(lambdaLogStarted>= 5, lambdaLogCompletePercentage)
     Condition: DeployAlarms
 
   # API Gateway
