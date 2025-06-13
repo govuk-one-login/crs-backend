@@ -375,6 +375,7 @@ function handleQueuesAlreadyFull(
   queueRefills: Record<QueueType, QueueStatus>,
 ): LambdaResponse {
   logger.info("All queues are at or above target depth. No refill needed.");
+  logger.info(LogMessage.FIND_AVAILABLE_SLOTS_LAMBDA_COMPLETED);
   return {
     statusCode: 200,
     body: JSON.stringify({
