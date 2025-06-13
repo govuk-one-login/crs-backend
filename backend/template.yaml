@@ -540,7 +540,7 @@ Resources:
       TreatMissingData: notBreaching
       Metrics:
         - Id: lambdaLogStarted
-          Label: Sum of ISSUE_LIST_ENTRY_LAMBDA_STARTED messageCodes for latest Lambda version
+          Label: Sum of ISSUE_STATUS_LIST_ENTRY_LAMBDA_STARTED messageCodes for latest Lambda version
           ReturnData: false
           MetricStat:
             Metric:
@@ -548,13 +548,13 @@ Resources:
               MetricName: IssueStatusListEntryMessageCode
               Dimensions:
                 - Name: MessageCode
-                  Value: ISSUE_LIST_ENTRY_LAMBDA_STARTED
+                  Value: ISSUE_STATUS_LIST_ENTRY_LAMBDA_STARTED
                 - Name: Version
                   Value: !GetAtt IssueStatusListEntryFunction.Version.Version
             Period: 60
             Stat: Sum
         - Id: lambdaLogCompleted
-          Label: Sum of ISSUE_LIST_ENTRY_LAMBDA_COMPLETED messageCodes for latest Lambda version
+          Label: Sum of ISSUE_STATUS_LIST_ENTRY_LAMBDA_COMPLETED messageCodes for latest Lambda version
           ReturnData: false
           MetricStat:
             Metric:
@@ -562,7 +562,7 @@ Resources:
               MetricName: IssueStatusListEntryMessageCode
               Dimensions:
                 - Name: MessageCode
-                  Value: ISSUE_LIST_ENTRY_LAMBDA_COMPLETED
+                  Value: ISSUE_STATUS_LIST_ENTRY_LAMBDA_COMPLETED
                 - Name: Version
                   Value: !GetAtt IssueStatusListEntryFunction.Version.Version
             Period: 60

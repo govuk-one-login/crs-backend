@@ -58,7 +58,7 @@ export async function handler(
   context: Context,
 ): Promise<APIGatewayProxyResult> {
   setupLogger(context);
-  logger.info(LogMessage.ISSUE_LAMBDA_STARTED);
+  logger.info(LogMessage.ISSUE_STATUS_LIST_ENTRY_LAMBDA_STARTED);
 
   if (event.body == null) {
     return badRequestResponse("No Request Body Found");
@@ -142,6 +142,7 @@ export async function handler(
   );
 
   logger.info(LogMessage.SEND_MESSAGE_TO_SQS_SUCCESS);
+  logger.info(LogMessage.ISSUE_STATUS_LIST_ENTRY_LAMBDA_COMPLETED);
 
   return {
     statusCode: 200,

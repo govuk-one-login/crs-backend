@@ -143,7 +143,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
     it("logs STARTED message", async () => {
       result = await handler(event, context);
       expect(consoleInfoSpy).toHaveBeenCalledWithLogFields({
-        messageCode: "ISSUE_LAMBDA_STARTED",
+        messageCode: "ISSUE_STATUS_LIST_ENTRY_LAMBDA_STARTED",
       });
     });
 
@@ -172,6 +172,10 @@ describe("Testing IssueStatusListEntry Lambda", () => {
           idx: 4,
           uri: "https://api.status-list.service.gov.uk/b/A671FED3E9AF",
         }),
+      });
+
+      expect(consoleInfoSpy).toHaveBeenCalledWithLogFields({
+        messageCode: "ISSUE_STATUS_LIST_ENTRY_LAMBDA_COMPLETED",
       });
 
       const sqsMessageBody =

@@ -7,14 +7,14 @@ export class LogMessage implements LogAttributes {
     "N/A",
   );
 
-  static readonly ISSUE_LIST_ENTRY_LAMBDA_STARTED = new LogMessage(
-    "ISSUE_LIST_ENTRY_LAMBDA_STARTED",
+  static readonly ISSUE_STATUS_LIST_ENTRY_LAMBDA_STARTED = new LogMessage(
+    "ISSUE_STATUS_LIST_ENTRY_LAMBDA_STARTED",
     "IssuingStatusListEntry Lambda handler processing has started.",
     "N/A",
   );
 
-  static readonly ISSUE_LIST_ENTRY_LAMBDA_COMPLETED = new LogMessage(
-    "ISSUE_LIST_ENTRY_LAMBDA_COMPLETED",
+  static readonly ISSUE_STATUS_LIST_ENTRY_LAMBDA_COMPLETED = new LogMessage(
+    "ISSUE_STATUS_LIST_ENTRY_LAMBDA_COMPLETED",
     "IssuingStatusListEntry Lambda handler processing has completed.",
     "N/A",
   );
