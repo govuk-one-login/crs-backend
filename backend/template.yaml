@@ -1113,6 +1113,7 @@ Resources:
       Environment:
         Variables:
           KMS_SIGNING_KEY_ARN: !Ref StatusListPublisherKMSKey
+          POWERTOOLS_SERVICE_NAME: StatusListPublisher
       VpcConfig:
         SecurityGroupIds:
           - !ImportValue
