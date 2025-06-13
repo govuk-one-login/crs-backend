@@ -48,7 +48,7 @@ export async function handler(
   context: Context,
 ): Promise<APIGatewayProxyResult> {
   setupLogger(context);
-  logger.info(LogMessage.REVOKE_LAMBDA_CALLED);
+  logger.info(LogMessage.REVOKE_LAMBDA_STARTED);
 
   const decodedJWTPromise = await decodeJWT(event);
 
@@ -115,6 +115,8 @@ export async function handler(
         jsonHeader.kid,
       ),
     );
+
+    logger.info(LogMessage.REVOKE_LAMBDA_COMPLETED);
 
     return revocationSuccessResponse(updateResult);
   } catch (error) {

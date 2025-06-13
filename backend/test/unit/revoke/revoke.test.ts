@@ -58,11 +58,13 @@ const mockDBClient = mockClient(DynamoDBClient);
 const mockSQSClient = mockClient(SQSClient);
 
 describe("Testing Revoke Lambda", () => {
+  let consoleInfoSpy: jest.SpyInstance;
   const mockEvent = buildRequest({ body: REVOKE_GOLDEN_JWT });
   const mockContext = buildLambdaContext();
 
   beforeEach(() => {
     jest.clearAllMocks();
+    consoleInfoSpy = jest.spyOn(console, "info");
     mockDBClient.reset();
     mockS3Client.reset();
     mockSQSClient.reset();
@@ -123,6 +125,8 @@ describe("Testing Revoke Lambda", () => {
   });
 
   describe("successful revocation scenarios", () => {
+    expect(logger.info).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_STARTED);
+
     it("should return 202 revoke success with BitStringStatusList", async () => {
       mockDBClient.on(UpdateItemCommand).resolves({});
 
@@ -490,7 +494,7 @@ describe("Testing Revoke Lambda", () => {
       const event = buildRequest({ body: REVOKE_JWT_WITH_NO_JWKS_URI });
       const result = await handler(event, mockContext);
 
-      expect(logger.info).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_CALLED);
+      expect(logger.info).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_STARTED);
       expect(result).toStrictEqual({
         headers: { "Content-Type": "application/json" },
         statusCode: 500,
@@ -635,7 +639,7 @@ describe("Testing Revoke Lambda", () => {
           revokedAt: responseBody.revokedAt,
         }),
       });
-      expect(logger.info).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_CALLED);
+      expect(logger.info).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_STARTED);
     });
 
     it("should log the handler being called", async () => {
@@ -650,7 +654,7 @@ describe("Testing Revoke Lambda", () => {
 
       await handler(mockEvent, mockContext);
 
-      expect(logger.info).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_CALLED);
+      expect(logger.info).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_STARTED);
     });
 
     it("should log successful operations appropriately", async () => {
@@ -666,7 +670,7 @@ describe("Testing Revoke Lambda", () => {
 
       await handler(mockEvent, mockContext);
 
-      expect(logger.info).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_CALLED);
+      expect(logger.info).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_STARTED);
       expect(logger.info).toHaveBeenCalledWith(
         "Succesfully decoded JWT as JSON",
       );
