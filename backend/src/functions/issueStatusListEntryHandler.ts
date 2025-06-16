@@ -127,7 +127,10 @@ export async function handler(
     matchingClientEntry,
   );
 
-  const fullUri = createUri(queueType, availableIndex.status_uri);
+  const fullUri = createUri(
+    matchingClientEntry.statusList.type,
+    availableIndex.status_uri,
+  );
 
   await sendTxmaEventToSQSQueue(
     sqsClient,
