@@ -36,8 +36,7 @@ export async function handler(event: APIGatewayProxyEvent, context: Context) {
   }
 }
 
-function setupLogger(context?: Context) {
-  if (!context) return;
+function setupLogger(context: Context) {
   logger.resetKeys();
   logger.addContext(context);
   logger.appendKeys({ functionVersion: context.functionVersion });
@@ -147,7 +146,7 @@ function base64UrlEncode(input: string | Buffer): string {
 
 function derToPem(derBuffer: Uint8Array): string {
   const base64 = Buffer.from(derBuffer).toString("base64");
-  const pem = base64.match(/.{1,64}/g)?.join("\n") || "";
+  const pem = base64.match(/.{1,64}/g)?.join("\n") ?? "";
   return `-----BEGIN PUBLIC KEY-----\n${pem}\n-----END PUBLIC KEY-----`;
 }
 
