@@ -94,18 +94,13 @@ async function createAndSignJWT(): Promise<string> {
     throw new Error("KMS signing failed - no signature returned");
   }
 
-  logger.info("KMS signing result:", {
-    signatureLength: res.Signature.length,
-    signingAlgorithm: res.SigningAlgorithm,
-    keyId: res.KeyId,
-    signatureBase64: Buffer.from(res.Signature).toString("base64"),
-  });
+  logger.info("KMS signing successful");
 
   const jwtSignature = convertDerToJwtSignature(res.Signature);
 
   const jwt = `${headerEncoded}.${payloadEncoded}.${jwtSignature}`;
 
-  logger.info("Final JWT created:", {
+  logger.info("JWT created:", {
     header: headerEncoded,
     payload: payloadEncoded,
     signature: jwtSignature,
@@ -120,7 +115,7 @@ async function verifyJWT(jwt: string, publicKey: KeyLike): Promise<void> {
     const verificationResult = await jwtVerify(jwt, publicKey, {
       issuer: "https://crs.account.gov.uk",
       algorithms: ["ES256"],
-    });
+    }); //using the same issuer as in the mock payload
     logger.debug("JWT verification payload:", verificationResult.payload);
   } catch (error) {
     throw new Error(`JWT verification failed: ${error.message}`);
