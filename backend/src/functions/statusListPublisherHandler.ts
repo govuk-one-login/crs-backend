@@ -74,7 +74,7 @@ async function createAndSignJWT(): Promise<string> {
   const headers = {
     alg: "ES256",
     typ: "JWT",
-    kid: KMS_SIGNING_KEY_ARN.split("/").pop() || "status-list-key",
+    kid: KMS_SIGNING_KEY_ARN.split("/").pop() ?? "status-list-key",
   };
 
   const headerEncoded = base64UrlEncode(JSON.stringify(headers));
