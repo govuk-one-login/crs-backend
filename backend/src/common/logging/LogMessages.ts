@@ -31,6 +31,12 @@ export class LogMessage implements LogAttributes {
     "N/A",
   );
 
+  static readonly STATUS_LIST_PUBLISHER_LAMBDA_CALLED = new LogMessage(
+    "STATUS_LIST_PUBLISHER_LAMBDA_CALLED",
+    "Status List Publisher Lambda handler has been called.",
+    "N/A",
+  );
+
   private constructor(
     public readonly messageCode: string,
     public readonly message: string,
