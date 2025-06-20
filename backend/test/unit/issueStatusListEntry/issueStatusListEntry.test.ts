@@ -1,3 +1,5 @@
+import {LogMessage} from "../../../src/common/logging/LogMessages";
+
 process.env.BITSTRING_QUEUE_URL = "BitstringStatusList";
 process.env.TOKEN_STATUS_QUEUE_URL = "TokenStatusList";
 
@@ -52,16 +54,16 @@ const mockSQSClient = mockClient(SQSClient);
 const mockDBClient = mockClient(DynamoDBClient);
 
 describe("Testing IssueStatusListEntry Lambda", () => {
-  let consoleInfoSpy: jest.SpyInstance;
   let result: APIGatewayProxyResult;
   let context: Context;
   let event: APIGatewayProxyEvent;
+  let loggerInfoSpy: jest.SpyInstance;
 
   beforeEach(() => {
     mockS3Client.reset();
     mockSQSClient.reset();
     mockDBClient.reset();
-    consoleInfoSpy = jest.spyOn(console, "info");
+    loggerInfoSpy = jest.spyOn(logger, "info");
     context = buildLambdaContext();
     event = buildRequest();
 
@@ -140,20 +142,10 @@ describe("Testing IssueStatusListEntry Lambda", () => {
   });
 
   describe("On every invocation", () => {
-    it("logs STARTED message", async () => {
+    it("logs STARTED message and COMPLETED message", async () => {
       result = await handler(event, context);
-      expect(consoleInfoSpy).toHaveBeenCalledWithLogFields({
-        messageCode: "ISSUE_STATUS_LIST_ENTRY_LAMBDA_STARTED",
-      });
-    });
-
-    it("Clears pre-existing log attributes", async () => {
-      logger.appendKeys({ testKey: "testValue" });
-      result = await handler(event, context);
-
-      expect(consoleInfoSpy).not.toHaveBeenCalledWithLogFields({
-        testKey: "testValue",
-      });
+      expect(loggerInfoSpy).toHaveBeenCalledWith(LogMessage.ISSUE_STATUS_LIST_ENTRY_LAMBDA_STARTED);
+      expect(loggerInfoSpy).toHaveBeenCalledWith(LogMessage.ISSUE_STATUS_LIST_ENTRY_LAMBDA_COMPLETED);
     });
   });
 
@@ -174,9 +166,8 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         }),
       });
 
-      expect(consoleInfoSpy).toHaveBeenCalledWithLogFields({
-        messageCode: "ISSUE_STATUS_LIST_ENTRY_LAMBDA_COMPLETED",
-      });
+      expect(logger.info).toHaveBeenCalledWith(LogMessage.ISSUE_STATUS_LIST_ENTRY_LAMBDA_STARTED);
+      expect(logger.info).toHaveBeenCalledWith(LogMessage.ISSUE_STATUS_LIST_ENTRY_LAMBDA_COMPLETED);
 
       const sqsMessageBody =
         mockSQSClient.commandCalls(SendMessageCommand)[0].args[0].input
@@ -206,6 +197,9 @@ describe("Testing IssueStatusListEntry Lambda", () => {
       const sqsMessageBody =
         mockSQSClient.commandCalls(SendMessageCommand)[0].args[0].input
           .MessageBody;
+
+      expect(loggerInfoSpy).toHaveBeenCalledWith(LogMessage.ISSUE_STATUS_LIST_ENTRY_LAMBDA_STARTED);
+      expect(loggerInfoSpy).toHaveBeenCalledWith(LogMessage.ISSUE_STATUS_LIST_ENTRY_LAMBDA_COMPLETED);
 
       assertAndValidateIssuedTXMAEvent(
         sqsMessageBody,
