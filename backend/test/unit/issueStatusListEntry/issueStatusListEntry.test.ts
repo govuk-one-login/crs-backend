@@ -1,4 +1,4 @@
-import {LogMessage} from "../../../src/common/logging/LogMessages";
+import { LogMessage } from "../../../src/common/logging/LogMessages";
 
 process.env.BITSTRING_QUEUE_URL = "BitstringStatusList";
 process.env.TOKEN_STATUS_QUEUE_URL = "TokenStatusList";
@@ -144,8 +144,12 @@ describe("Testing IssueStatusListEntry Lambda", () => {
   describe("On every invocation", () => {
     it("logs STARTED message and COMPLETED message", async () => {
       result = await handler(event, context);
-      expect(loggerInfoSpy).toHaveBeenCalledWith(LogMessage.ISSUE_STATUS_LIST_ENTRY_LAMBDA_STARTED);
-      expect(loggerInfoSpy).toHaveBeenCalledWith(LogMessage.ISSUE_STATUS_LIST_ENTRY_LAMBDA_COMPLETED);
+      expect(loggerInfoSpy).toHaveBeenCalledWith(
+        LogMessage.ISSUE_STATUS_LIST_ENTRY_LAMBDA_STARTED,
+      );
+      expect(loggerInfoSpy).toHaveBeenCalledWith(
+        LogMessage.ISSUE_STATUS_LIST_ENTRY_LAMBDA_COMPLETED,
+      );
     });
   });
 
@@ -166,8 +170,12 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         }),
       });
 
-      expect(logger.info).toHaveBeenCalledWith(LogMessage.ISSUE_STATUS_LIST_ENTRY_LAMBDA_STARTED);
-      expect(logger.info).toHaveBeenCalledWith(LogMessage.ISSUE_STATUS_LIST_ENTRY_LAMBDA_COMPLETED);
+      expect(logger.info).toHaveBeenCalledWith(
+        LogMessage.ISSUE_STATUS_LIST_ENTRY_LAMBDA_STARTED,
+      );
+      expect(logger.info).toHaveBeenCalledWith(
+        LogMessage.ISSUE_STATUS_LIST_ENTRY_LAMBDA_COMPLETED,
+      );
 
       const sqsMessageBody =
         mockSQSClient.commandCalls(SendMessageCommand)[0].args[0].input
@@ -198,8 +206,12 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         mockSQSClient.commandCalls(SendMessageCommand)[0].args[0].input
           .MessageBody;
 
-      expect(loggerInfoSpy).toHaveBeenCalledWith(LogMessage.ISSUE_STATUS_LIST_ENTRY_LAMBDA_STARTED);
-      expect(loggerInfoSpy).toHaveBeenCalledWith(LogMessage.ISSUE_STATUS_LIST_ENTRY_LAMBDA_COMPLETED);
+      expect(loggerInfoSpy).toHaveBeenCalledWith(
+        LogMessage.ISSUE_STATUS_LIST_ENTRY_LAMBDA_STARTED,
+      );
+      expect(loggerInfoSpy).toHaveBeenCalledWith(
+        LogMessage.ISSUE_STATUS_LIST_ENTRY_LAMBDA_COMPLETED,
+      );
 
       assertAndValidateIssuedTXMAEvent(
         sqsMessageBody,

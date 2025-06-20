@@ -126,8 +126,12 @@ describe("Testing Revoke Lambda", () => {
   describe("On every invocation", () => {
     it("logs STARTED message and COMPLETED message", async () => {
       await handler(mockEvent, mockContext);
-      expect(loggerInfoSpy).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_STARTED);
-      expect(loggerInfoSpy).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_COMPLETED);
+      expect(loggerInfoSpy).toHaveBeenCalledWith(
+        LogMessage.REVOKE_LAMBDA_STARTED,
+      );
+      expect(loggerInfoSpy).toHaveBeenCalledWith(
+        LogMessage.REVOKE_LAMBDA_COMPLETED,
+      );
     });
   });
 
@@ -158,9 +162,12 @@ describe("Testing Revoke Lambda", () => {
       expect(mockDBClient.commandCalls(GetItemCommand)).toHaveLength(1);
       expect(mockDBClient.commandCalls(UpdateItemCommand)).toHaveLength(1);
 
-      expect(loggerInfoSpy).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_STARTED);
-      expect(loggerInfoSpy).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_COMPLETED);
-
+      expect(loggerInfoSpy).toHaveBeenCalledWith(
+        LogMessage.REVOKE_LAMBDA_STARTED,
+      );
+      expect(loggerInfoSpy).toHaveBeenCalledWith(
+        LogMessage.REVOKE_LAMBDA_COMPLETED,
+      );
     });
 
     it("should return 202 revoke success with TokenStatusList", async () => {
@@ -195,8 +202,12 @@ describe("Testing Revoke Lambda", () => {
         TEST_CLIENT_ID_TOKEN,
         REVOKE_GOLDEN_TOKEN_JWT,
       );
-      expect(loggerInfoSpy).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_STARTED);
-      expect(loggerInfoSpy).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_COMPLETED);
+      expect(loggerInfoSpy).toHaveBeenCalledWith(
+        LogMessage.REVOKE_LAMBDA_STARTED,
+      );
+      expect(loggerInfoSpy).toHaveBeenCalledWith(
+        LogMessage.REVOKE_LAMBDA_COMPLETED,
+      );
     });
 
     it("should return 202 OK for already revoked credential", async () => {
@@ -225,8 +236,12 @@ describe("Testing Revoke Lambda", () => {
       expect(mockDBClient.commandCalls(GetItemCommand)).toHaveLength(1);
       expect(mockDBClient.commandCalls(UpdateItemCommand)).toHaveLength(0);
 
-      expect(loggerInfoSpy).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_STARTED);
-      expect(loggerInfoSpy).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_COMPLETED);
+      expect(loggerInfoSpy).toHaveBeenCalledWith(
+        LogMessage.REVOKE_LAMBDA_STARTED,
+      );
+      expect(loggerInfoSpy).toHaveBeenCalledWith(
+        LogMessage.REVOKE_LAMBDA_COMPLETED,
+      );
 
       assertAndValidateRevokeSuccessTXMAEvent(
         TEST_CLIENT_ID_TOKEN,
@@ -508,7 +523,9 @@ describe("Testing Revoke Lambda", () => {
       const event = buildRequest({ body: REVOKE_JWT_WITH_NO_JWKS_URI });
       const result = await handler(event, mockContext);
 
-      expect(loggerInfoSpy).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_STARTED);
+      expect(loggerInfoSpy).toHaveBeenCalledWith(
+        LogMessage.REVOKE_LAMBDA_STARTED,
+      );
       expect(result).toStrictEqual({
         headers: { "Content-Type": "application/json" },
         statusCode: 500,
@@ -653,7 +670,9 @@ describe("Testing Revoke Lambda", () => {
           revokedAt: responseBody.revokedAt,
         }),
       });
-      expect(loggerInfoSpy).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_STARTED);
+      expect(loggerInfoSpy).toHaveBeenCalledWith(
+        LogMessage.REVOKE_LAMBDA_STARTED,
+      );
     });
 
     it("should log the handler being called", async () => {
@@ -668,7 +687,9 @@ describe("Testing Revoke Lambda", () => {
 
       await handler(mockEvent, mockContext);
 
-      expect(loggerInfoSpy).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_STARTED);
+      expect(loggerInfoSpy).toHaveBeenCalledWith(
+        LogMessage.REVOKE_LAMBDA_STARTED,
+      );
     });
 
     it("should log successful operations appropriately", async () => {
@@ -684,7 +705,9 @@ describe("Testing Revoke Lambda", () => {
 
       await handler(mockEvent, mockContext);
 
-      expect(loggerInfoSpy).toHaveBeenCalledWith(LogMessage.REVOKE_LAMBDA_STARTED);
+      expect(loggerInfoSpy).toHaveBeenCalledWith(
+        LogMessage.REVOKE_LAMBDA_STARTED,
+      );
       expect(loggerInfoSpy).toHaveBeenCalledWith(
         "Succesfully decoded JWT as JSON",
       );

@@ -1,6 +1,6 @@
-import {logger} from "../common/logging/logger";
-import {LogMessage} from "../common/logging/LogMessages";
-import {Context} from "aws-lambda";
+import { logger } from "../common/logging/logger";
+import { LogMessage } from "../common/logging/LogMessages";
+import { Context } from "aws-lambda";
 
 export function handler(context: Context): Response {
   setupLogger(context);

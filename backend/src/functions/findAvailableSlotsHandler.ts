@@ -494,9 +494,7 @@ async function processQueueRefills(
  * @param context Lambda execution context
  * @returns Lambda response
  */
-export async function handler(
-  context: Context,
-): Promise<LambdaResponse> {
+export async function handler(context: Context): Promise<LambdaResponse> {
   setupLogger(context);
   logger.info(LogMessage.FIND_AVAILABLE_SLOTS_LAMBDA_STARTED);
 
