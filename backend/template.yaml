@@ -1575,10 +1575,21 @@ Resources:
         Enabled: true
         Type: !Ref LambdaDeploymentPreference
       FunctionName: !Sub ${AWS::StackName}-status-list-publisher
-      Handler: src/functions/statusListPuslisherHandler.handler
+      Handler: src/functions/statusListPublisherHandler.handler
       Policies:
         - AWSLambdaBasicExecutionRole
         - AWSLambdaVPCAccessExecutionRole
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - kms:Sign
+                - kms:GetPublicKey
+              Resource: !GetAtt StatusListPublisherKMSKey.Arn
+      Environment:
+        Variables:
+          KMS_SIGNING_KEY_ARN: !Ref StatusListPublisherKMSKey
+          POWERTOOLS_SERVICE_NAME: StatusListPublisher
       VpcConfig:
         SecurityGroupIds:
           - !ImportValue
@@ -1809,6 +1820,32 @@ Resources:
           ReturnData: true
           Expression: IF(lambdaLogStarted>= 5, lambdaLogCompletePercentage)
     Condition: DeployAlarms
+
+  StatusListPublisherKMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: KMS key for signing JWTs in StatusListPublisher
+      Enabled: true
+      KeyUsage: SIGN_VERIFY
+      KeySpec: ECC_NIST_P256
+      EnableKeyRotation: false
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action: kms:*
+            Resource: '*'
+      Tags:
+        - Key: Purpose
+          Value: StatusListPublisherJWT
+
+  StatusListPublisherKMSKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/${AWS::StackName}-StatusListPublisherKMSKey
+      TargetKeyId: !Ref StatusListPublisherKMSKey
 
   # API Gateway
   PrivateApi:
