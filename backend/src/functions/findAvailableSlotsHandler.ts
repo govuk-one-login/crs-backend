@@ -1,3 +1,4 @@
+
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import {
   SQSClient,
@@ -375,6 +376,7 @@ function handleQueuesAlreadyFull(
   queueRefills: Record<QueueType, QueueStatus>,
 ): LambdaResponse {
   logger.info("All queues are at or above target depth. No refill needed.");
+  logger.info(LogMessage.FIND_AVAILABLE_SLOTS_LAMBDA_COMPLETED);
   return {
     statusCode: 200,
     body: JSON.stringify({
@@ -493,11 +495,9 @@ async function processQueueRefills(
  * @param context Lambda execution context
  * @returns Lambda response
  */
-export async function findAvailableSlots(
-  context: Context,
-): Promise<LambdaResponse> {
+export async function handler(context: Context): Promise<LambdaResponse> {
   setupLogger(context);
-  logger.info(LogMessage.FAS_LAMBDA_STARTED);
+  logger.info(LogMessage.FIND_AVAILABLE_SLOTS_LAMBDA_STARTED);
 
   try {
     // Calculate how many messages we need to add to each queue
@@ -515,6 +515,8 @@ export async function findAvailableSlots(
 
     // Process queue refills
     const result = await processQueueRefills(queueRefills, config);
+
+    logger.info(LogMessage.FIND_AVAILABLE_SLOTS_LAMBDA_COMPLETED);
 
     return {
       statusCode: 200,
