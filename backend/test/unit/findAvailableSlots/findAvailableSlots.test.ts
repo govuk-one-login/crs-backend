@@ -1,4 +1,6 @@
 // // Set environment variables before import
+import { LogMessage } from "../../../src/common/logging/LogMessages";
+
 process.env.BITSTRING_QUEUE_URL = "testBitstringQueueUrl";
 process.env.TOKEN_STATUS_QUEUE_URL = "testTokenStatusQueueUrl";
 process.env.LIST_CONFIGURATION_BUCKET = "testBucket";
@@ -15,13 +17,14 @@ import {
   SendMessageBatchCommand,
 } from "@aws-sdk/client-sqs";
 import {
-  findAvailableSlots,
+  handler,
   getQueueDepth,
   getConfiguration,
   selectRandomIndexes,
 } from "../../../src/functions/findAvailableSlotsHandler";
 import { logger } from "../../../src/common/logging/logger";
 import { sdkStreamMixin } from "@smithy/util-stream-node";
+import { describe, expect } from "@jest/globals";
 
 // Mock AWS clients
 const s3Mock = mockClient(S3Client);
@@ -77,18 +80,18 @@ const mockQueueDepths = (bitstringDepth: string, tokenStatusDepth: string) => {
     });
 };
 
-describe("findAvailableSlots", () => {
+describe("Testing FindAvailableSlots Lambda", () => {
   // Store original environment variables
   const originalBitstringUrl = process.env.BITSTRING_QUEUE_URL;
   const originalTokenStatusUrl = process.env.TOKEN_STATUS_QUEUE_URL;
 
   let context: Context;
+  let loggerInfoSpy: jest.SpyInstance;
 
   beforeEach(() => {
     s3Mock.reset();
     sqsMock.reset();
-    jest.spyOn(logger, "info").mockImplementation(() => {});
-    jest.spyOn(logger, "error").mockImplementation(() => {});
+    loggerInfoSpy = jest.spyOn(logger, "info");
     context = { functionVersion: "1" } as unknown as Context;
   });
 
@@ -99,6 +102,21 @@ describe("findAvailableSlots", () => {
     process.env.TOKEN_STATUS_QUEUE_URL = originalTokenStatusUrl;
   });
 
+  describe("On every invocation", () => {
+    it("logs STARTED message and COMPLETED message", async () => {
+      sqsMock.on(GetQueueAttributesCommand).resolves({
+        Attributes: { ApproximateNumberOfMessages: "10000" },
+      });
+      await handler(context);
+      expect(loggerInfoSpy).toHaveBeenCalledWith(
+        LogMessage.FIND_AVAILABLE_SLOTS_LAMBDA_STARTED,
+      );
+      expect(loggerInfoSpy).toHaveBeenCalledWith(
+        LogMessage.FIND_AVAILABLE_SLOTS_LAMBDA_COMPLETED,
+      );
+    });
+  });
+
   describe("Happy Path Scenarios", () => {
     it("should return 200 and skip refill if both queues are at/above the target depth", async () => {
       // Mock getQueueDepth to return high numbers for both queues
@@ -107,7 +125,14 @@ describe("findAvailableSlots", () => {
       });
 
       // No need to mock S3 because we won't fetch config if we return early
-      const response = await findAvailableSlots(context);
+      const response = await handler(context);
+
+      expect(loggerInfoSpy).toHaveBeenCalledWith(
+        LogMessage.FIND_AVAILABLE_SLOTS_LAMBDA_STARTED,
+      );
+      expect(loggerInfoSpy).toHaveBeenLastCalledWith(
+        LogMessage.FIND_AVAILABLE_SLOTS_LAMBDA_COMPLETED,
+      );
 
       expect(response.statusCode).toBe(200);
       expect(JSON.parse(response.body).message).toMatch(
@@ -127,8 +152,15 @@ describe("findAvailableSlots", () => {
         .on(SendMessageBatchCommand)
         .resolves({ Failed: [], Successful: [] });
 
-      const response = await findAvailableSlots(context);
+      const response = await handler(context);
       const body = JSON.parse(response.body);
+
+      expect(loggerInfoSpy).toHaveBeenCalledWith(
+        LogMessage.FIND_AVAILABLE_SLOTS_LAMBDA_STARTED,
+      );
+      expect(loggerInfoSpy).toHaveBeenLastCalledWith(
+        LogMessage.FIND_AVAILABLE_SLOTS_LAMBDA_COMPLETED,
+      );
 
       expect(response.statusCode).toBe(200);
       expect(body.message).toBe("Successfully refilled queues");
@@ -148,7 +180,7 @@ describe("findAvailableSlots", () => {
         .on(SendMessageBatchCommand)
         .resolves({ Failed: [], Successful: [] });
 
-      const response = await findAvailableSlots(context);
+      const response = await handler(context);
       const body = JSON.parse(response.body);
 
       // bitstring queue wouldn't add messages
@@ -169,7 +201,7 @@ describe("findAvailableSlots", () => {
         .on(SendMessageBatchCommand)
         .resolves({ Failed: [], Successful: [] });
 
-      const response = await findAvailableSlots(context);
+      const response = await handler(context);
       const body = JSON.parse(response.body);
 
       // tokenStatus queue wouldn't add messages
@@ -190,7 +222,7 @@ describe("findAvailableSlots", () => {
         .on(SendMessageBatchCommand)
         .resolves({ Failed: [], Successful: [] });
 
-      const response = await findAvailableSlots(context);
+      const response = await handler(context);
       const body = JSON.parse(response.body);
 
       expect(response.statusCode).toBe(200);
@@ -215,7 +247,7 @@ describe("findAvailableSlots", () => {
         ],
       });
 
-      const response = await findAvailableSlots(context);
+      const response = await handler(context);
 
       // Even with partial failures, the operation should succeed overall
       expect(response.statusCode).toBe(200);
@@ -230,7 +262,7 @@ describe("findAvailableSlots", () => {
       // Mock S3 config with only limited max indices
       s3Mock.on(GetObjectCommand).resolves(createS3Body(limitedConfig));
 
-      const response = await findAvailableSlots(context);
+      const response = await handler(context);
       expect(response.statusCode).toBe(500);
       expect(JSON.parse(response.body).error).toContain("Not enough indexes");
     });
@@ -239,7 +271,7 @@ describe("findAvailableSlots", () => {
       // Force an error on SQS
       sqsMock.on(GetQueueAttributesCommand).rejects(new Error("SQS error"));
 
-      const response = await findAvailableSlots(context);
+      const response = await handler(context);
       expect(response.statusCode).toBe(500);
       expect(JSON.parse(response.body).error).toContain("SQS error");
     });
@@ -251,7 +283,7 @@ describe("findAvailableSlots", () => {
       // Force an error in S3
       s3Mock.on(GetObjectCommand).rejectsOnce(new Error("S3 failure"));
 
-      const response = await findAvailableSlots(context);
+      const response = await handler(context);
       expect(response.statusCode).toBe(500);
       expect(JSON.parse(response.body).error).toContain("S3 failure");
     });
@@ -268,7 +300,7 @@ describe("findAvailableSlots", () => {
         .on(SendMessageBatchCommand)
         .resolves({ Failed: [], Successful: [] });
 
-      const response = await findAvailableSlots(context);
+      const response = await handler(context);
       const body = JSON.parse(response.body);
 
       // This should be a 500 error response because there's no information in the config
@@ -288,7 +320,7 @@ describe("findAvailableSlots", () => {
         .on(SendMessageBatchCommand)
         .resolves({ Failed: [], Successful: [] });
 
-      const response = await findAvailableSlots(context);
+      const response = await handler(context);
       const body = JSON.parse(response.body);
 
       // This should be a 500 error response because there is no uri information in the config
@@ -316,7 +348,7 @@ describe("findAvailableSlots", () => {
       s3Mock.on(GetObjectCommand).resolves(createS3Body(emptyBitstringConfig));
 
       // Call the function
-      const response = await findAvailableSlots(context);
+      const response = await handler(context);
 
       const body = JSON.parse(response.body);
       expect(response.statusCode).toBe(500);
@@ -333,7 +365,7 @@ describe("findAvailableSlots", () => {
       // Mock SQS to return empty response (no Attributes field)
       sqsMock.on(GetQueueAttributesCommand).resolves({});
 
-      const response = await findAvailableSlots(context);
+      const response = await handler(context);
       expect(response.statusCode).toBe(500);
     });
 
@@ -344,7 +376,7 @@ describe("findAvailableSlots", () => {
       // Mock S3 with valid config
       s3Mock.on(GetObjectCommand).resolves(createS3Body(validConfig));
 
-      const response = await findAvailableSlots(context);
+      const response = await handler(context);
       // Should still work, parseInt will handle this and return 0 (NaN) for the first one
       expect(response.statusCode).toBe(200);
     });
@@ -368,7 +400,7 @@ describe("findAvailableSlots", () => {
       // Spy on SendMessageBatchCommand to ensure it isn't called
       const sendMessageSpy = jest.spyOn(sqsMock, "send");
 
-      await findAvailableSlots(context);
+      await handler(context);
 
       // Verify that SendMessageBatchCommand was called only for queue depth checks
       // but not for actual message sending (which would be more than 2 calls)
@@ -395,7 +427,7 @@ describe("findAvailableSlots", () => {
         Successful: [],
       });
 
-      const response = await findAvailableSlots(context);
+      const response = await handler(context);
       const body = JSON.parse(response.body);
 
       expect(response.statusCode).toBe(200);
