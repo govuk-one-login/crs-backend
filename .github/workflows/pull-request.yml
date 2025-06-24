@@ -54,6 +54,9 @@ jobs:
       - name: Run unit tests
         run: npm run test:unit
 
+      - name: Run infra tests
+        run: npm run test:infra
+
       - name: Validate SAM template
         run: sam validate --lint
 
