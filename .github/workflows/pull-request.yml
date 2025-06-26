@@ -51,11 +51,11 @@ jobs:
           eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
           npm run infra:format:check
 
-      - name: Run unit tests
-        run: npm run test:unit
-
       - name: Run infra tests
         run: npm run test:infra
+        
+      - name: Run unit tests
+        run: npm run test:unit
 
       - name: Validate SAM template
         run: sam validate --lint
