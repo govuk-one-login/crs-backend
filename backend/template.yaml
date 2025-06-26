@@ -28,7 +28,7 @@ Parameters:
     Description: |
       Specifies the configuration to enable gradual Lambda deployments. Value can be 'AllAtOnce', a default deployment config, or name of custom DeploymentConfig.
     Type: String
-    Default: Linear20PercentEvery1Minute
+    Default: AllAtOnce
 
   PermissionsBoundary:
     Description: |
@@ -187,7 +187,6 @@ Conditions:
       - true
 
   UseCanaryDeployment: !And
-    - !Condition StackNameIsCrsBackend
     - !Condition DeployAlarms
     - !Not
       - !Equals
@@ -204,7 +203,7 @@ Globals:
       - !Ref CodeSigningConfigArn
       - !Ref AWS::NoValue
     DeploymentPreference:
-      Enabled: true
+      Enabled: false
       Role: !GetAtt CodeDeployServiceRole.Arn
     MemorySize: 512
     PermissionsBoundary: !If
@@ -303,10 +302,7 @@ Resources:
             - !Ref IssueStatusListEntryLowCompletionAlarm
           - - !Ref AWS::NoValue
         Enabled: true
-        Type: !If
-          - StackNameIsCrsBackend
-          - !Ref LambdaDeploymentPreference
-          - AllAtOnce
+        Type: !Ref LambdaDeploymentPreference
 
       #APIGw integration
       Events:
@@ -611,10 +607,7 @@ Resources:
             - !Ref FindAvailableSlotsLowCompletionAlarm
           - - !Ref AWS::NoValue
         Enabled: true
-        Type: !If
-          - StackNameIsCrsBackend
-          - !Ref LambdaDeploymentPreference
-          - AllAtOnce
+        Type: !Ref LambdaDeploymentPreference
       FunctionName: !Sub ${AWS::StackName}-find-available-slots
       Handler: src/functions/findAvailableSlotsHandler.findAvailableSlots
       Timeout: 900 # 15 minutes
@@ -832,10 +825,7 @@ Resources:
             - !Ref RevokeLowCompletionAlarm
           - - !Ref AWS::NoValue
         Enabled: true
-        Type: !If
-          - StackNameIsCrsBackend
-          - !Ref LambdaDeploymentPreference
-          - AllAtOnce
+        Type: !Ref LambdaDeploymentPreference
 
       #APIGw integration
       Events:
@@ -1594,10 +1584,7 @@ Resources:
             - !Ref StatusListPublisherLowCompletionAlarm
           - - !Ref AWS::NoValue
         Enabled: true
-        Type: !If
-          - StackNameIsCrsBackend
-          - !Ref LambdaDeploymentPreference
-          - AllAtOnce
+        Type: !Ref LambdaDeploymentPreference
       FunctionName: !Sub ${AWS::StackName}-status-list-publisher
       Handler: src/functions/statusListPublisherHandler.handler
       Policies:
@@ -2509,9 +2496,6 @@ Resources:
           - src/functions/checkAlarmState.ts
     Properties:
       FunctionName: !Sub ${AWS::StackName}-check-alarm-state
-      DeploymentPreference:
-        Enabled: false
-        Type: AllAtOnce
       Handler: src/functions/checkAlarmState.handler
       Timeout: 30 # 30 seconds
       Policies:
