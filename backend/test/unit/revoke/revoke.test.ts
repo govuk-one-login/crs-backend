@@ -14,7 +14,6 @@ import { buildLambdaContext } from "../../utils/mockContext";
 import { buildRequest } from "../../utils/mockRequest";
 import { describe, expect } from "@jest/globals";
 import {
-  ALREADY_REVOKED_JWT,
   EMPTY_SIGNING_KEY,
   JWKS_SIGNING_KEY,
   PUBLIC_KEY,
@@ -23,6 +22,7 @@ import {
   REVOKE_JWT_WITH_INVALID_LIST_TYPE,
   REVOKE_JWT_WITH_INVALID_URI,
   REVOKE_JWT_WITH_NO_CLIENT_ID,
+  REVOKE_JWT_WITH_NO_IAT,
   REVOKE_JWT_WITH_NO_INDEX,
   REVOKE_JWT_WITH_NO_JWKS_URI,
   REVOKE_JWT_WITH_NO_KID,
@@ -211,17 +211,18 @@ describe("Testing Revoke Lambda", () => {
     });
 
     it("should return 202 OK for already revoked credential", async () => {
+      //Using the same payload as REVOKE_GOLDEN_TOKEN_JWT, but updating the mock to simulate already revoked state
       mockDBClient.on(GetItemCommand).resolves({
         Item: {
           clientId: { S: "DNkekdNSkekSNljrwevOIUPenGeS" },
           uri: { S: "3B0F3BD087A7" },
-          idx: { N: "123" },
+          idx: { N: "456" },
           listType: { S: "TokenStatusList" },
           revokedAt: { N: "1640995200" },
         },
       });
 
-      const event = buildRequest({ body: ALREADY_REVOKED_JWT });
+      const event = buildRequest({ body: REVOKE_GOLDEN_TOKEN_JWT });
       const response = await handler(event, mockContext);
 
       expect(response).toStrictEqual({
@@ -257,6 +258,14 @@ describe("Testing Revoke Lambda", () => {
         "No Kid in Header",
         REVOKE_JWT_WITH_NO_KID,
         "null",
+        TEST_CLIENT_ID_BITSTRING,
+        EMPTY_SIGNING_KEY,
+      ],
+      [
+        buildRequest({ body: REVOKE_JWT_WITH_NO_IAT }),
+        "Missing iat (Issued At) claim in JWT payload",
+        REVOKE_JWT_WITH_NO_IAT,
+        TEST_KID,
         TEST_CLIENT_ID_BITSTRING,
         EMPTY_SIGNING_KEY,
       ],
@@ -397,7 +406,7 @@ describe("Testing Revoke Lambda", () => {
         Item: {
           uri: { S: "B2757C3F6091" },
           idx: { N: "1680" },
-          clientId: { S: "NONEXISTANT" },
+          clientId: { S: "NONEXISTENT" },
           issuedAt: { N: String(Date.now()) },
           listType: { S: "BitstringStatusList" },
         },
