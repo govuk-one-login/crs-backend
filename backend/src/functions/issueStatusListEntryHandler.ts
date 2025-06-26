@@ -232,8 +232,7 @@ async function deleteMessage(
   try {
     if (!receiptHandle) {
       logger.error("ReceiptHandle is undefined. Cannot delete message.");
-      const errorMessage =
-        "Error: ReceiptHandle is undefined. Cannot delete message.";
+      const errorMessage = "Error: ReceiptHandle is undefined. Cannot delete message.";
       logger.error(errorMessage);
       return;
     }
