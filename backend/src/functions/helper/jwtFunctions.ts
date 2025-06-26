@@ -84,6 +84,13 @@ export async function validateRevokingJWT(
   jsonHeader,
   config: ClientRegistry,
 ): Promise<ValidationResult> {
+  if (!jsonPayload.iat) {
+    return {
+      isValid: false,
+      error: badRequestResponse("Missing iat (Issued At) claim in JWT payload"),
+    };
+  }
+
   if (!jsonPayload.idx) {
     return {
       isValid: false,
