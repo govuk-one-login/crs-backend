@@ -242,7 +242,7 @@ Resources:
         - UsePermissionsBoundary
         - !Ref PermissionsBoundary
         - !Ref AWS::NoValue
-  
+
   Linear20PercentEvery1Minute:
     Type: AWS::CodeDeploy::DeploymentConfig
     Properties:
