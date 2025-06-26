@@ -263,7 +263,7 @@ describe("Testing Revoke Lambda", () => {
       ],
       [
         buildRequest({ body: REVOKE_JWT_WITH_NO_IAT }),
-        "Missing iat (Issued At) claim in JWT payload",
+        "No IssuedAt in Payload",
         REVOKE_JWT_WITH_NO_IAT,
         TEST_KID,
         TEST_CLIENT_ID_BITSTRING,
