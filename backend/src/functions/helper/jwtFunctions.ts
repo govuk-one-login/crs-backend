@@ -83,7 +83,7 @@ export async function validateRevokingJWT(
   if (!jsonPayload.iat) {
     return {
       isValid: false,
-      error: badRequestResponse("Missing iat (Issued At) claim in JWT payload"),
+      error: badRequestResponse("No IssuedAt in Payload"),
     };
   }
 
