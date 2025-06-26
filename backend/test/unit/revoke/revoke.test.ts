@@ -20,6 +20,7 @@ import {
   PUBLIC_KEY,
   REVOKE_GOLDEN_JWT,
   REVOKE_GOLDEN_TOKEN_JWT,
+  REVOKE_JWT_WITH_NO_IAT,
   REVOKE_JWT_WITH_INVALID_LIST_TYPE,
   REVOKE_JWT_WITH_INVALID_URI,
   REVOKE_JWT_WITH_NO_CLIENT_ID,
@@ -252,6 +253,14 @@ describe("Testing Revoke Lambda", () => {
 
   describe("Bad Request Error Scenarios", () => {
     test.each([
+      [
+        buildRequest({ body: REVOKE_JWT_WITH_NO_IAT }),
+        "Missing iat (Issued At) claim in JWT payload",
+        REVOKE_JWT_WITH_NO_IAT,
+        TEST_KID,
+        TEST_CLIENT_ID_BITSTRING,
+        EMPTY_SIGNING_KEY,
+      ],
       [
         buildRequest({ body: REVOKE_JWT_WITH_NO_KID }),
         "No Kid in Header",
