@@ -282,7 +282,7 @@ Resources:
         - Key: BackupFrequency
           Value: Bihourly
 
-          # IssueStatusListEntry Lambda and supporting resources
+          # IssueStatusListEntry Lambda
   IssueStatusListEntryFunction:
     Type: AWS::Serverless::Function
     DependsOn:
@@ -588,6 +588,7 @@ Resources:
           Expression: IF(lambdaLogStarted>= 5, lambdaLogCompletePercentage)
     Condition: DeployAlarms
 
+    # Find Available Slots Lambda
   FindAvailableSlotsFunction:
     Type: AWS::Serverless::Function
     DependsOn:
