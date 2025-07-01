@@ -588,7 +588,7 @@ Resources:
           Expression: IF(lambdaLogStarted>= 5, lambdaLogCompletePercentage)
     Condition: DeployAlarms
 
-# Find Available Slots Lambda
+    # Find Available Slots Lambda
   FindAvailableSlotsFunction:
     Type: AWS::Serverless::Function
     DependsOn:
