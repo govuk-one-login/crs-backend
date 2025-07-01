@@ -373,19 +373,6 @@ describe("Testing Status List Publisher Lambda", () => {
         body: '{"error":"BAD_REQUEST","error_description":"MessageGroupId is required"}',
       });
     });
-    it("should return 500 when there is no groupId in the sqs event", async () => {
-      mockSQSEvent = createSQSEvent("");
-
-      const result = await handler(mockSQSEvent, context);
-
-      expect(result).toEqual({
-        statusCode: 400,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: '{"error":"BAD_REQUEST","error_description":"MessageGroupId is required"}',
-      });
-    });
     it("should throw 500 when there there is a error querying the db", async () => {
       mockSQSEvent = createSQSEvent("T2757C3F6091");
 

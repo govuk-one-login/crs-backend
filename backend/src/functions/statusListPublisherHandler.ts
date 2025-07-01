@@ -301,10 +301,7 @@ export function generateByteArray(
     );
   });
 
-  logger.info(
-    `Bitstring Array first byte: ${get2BitValueAsBitString(get2BitValue(byteArray, 0))}, ${get2BitValueAsBitString(get2BitValue(byteArray, 1))}, ${get2BitValueAsBitString(get2BitValue(byteArray, 2))}, ${get2BitValueAsBitString(get2BitValue(byteArray, 3))}`,
-  );
-  logger.info(`Bitstring Array: ${Array.from(byteArray)}`);
+  logger.info(`Byte Array: ${Array.from(byteArray)}`);
 
   return byteArray;
 }
@@ -327,10 +324,7 @@ export function generateTokenByteArray(
     );
   });
 
-  logger.info(
-    `Bitstring Array first byte: ${get2BitValueAsBitString(get2BitValue(byteArray, 0))}, ${get2BitValueAsBitString(get2BitValue(byteArray, 1))}, ${get2BitValueAsBitString(get2BitValue(byteArray, 2))}, ${get2BitValueAsBitString(get2BitValue(byteArray, 3))}`,
-  );
-  logger.info(`Bitstring Array: ${Array.from(byteArray)}`);
+  logger.info(`Byte Array: ${Array.from(byteArray)}`);
 
   return byteArray;
 }
@@ -341,16 +335,16 @@ function set2BitValueBitstringList(
   index: number,
   value: number,
 ) {
-  const byteIndex = Math.floor(index / 4); // if the index is 1020
-  const bitOffset = (index % 4) * 2;
+  const byteIndex = Math.floor(index / 4); // Each byte holds 4 2-bit values
+  const bitOffset = (index % 4) * 2; // Calculate the bit offset within the byte
   arr[byteIndex] &= ~(0b11 << bitOffset); // Clear the 2 bits - inverted mask so it keeps the 1s in other bits
-  arr[byteIndex] |= (value & 0b11) << bitOffset; // Set new value using or so the new bits are set
+  arr[byteIndex] |= (value & 0b11) << bitOffset; // Set new value
 }
 
 // To set the nth 2-bit value to a value (0-3)
 function set2BitValueTokenList(arr: Uint8Array, index: number, value: number) {
-  const byteIndex = Math.floor(index / 4); // if the index is 1020
-  const bitOffset = (3 - (index % 4)) * 2; // Reverse order
+  const byteIndex = Math.floor(index / 4); // Each byte holds 4 2-bit values
+  const bitOffset = (3 - (index % 4)) * 2; // Calculate the bit offset within the byte, reversed order for token list
   arr[byteIndex] &= ~(0b11 << bitOffset); // Clear the 2 bits
   arr[byteIndex] |= (value & 0b11) << bitOffset; // Set new value
 }
@@ -431,10 +425,4 @@ export async function compressAndEncode(dataToBeCompressed, compresstionType) {
   writer.close();
   const compressed = await new Response(cs.readable).arrayBuffer();
   return Buffer.from(compressed).toString("base64");
-}
-
-export function get2BitValue(arr: Uint8Array, index: number): number {
-  const byteIndex = Math.floor(index / 4);
-  const bitOffset = (index % 4) * 2;
-  return (arr[byteIndex] >> bitOffset) & 0b11;
 }
