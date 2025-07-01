@@ -275,9 +275,7 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
         RecoveryPeriodInDays: 7
-      ProvisionedThroughput:
-        ReadCapacityUnits: 100
-        WriteCapacityUnits: 100
+      BillingMode: PAY_PER_REQUEST
       Tags:
         - Key: BackupFrequency
           Value: Bihourly
