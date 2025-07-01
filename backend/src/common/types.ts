@@ -179,3 +179,35 @@ export const revokeFailTXMAEvent = (
     },
   };
 };
+
+export const bitStringPayload = {
+  "@context": ["https://www.w3.org/ns/credentials/v2"],
+  id: "", //uri
+  type: ["VerifiableCredential", "BitstringStatusListCredential"],
+  iss: "https://crs.account.gov.uk",
+  validFrom: "",
+  validUntil: "",
+  credentialSubject: {
+    id: "", //uri
+    type: "BitstringStatusList",
+    statusSize: 2,
+    statusPurpose: "message",
+    statusMessage: [
+      { status: "0x0", message: "VALID" },
+      { status: "0x1", message: "INVALID" },
+    ],
+    encodedList: "",
+  },
+};
+
+export const tokenPayload = {
+  exp: 0, // representating time to expire in seconds,
+  iat: 0, // issued at time in seconds,
+  iss: "https://crs.account.gov.uk",
+  status_list: {
+    bits: 2,
+    lst: "",
+  },
+  sub: "", //uri
+  ttl: 43200, // time to live (12 hours)
+};
