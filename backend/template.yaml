@@ -661,7 +661,7 @@ Resources:
         Enabled: true
         Type: !Ref LambdaDeploymentPreference
       FunctionName: !Sub ${AWS::StackName}-find-available-slots
-      Handler: src/functions/findAvailableSlotsHandler.findAvailableSlots
+      Handler: src/functions/findAvailableSlotsHandler.handler
       Timeout: 900 # 15 minutes
       Policies:
         - AWSLambdaBasicExecutionRole
