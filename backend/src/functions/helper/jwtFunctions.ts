@@ -80,7 +80,6 @@ export async function validateRevokingJWT(
   jsonHeader,
   config: ClientRegistry,
 ): Promise<ValidationResult> {
-
   if (!jsonPayload.idx) {
     return {
       isValid: false,
@@ -155,7 +154,6 @@ async function validateJWT(
   jsonHeader,
   config: ClientRegistry,
 ): Promise<ValidationResult> {
-
   if (!jsonPayload.iat) {
     return {
       isValid: false,
