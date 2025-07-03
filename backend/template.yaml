@@ -2204,7 +2204,7 @@ Resources:
       Queues:
         - !Ref StatusChangeQueue
 
-      # TxMA SQS Queue
+        # TxMA SQS Queue
   TxMAKMSEncryptionKey:
     Type: AWS::KMS::Key
     Properties:
