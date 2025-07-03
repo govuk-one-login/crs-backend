@@ -1,4 +1,5 @@
 import { APIGatewayProxyEvent } from "aws-lambda";
+import {ISSUE_GOLDEN_JWT} from "./testConstants";
 
 // eslint-disable-next-line
 export function buildRequest(overrides?: any): APIGatewayProxyEvent {
@@ -9,7 +10,7 @@ export function buildRequest(overrides?: any): APIGatewayProxyEvent {
       Host: "api.status-list.service.gov.uk",
       Accept: "application/json",
     },
-    body: "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6ImNjMmMzNzM4LTAzZWMtNDIxNC1hNjVlLTdmMDQ2MWEzNGU3YiJ9.eyJpc3MiOiJhc0tXbnNqZUVKRVdqandTSHNJa3NJa3NJaEJlIiwiZXhwaXJlcyI6IjE3MzQ3MDk0OTMifQ.OlAm7TIfn-Qrs2yJvl6MDr9raiq_uZ6FV7WwaPz2CTuCuK-EkvsqM8139yjIiJq3pqeZk0S_23J-4SGBAkUXhA",
+    body: ISSUE_GOLDEN_JWT,
   };
   return { ...defaultRequest, ...overrides };
 }
