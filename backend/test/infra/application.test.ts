@@ -1,11 +1,25 @@
-import { Capture, Match, Template } from "aws-cdk-lib/assertions";
+import { Match, Template } from "aws-cdk-lib/assertions";
 import { readFileSync } from "fs";
 import { load } from "js-yaml";
 import { schema } from "yaml-cfn";
 
-const yamltemplate: any = load(readFileSync("template.yaml", "utf-8"), {
+interface CloudFormationTemplate {
+  [key: string]: unknown;
+}
+
+interface FunctionDefinition {
+  Properties: {
+    DeploymentPreference: {
+      Alarms: {
+        "Fn::If": [string, Array<{ Ref: string }>, Array<{ Ref: string }>];
+      };
+    };
+  };
+}
+
+const yamltemplate = load(readFileSync("template.yaml", "utf-8"), {
   schema: schema,
-});
+}) as CloudFormationTemplate;
 
 console.log("yamltemplate:" + yamltemplate);
 
@@ -128,14 +142,14 @@ describe("Backend application infrastructure", () => {
             });
           });
 
-          const canaryFunctionAlarmNames: any = retrieveCanaryAlarmNames(
-            canaryFunctionDefinition,
+          const canaryFunctionAlarmNames = retrieveCanaryAlarmNames(
+            canaryFunctionDefinition as FunctionDefinition,
           );
 
           const canaryFunctionAlarms = Object.entries(
             template.findResources("AWS::CloudWatch::Alarm"),
           ).filter(([alarmName, _]) => {
-            return canaryFunctionAlarmNames.includes(alarmName);
+            return canaryFunctionAlarmNames?.includes(alarmName) ?? false;
           });
 
           // Each alarm used as for a canary deployment is required to reference the lambda function by lambda function version ensuring the alarm references the new version only.
@@ -145,10 +159,14 @@ describe("Backend application infrastructure", () => {
               "Canary alarm %s references the function version",
               (_, alarmDefinition) => {
                 alarmDefinition.Properties.Metrics.forEach(
-                  (metricDataQuery: any) => {
-                    if (metricDataQuery.MetricStat) {
-                      expect(metricDataQuery.MetricStat.Period).toEqual(60);
-                      expect(metricDataQuery.MetricStat.Stat).toEqual("Sum");
+                  (metricDataQuery: Record<string, unknown>) => {
+                    const metricStat = metricDataQuery.MetricStat as Record<
+                      string,
+                      unknown
+                    >;
+                    if (metricStat) {
+                      expect(metricStat.Period as unknown).toEqual(60);
+                      expect(metricStat.Stat as unknown).toEqual("Sum");
                     }
 
                     // Simple test checking at least one dimension in one metric references the lambda function version.
@@ -175,15 +193,17 @@ describe("Backend application infrastructure", () => {
                     );
 
                     // Specific test asserting that every metric using our custom metric log filters follows the same definition.
+                    const metric = metricStat?.Metric as Record<
+                      string,
+                      unknown
+                    >;
                     if (
-                      metricDataQuery.MetricStat?.Metric?.Namespace &&
-                      metricDataQuery.MetricStat?.Metric?.Namespace[
-                        "Fn::Sub"
-                      ] == "${AWS::StackName}/LogMessages"
+                      metric &&
+                      metric.Namespace &&
+                      (metric.Namespace as Record<string, string>)["Fn::Sub"] ==
+                        "${AWS::StackName}/LogMessages"
                     ) {
-                      expect(
-                        metricDataQuery.MetricStat.Metric.Dimensions,
-                      ).toEqual(
+                      expect(metric.Dimensions).toEqual(
                         expect.arrayContaining([
                           {
                             Name: "MessageCode",
@@ -200,13 +220,8 @@ describe("Backend application infrastructure", () => {
                     }
 
                     // Specific test asserting that every metric using the AWS metrics follows the same definition.
-                    if (
-                      metricDataQuery.MetricStat?.Metric?.Namespace ===
-                      "AWS/Lambda"
-                    ) {
-                      expect(
-                        metricDataQuery.MetricStat.Metric.Dimensions,
-                      ).toEqual(
+                    if (metric && metric.Namespace === "AWS/Lambda") {
+                      expect(metric.Dimensions).toEqual(
                         expect.arrayContaining([
                           {
                             Name: "Resource",
@@ -239,12 +254,127 @@ describe("Backend application infrastructure", () => {
     });
   });
 
+  describe("SQS Queues", () => {
+    describe("StatusChangeQueue", () => {
+      test("StatusChangeQueue is configured as a FIFO queue", () => {
+        template.hasResourceProperties("AWS::SQS::Queue", {
+          QueueName: { "Fn::Sub": "${AWS::StackName}-StatusChangeQueue.fifo" },
+          FifoQueue: true,
+          ContentBasedDeduplication: true,
+          MessageRetentionPeriod: 1209600, // 14 days
+          VisibilityTimeout: 300, // 5 minutes
+        });
+      });
+
+      test("StatusChangeQueue has encryption configured", () => {
+        template.hasResourceProperties("AWS::SQS::Queue", {
+          QueueName: { "Fn::Sub": "${AWS::StackName}-StatusChangeQueue.fifo" },
+          KmsMasterKeyId: { Ref: "StatusChangeQueueKeyAlias" },
+        });
+      });
+
+      test("StatusChangeQueue has dead letter queue configured", () => {
+        template.hasResourceProperties("AWS::SQS::Queue", {
+          QueueName: { "Fn::Sub": "${AWS::StackName}-StatusChangeQueue.fifo" },
+          RedrivePolicy: {
+            deadLetterTargetArn: {
+              "Fn::GetAtt": ["StatusChangeQueueDLQ", "Arn"],
+            },
+            maxReceiveCount: 3,
+          },
+        });
+      });
+
+      test("StatusChangeQueueDLQ is configured as a FIFO queue", () => {
+        template.hasResourceProperties("AWS::SQS::Queue", {
+          QueueName: {
+            "Fn::Sub": "${AWS::StackName}-StatusChangeQueue-DLQ.fifo",
+          },
+          FifoQueue: true,
+          MessageRetentionPeriod: 604800, // 7 days
+        });
+      });
+
+      test("StatusChangeQueueDLQ has encryption configured", () => {
+        template.hasResourceProperties("AWS::SQS::Queue", {
+          QueueName: {
+            "Fn::Sub": "${AWS::StackName}-StatusChangeQueue-DLQ.fifo",
+          },
+          KmsMasterKeyId: { Ref: "StatusChangeQueueKeyAlias" },
+        });
+      });
+    });
+
+    describe("StatusChangeQueue KMS Key", () => {
+      test("StatusChangeQueueEncryptionKey is configured correctly", () => {
+        template.hasResourceProperties("AWS::KMS::Key", {
+          Description:
+            "A KMS Key for encrypting the Status Change FIFO SQS Queue",
+          Enabled: true,
+          KeySpec: "SYMMETRIC_DEFAULT",
+          KeyUsage: "ENCRYPT_DECRYPT",
+          MultiRegion: false,
+        });
+      });
+
+      test("StatusChangeQueueKeyAlias is configured correctly", () => {
+        template.hasResourceProperties("AWS::KMS::Alias", {
+          AliasName: {
+            "Fn::Sub": "alias/${AWS::StackName}-StatusChangeQueueEncryptionKey",
+          },
+          TargetKeyId: { Ref: "StatusChangeQueueEncryptionKey" },
+        });
+      });
+    });
+
+    describe("StatusChangeQueue Policy", () => {
+      test("StatusChangeQueuePolicy allows cross-account access", () => {
+        template.hasResourceProperties("AWS::SQS::QueuePolicy", {
+          PolicyDocument: {
+            Statement: Match.arrayWith([
+              {
+                Action: [
+                  "SQS:DeleteMessage",
+                  "SQS:GetQueueAttributes",
+                  "SQS:ChangeMessageVisibility",
+                  "SQS:ReceiveMessage",
+                ],
+                Effect: "Allow",
+                Principal: {
+                  AWS: Match.anyValue(),
+                },
+                Resource: [{ "Fn::GetAtt": ["StatusChangeQueue", "Arn"] }],
+              },
+            ]),
+          },
+        });
+      });
+
+      test("StatusChangeQueuePolicy allows DynamoDB to send messages", () => {
+        template.hasResourceProperties("AWS::SQS::QueuePolicy", {
+          PolicyDocument: {
+            Statement: Match.arrayWith([
+              {
+                Action: ["SQS:SendMessage"],
+                Effect: "Allow",
+                Principal: {
+                  Service: "dynamodb.amazonaws.com",
+                },
+                Resource: [{ "Fn::GetAtt": ["StatusChangeQueue", "Arn"] }],
+              },
+            ]),
+          },
+        });
+      });
+    });
+  });
+
   // Pulls out a list of Alarm names used to configure canary deployments from function definition
   // Requires the function definition to match that as defined in the 'correctly configures DeploymentPreference for canaries' test
   // Aims to return undefined if that structure is not followed.
-  function retrieveCanaryAlarmNames(functionDefinition: {
-    [key: string]: any; // eslint-disable-line  @typescript-eslint/no-explicit-any
-  }): string[] | undefined {
+  function retrieveCanaryAlarmNames(
+    functionDefinition: FunctionDefinition,
+  ): string[] {
     if (
       !functionDefinition.Properties ||
       !functionDefinition.Properties.DeploymentPreference ||
@@ -258,13 +388,17 @@ describe("Backend application infrastructure", () => {
     const canaryFunctionAlarms =
       functionDefinition.Properties.DeploymentPreference.Alarms["Fn::If"].at(1);
 
+    if (!canaryFunctionAlarms || !Array.isArray(canaryFunctionAlarms)) {
+      return [];
+    }
+
     return canaryFunctionAlarms
-      .filter((canaryFunctionAlarm: any) => {
+      .filter((canaryFunctionAlarm: { Ref?: string }) => {
         return (
           typeof canaryFunctionAlarm === "object" && canaryFunctionAlarm.Ref
         );
       })
-      .map((canaryFunctionAlarm: any) => {
+      .map((canaryFunctionAlarm: { Ref: string }) => {
         return canaryFunctionAlarm.Ref;
       });
   }
