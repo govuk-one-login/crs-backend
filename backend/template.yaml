@@ -340,6 +340,18 @@ Resources:
             Principal:
               Service:
                 - codedeploy.amazonaws.com
+          - !If
+            - CreateCustomKMSKeyPolicy
+            - Sid: CustomKMSKeySigning
+              Effect: Allow
+              Action:
+                - kms:DescribeKey
+                - kms:GetPublicKey
+                - kms:Decrypt
+                - kms:Verify
+                - kms:GenerateDataKey
+              Resource: !Ref CustomKmsKeyArns
+            - !Ref AWS::NoValue
         Version: "2012-10-17"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRoleForLambda
