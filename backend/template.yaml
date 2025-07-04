@@ -335,6 +335,53 @@ Resources:
         - Key: BackupFrequency
           Value: Bihourly
 
+  StatusListGlobalTable:
+    Type: AWS::DynamoDB::GlobalTable
+    Properties:
+      Replicas:
+        - Region: eu-west-2
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+            RecoveryPeriodInDays: 7
+          Tags:
+            - Key: BackupFrequency
+              Value: Bihourly
+#          DeletionProtectionEnabled: true
+        - Region: eu-west-1
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+            RecoveryPeriodInDays: 7
+          Tags:
+            - Key: BackupFrequency
+              Value: Bihourly
+#          DeletionProtectionEnabled: true
+        - Region: eu-central-1
+          PointInTimeRecoverySpecification:
+            PointInTimeRecoveryEnabled: true
+            RecoveryPeriodInDays: 7
+          Tags:
+            - Key: BackupFrequency
+              Value: Bihourly
+#          DeletionProtectionEnabled: true
+      MultiRegionConsistency: STRONG
+      TableName: !If
+        - IsDevEnvironment
+        - !Sub ${AWS::StackName}-StatusListGlobalTable
+        - StatusListGlobalTable
+      AttributeDefinitions:
+        - AttributeName: uri
+          AttributeType: S
+        - AttributeName: idx
+          AttributeType: N
+      KeySchema:
+        - AttributeName: uri
+          KeyType: HASH
+        - AttributeName: idx
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+
           # IssueStatusListEntry Lambda
   IssueStatusListEntryFunction:
     Type: AWS::Serverless::Function
@@ -376,7 +423,7 @@ Resources:
           TXMA_QUEUE_URL: !Ref TxMASQSQueue
           BITSTRING_QUEUE_URL: !Ref BitstringAvailableSlotsSQS
           TOKEN_STATUS_QUEUE_URL: !Ref TokenStatusAvailableSlotsSQS
-          STATUS_LIST_TABLE: !Ref StatusListTable
+          STATUS_LIST_TABLE: !Ref StatusListGlobalTable
       VpcConfig:
         SecurityGroupIds:
           - !ImportValue
@@ -442,7 +489,7 @@ Resources:
                   - dynamodb:GetItem
                   - dynamodb:PutItem
                 Resource:
-                  - !GetAtt StatusListTable.Arn
+                  - !GetAtt StatusListGlobalTable.Arn
         - PolicyName: IssueStatusListEntryFunctionSQSPolicy
           PolicyDocument:
             Statement:
@@ -909,7 +956,7 @@ Resources:
           CLIENT_REGISTRY_BUCKET: !Ref ClientRegistryBucket
           CLIENT_REGISTRY_FILE_KEY: mockClientRegistry.json #remove "mock" when using the real file
           TXMA_QUEUE_URL: !Ref TxMASQSQueue
-          STATUS_LIST_TABLE: !Ref StatusListTable
+          STATUS_LIST_TABLE: !Ref StatusListGlobalTable
 
   RevokeFunctionLambdaRole:
     Type: AWS::IAM::Role
@@ -971,7 +1018,7 @@ Resources:
                   - dynamodb:GetItem
                   - dynamodb:Query
                   - dynamodb:Scan
-                Resource: !GetAtt StatusListTable.Arn
+                Resource: !GetAtt StatusListGlobalTable.Arn
         - PolicyName: DynamoDBReadWrite
           PolicyDocument:
             Version: "2012-10-17"
@@ -980,7 +1027,7 @@ Resources:
                 Action:
                   - dynamodb:GetItem
                   - dynamodb:UpdateItem
-                Resource: !GetAtt StatusListTable.Arn
+                Resource: !GetAtt StatusListGlobalTable.Arn
       PermissionsBoundary: !If
         - UsePermissionsBoundary
         - !Ref PermissionsBoundary
@@ -1646,7 +1693,7 @@ Resources:
         Variables:
           KMS_SIGNING_KEY_ARN: !Ref StatusListPublisherKMSKey
           POWERTOOLS_SERVICE_NAME: StatusListPublisher
-          STATUS_LIST_TABLE: !Ref StatusListTable
+          STATUS_LIST_TABLE: !Ref StatusListGlobalTable
           STATUS_LIST_BUCKET: !Ref StatusListBucket
       VpcConfig:
         SecurityGroupIds:
@@ -1715,7 +1762,7 @@ Resources:
                   - dynamodb:GetItem
                   - dynamodb:Query
                   - dynamodb:Scan
-                Resource: !GetAtt StatusListTable.Arn
+                Resource: !GetAtt StatusListGlobalTable.Arn
       PermissionsBoundary: !If
         - UsePermissionsBoundary
         - !Ref PermissionsBoundary
