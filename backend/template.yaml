@@ -13,6 +13,36 @@ Parameters:
     Type: String
     Default: none
 
+  SigningProfileArn:
+    Description: |
+      (Optional) The ARN of the signing profile to use for signing artifacts. This value is returned as the SigningProfileArn output parameter from the signer CloudFormation stack
+    Type: String
+    Default: none
+    AllowedPattern: (arn:.*:signer:.*:.*:/signing-profiles/[^/]+)|(none)
+    ConstraintDescription: must be a signing profile ARN (not the profile version ARN) or none
+
+  SigningProfileVersionArn:
+    Description: |
+      (Optional) The versioned profile ARN of the signing profile to use for verifying that Lambdas deployed by this pipeline were generated from post-merge build pipeline. This value is returned as the SigningProfileVersionArn output parameter from the signer CloudFormation stack
+    Type: String
+    Default: none
+    AllowedPattern: (arn:.*:signer:.*:.*:/signing-profiles/.+/.+)|(none)
+    ConstraintDescription: must be a signing profile version ARN (not the signing profile ARN) or none
+
+  AdditionalCodeSigningVersionArns:
+    Description: |
+      (Optional) An additional set of CodeSigning profiles that we're allowing to deploy into our lambdas. This could be AWS signatures for their lambda layers, Dynatrace signatures for their layers, or simply other artifacts produced that are signed by a third party signing ARN.
+    Type: String
+    Default: arn:aws:signer:eu-west-2:216552277552:/signing-profiles/DynatraceSigner/5uwzCCGTPq
+    AllowedPattern: (arn:.*:signer:.*:.*:/signing-profiles/.+/.+)|(none)
+    ConstraintDescription: must be a signing profile version ARN (not the signing profile ARN) or none
+
+  CustomKmsKeyArns:
+    Description: |
+      (Optional) ARNs of custom KMS keys that can be used to access secrets. These must be created separately before deploying the pipeline.
+    Type: CommaDelimitedList
+    Default: arn:aws:kms:eu-west-2:216552277552:key/4bc58ab5-c9bb-4702-a2c3-5d339604a8fe
+
   Environment:
     Description: The name of the environment to deploy to
     Type: String
@@ -174,6 +204,28 @@ Conditions:
       - !Ref CodeSigningConfigArn
       - none
 
+  SigningProfile: !And
+    - !Not
+      - !Equals
+        - !Ref SigningProfileArn
+        - none
+    - !Not
+      - !Equals
+        - !Ref SigningProfileVersionArn
+        - none
+
+  AdditionalCodeSigningProfiles: !Not
+    - !Equals
+      - !Ref AdditionalCodeSigningVersionArns
+      - none
+
+  CreateCustomKMSKeyPolicy: !Not
+    - !Equals
+      - !Join
+        - ""
+        - !Ref CustomKmsKeyArns
+      - ""
+
   StackNameIsCrsBackend: !Equals
     - !Ref AWS::StackName
     - crs-backend
@@ -295,6 +347,23 @@ Resources:
         - UsePermissionsBoundary
         - !Ref PermissionsBoundary
         - !Ref AWS::NoValue
+
+  CodeSigningConfig:
+    Type: AWS::Lambda::CodeSigningConfig
+    Properties:
+      Description: !Sub Code Signing Config for ${AWS::StackName}
+      AllowedPublishers:
+        SigningProfileVersionArns: !If
+          - AdditionalCodeSigningProfiles
+          - !Split
+            - ','
+            - !Sub ${SigningProfileVersionArn},${AdditionalCodeSigningVersionArns}
+          - !Split
+            - ','
+            - !Ref SigningProfileVersionArn
+      CodeSigningPolicies:
+        UntrustedArtifactOnDeployment: Enforce
+    Condition: SigningProfile
 
   Linear20PercentEvery1Minute:
     Type: AWS::CodeDeploy::DeploymentConfig
