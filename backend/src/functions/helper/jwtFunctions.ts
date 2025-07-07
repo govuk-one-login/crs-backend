@@ -80,13 +80,6 @@ export async function validateRevokingJWT(
   jsonHeader,
   config: ClientRegistry,
 ): Promise<ValidationResult> {
-  if (!jsonPayload.iat) {
-    return {
-      isValid: false,
-      error: badRequestResponse("No IssuedAt in Payload"),
-    };
-  }
-
   if (!jsonPayload.idx) {
     return {
       isValid: false,
@@ -161,6 +154,13 @@ async function validateJWT(
   jsonHeader,
   config: ClientRegistry,
 ): Promise<ValidationResult> {
+  if (!jsonPayload.iat) {
+    return {
+      isValid: false,
+      error: badRequestResponse("No IssuedAt in Payload"),
+    };
+  }
+
   if (!jsonHeader.kid) {
     return { isValid: false, error: badRequestResponse("No Kid in Header") };
   }
