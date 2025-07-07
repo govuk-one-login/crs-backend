@@ -81,7 +81,7 @@ jobs:
       - name: Install Cosign
         uses: sigstore/cosign-installer@3454372f43399081ed03b604cb2d021dabca52bb #v3.8.2
         with:
-          cosign-release: 'v1.9.0'
+          cosign-release: 'v2.5.2'
 
       - name: Install dependencies
         run: npm clean-install
@@ -147,7 +147,7 @@ jobs:
       - name: Install Cosign
         uses: sigstore/cosign-installer@3454372f43399081ed03b604cb2d021dabca52bb #v3.8.2
         with:
-          cosign-release: 'v1.9.0'
+          cosign-release: 'v2.5.2'
 
       - name: Install dependencies
         run: npm clean-install
