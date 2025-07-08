@@ -2206,7 +2206,59 @@ Resources:
       AliasName: !Sub alias/${AWS::StackName}-StatusChangeQueueEncryptionKey
       TargetKeyId: !Ref StatusChangeQueueEncryptionKey
 
-      # TxMA SQS Queue
+  #  Status List Update Event Bridge Pipe
+  StatusChangeEventBridgePipeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: pipes.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StatusChangeEventBridgePipePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:DescribeStream
+                  - dynamodb:GetRecords
+                  - dynamodb:GetShardIterator
+                  - dynamodb:ListStreams
+                Resource:
+                  - !GetAtt StatusListTable.Arn
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  - !GetAtt StatusChangeQueue.Arn
+      PermissionsBoundary: !If
+        - UsePermissionsBoundary
+        - !Ref PermissionsBoundary
+        - !Ref AWS::NoValue
+
+  StatusChangeEventBridgePipe:
+    Type: AWS::Pipes::Pipe
+    Properties:
+
+      # Name: Is this necessary?
+      RoleArn: !GetAtt StatusChangeEventBridgePipeRole.Arn
+      Source: !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/StatusLlistTable/stream/*
+      SourceParameters:
+        DynamoDBStreamParameters:
+          StartingPosition: TRIM_HORIZON
+        Target: !GetAtt StatusChangeQueue.Arn
+        TargetParameters:
+          SqsQueueParameters:
+            MessageGroupId: status-change-group #Check this
+        FilterCriteria:
+          Filters:
+            - Pattern: "{\n  \"eventName\": [\"MODIFY\", \"REMOVE\"]\n}       \n"
+
+              # TxMA SQS Queue
   TxMAKMSEncryptionKey:
     Type: AWS::KMS::Key
     Properties:
