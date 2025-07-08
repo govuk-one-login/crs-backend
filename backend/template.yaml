@@ -2121,6 +2121,59 @@ Resources:
       MessageRetentionPeriod: 604800 # 7 days
 
   # Status Change Queue (FIFO) for Publisher Service
+  StatusChangeQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${AWS::StackName}-StatusChangeQueue.fifo
+      FifoQueue: true
+      ContentBasedDeduplication: true
+      KmsMasterKeyId: !Ref StatusChangeQueueKeyAlias
+      MessageRetentionPeriod: 1209600 # 14 days
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt StatusChangeQueueDLQ.Arn
+        maxReceiveCount: 10
+
+  StatusChangeQueueDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${AWS::StackName}-StatusChangeQueue-DLQ.fifo
+      FifoQueue: true
+      KmsMasterKeyId: !Ref StatusChangeQueueKeyAlias
+      MessageRetentionPeriod: 604800 # 7 days
+
+  StatusChangeQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - SQS:DeleteMessage
+              - SQS:GetQueueAttributes
+              - SQS:ChangeMessageVisibility
+              - SQS:ReceiveMessage
+            Effect: Allow
+            Principal:
+              AWS:
+                - !FindInMap
+                  - AccountAccess
+                  - !Ref Environment
+                  - AccountId
+            Resource:
+              - !GetAtt StatusChangeQueue.Arn
+          - Action:
+              - SQS:ReceiveMessage
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Resource:
+              - !GetAtt StatusChangeQueue.Arn
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${StatusListPublisherFunction}
+      Queues:
+        - !Ref StatusChangeQueue
+
   StatusChangeQueueEncryptionKey:
     Type: AWS::KMS::Key
     Properties:
@@ -2153,58 +2206,7 @@ Resources:
       AliasName: !Sub alias/${AWS::StackName}-StatusChangeQueueEncryptionKey
       TargetKeyId: !Ref StatusChangeQueueEncryptionKey
 
-  StatusChangeQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub ${AWS::StackName}-StatusChangeQueue.fifo
-      FifoQueue: true
-      ContentBasedDeduplication: true
-      KmsMasterKeyId: !Ref StatusChangeQueueKeyAlias
-      MessageRetentionPeriod: 1209600 # 14 days
-      VisibilityTimeout: 300 # 5 minutes
-      RedrivePolicy:
-        deadLetterTargetArn: !GetAtt StatusChangeQueueDLQ.Arn
-        maxReceiveCount: 3
-
-  StatusChangeQueueDLQ:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Sub ${AWS::StackName}-StatusChangeQueue-DLQ.fifo
-      FifoQueue: true
-      KmsMasterKeyId: !Ref StatusChangeQueueKeyAlias
-      MessageRetentionPeriod: 604800 # 7 days
-
-  StatusChangeQueuePolicy:
-    Type: AWS::SQS::QueuePolicy
-    Properties:
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Action:
-              - SQS:DeleteMessage
-              - SQS:GetQueueAttributes
-              - SQS:ChangeMessageVisibility
-              - SQS:ReceiveMessage
-            Effect: Allow
-            Principal:
-              AWS:
-                - !FindInMap
-                  - AccountAccess
-                  - !Ref Environment
-                  - AccountId
-            Resource:
-              - !GetAtt StatusChangeQueue.Arn
-          - Action:
-              - SQS:SendMessage
-            Effect: Allow
-            Principal:
-              Service: dynamodb.amazonaws.com
-            Resource:
-              - !GetAtt StatusChangeQueue.Arn
-      Queues:
-        - !Ref StatusChangeQueue
-
-        # TxMA SQS Queue
+      # TxMA SQS Queue
   TxMAKMSEncryptionKey:
     Type: AWS::KMS::Key
     Properties:

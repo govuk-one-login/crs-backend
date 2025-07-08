@@ -261,8 +261,7 @@ describe("Backend application infrastructure", () => {
           QueueName: { "Fn::Sub": "${AWS::StackName}-StatusChangeQueue.fifo" },
           FifoQueue: true,
           ContentBasedDeduplication: true,
-          MessageRetentionPeriod: 1209600, // 14 days
-          VisibilityTimeout: 300, // 5 minutes
+          MessageRetentionPeriod: 1209600,
         });
       });
 
@@ -280,7 +279,7 @@ describe("Backend application infrastructure", () => {
             deadLetterTargetArn: {
               "Fn::GetAtt": ["StatusChangeQueueDLQ", "Arn"],
             },
-            maxReceiveCount: 3,
+            maxReceiveCount: 10,
           },
         });
       });
@@ -291,7 +290,7 @@ describe("Backend application infrastructure", () => {
             "Fn::Sub": "${AWS::StackName}-StatusChangeQueue-DLQ.fifo",
           },
           FifoQueue: true,
-          MessageRetentionPeriod: 604800, // 7 days
+          MessageRetentionPeriod: 604800,
         });
       });
 
@@ -350,17 +349,25 @@ describe("Backend application infrastructure", () => {
         });
       });
 
-      test("StatusChangeQueuePolicy allows DynamoDB to send messages", () => {
+      test("StatusChangeQueuePolicy allows receiveMessages for status list publisher lambda", () => {
         template.hasResourceProperties("AWS::SQS::QueuePolicy", {
           PolicyDocument: {
             Statement: Match.arrayWith([
               {
-                Action: ["SQS:SendMessage"],
+                Action: ["SQS:ReceiveMessage"],
                 Effect: "Allow",
                 Principal: {
-                  Service: "dynamodb.amazonaws.com",
+                  Service: "lambda.amazonaws.com",
                 },
                 Resource: [{ "Fn::GetAtt": ["StatusChangeQueue", "Arn"] }],
+                Condition: {
+                  StringEquals: {
+                    "AWS:SourceArn": {
+                      "Fn::Sub":
+                        "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${StatusListPublisherFunction}",
+                    },
+                  },
+                },
               },
             ]),
           },
