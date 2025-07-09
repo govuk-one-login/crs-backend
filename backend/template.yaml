@@ -2229,7 +2229,7 @@ Resources:
                   - dynamodb:GetShardIterator
                   - dynamodb:ListStreams
                 Resource:
-                  - !GetAtt StatusListTable.Arn
+                  - !GetAtt StatusListTable.StreamArn
               - Effect: Allow
                 Action:
                   - sqs:SendMessage
@@ -2242,21 +2242,21 @@ Resources:
 
   StatusChangeEventBridgePipe:
     Type: AWS::Pipes::Pipe
+    DependsOn:
+      - StatusListTable
     Properties:
-
-      # Name: Is this necessary?
       RoleArn: !GetAtt StatusChangeEventBridgePipeRole.Arn
-      Source: !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/StatusLlistTable/stream/*
+      Source: !GetAtt StatusListTable.StreamArn
       SourceParameters:
         DynamoDBStreamParameters:
           StartingPosition: TRIM_HORIZON
-        Target: !GetAtt StatusChangeQueue.Arn
-        TargetParameters:
-          SqsQueueParameters:
-            MessageGroupId: status-change-group #Check this
         FilterCriteria:
           Filters:
-            - Pattern: "{\n  \"eventName\": [\"MODIFY\", \"REMOVE\"]\n}       \n"
+            - Pattern: '{ "eventName": ["MODIFY", "REMOVE"] }'
+      Target: !GetAtt StatusChangeQueue.Arn
+      TargetParameters:
+        SqsQueueParameters:
+          MessageGroupId: status-change-group #Check this
 
               # TxMA SQS Queue
   TxMAKMSEncryptionKey:
