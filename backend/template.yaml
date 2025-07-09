@@ -2294,7 +2294,7 @@ Resources:
         SqsQueueParameters:
           MessageGroupId: status-change-group #Check this
 
-              # TxMA SQS Queue
+          # TxMA SQS Queue
   TxMAKMSEncryptionKey:
     Type: AWS::KMS::Key
     Properties:
