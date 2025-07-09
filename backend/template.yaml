@@ -2254,7 +2254,7 @@ Resources:
       Target: !GetAtt StatusChangeQueue.Arn
       TargetParameters:
         SqsQueueParameters:
-          MessageGroupId: status-change-group #Check this
+          MessageGroupId: status-change-group
 
           # TxMA SQS Queue
   TxMAKMSEncryptionKey:
