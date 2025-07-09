@@ -2167,6 +2167,92 @@ Resources:
       KmsMasterKeyId: !Ref TokenStatusAvailableSlotsKeyAlias
       MessageRetentionPeriod: 604800 # 7 days
 
+  # Status Change Queue (FIFO) for Publisher Service
+  StatusChangeQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${AWS::StackName}-StatusChangeQueue.fifo
+      FifoQueue: true
+      ContentBasedDeduplication: true
+      KmsMasterKeyId: !Ref StatusChangeQueueKeyAlias
+      MessageRetentionPeriod: 1209600 # 14 days
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt StatusChangeQueueDLQ.Arn
+        maxReceiveCount: 10
+
+  StatusChangeQueueDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${AWS::StackName}-StatusChangeQueue-DLQ.fifo
+      FifoQueue: true
+      KmsMasterKeyId: !Ref StatusChangeQueueKeyAlias
+      MessageRetentionPeriod: 604800 # 7 days
+
+  StatusChangeQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - SQS:DeleteMessage
+              - SQS:GetQueueAttributes
+              - SQS:ChangeMessageVisibility
+              - SQS:ReceiveMessage
+            Effect: Allow
+            Principal:
+              AWS:
+                - !FindInMap
+                  - AccountAccess
+                  - !Ref Environment
+                  - AccountId
+            Resource:
+              - !GetAtt StatusChangeQueue.Arn
+          - Action:
+              - SQS:ReceiveMessage
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Resource:
+              - !GetAtt StatusChangeQueue.Arn
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${StatusListPublisherFunction}
+      Queues:
+        - !Ref StatusChangeQueue
+
+  StatusChangeQueueEncryptionKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: A KMS Key for encrypting the Status Change FIFO SQS Queue
+      Enabled: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Action: kms:*
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Resource: '*'
+      KeySpec: SYMMETRIC_DEFAULT
+      KeyUsage: ENCRYPT_DECRYPT
+      MultiRegion: false
+      PendingWindowInDays: !FindInMap
+        - KMS
+        - !Ref Environment
+        - PendingDeletionInDays
+      Tags:
+        - Key: KeyType
+          Value: Encryption Key
+        - Key: Environment
+          Value: !Sub ${Environment}
+
+  StatusChangeQueueKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/${AWS::StackName}-StatusChangeQueueEncryptionKey
+      TargetKeyId: !Ref StatusChangeQueueEncryptionKey
+
       # TxMA SQS Queue
   TxMAKMSEncryptionKey:
     Type: AWS::KMS::Key
