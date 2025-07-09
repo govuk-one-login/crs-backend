@@ -2278,8 +2278,6 @@ Resources:
 
   StatusChangeEventBridgePipe:
     Type: AWS::Pipes::Pipe
-    DependsOn:
-      - StatusListTable
     Properties:
       RoleArn: !GetAtt StatusChangeEventBridgePipeRole.Arn
       Source: !GetAtt StatusListTable.StreamArn
