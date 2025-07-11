@@ -2045,6 +2045,17 @@ Resources:
                   - AccountId
             Resource:
               - !GetAtt BitstringAvailableSlotsSQS.Arn
+          - Action:
+              - SQS:GetQueueAttributes
+              - SQS:SendMessage
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Resource:
+              - !GetAtt BitstringAvailableSlotsSQS.Arn
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FindAvailableSlotsFunction}
       Queues:
         - !Ref BitstringAvailableSlotsSQS
 
@@ -2115,6 +2126,17 @@ Resources:
                   - AccountId
             Resource:
               - !GetAtt TokenStatusAvailableSlotsSQS.Arn
+          - Action:
+              - SQS:GetQueueAttributes
+              - SQS:SendMessage
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Resource:
+              - !GetAtt TokenStatusAvailableSlotsSQS.Arn
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FindAvailableSlotsFunction}
       Queues:
         - !Ref TokenStatusAvailableSlotsSQS
 
