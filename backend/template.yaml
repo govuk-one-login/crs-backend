@@ -722,6 +722,10 @@ Resources:
             Fn::Sub: ${VpcStackName}-PrivateSubnetIdB
           - !ImportValue
             Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
+      PermissionsBoundary: !If
+        - UsePermissionsBoundary
+        - !Ref PermissionsBoundary
+        - !Ref AWS::NoValue
 
   FindAvailableSlotsErrorsWarningAlarm:
     Type: AWS::CloudWatch::Alarm
