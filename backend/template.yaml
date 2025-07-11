@@ -2441,6 +2441,15 @@ Resources:
             Condition:
               StringEquals:
                 AWS:SourceArn: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${IssueStatusListEntryFunction}
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+            Principal:
+              Service: lambda.amazonaws.com
+            Resource: !Sub arn:aws:s3:::${ListConfigurationBucket}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FindAvailableSlotsFunction}
           - Effect: Deny
             Action: '*'
             Principal: '*'
