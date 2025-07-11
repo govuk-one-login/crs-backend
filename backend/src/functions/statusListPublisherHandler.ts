@@ -19,7 +19,6 @@ import {
 import { logger } from "../common/logging/logger";
 import { LogMessage } from "../common/logging/LogMessages";
 import {
-  badRequestResponse,
   internalServerErrorResponse,
   notFoundResponse,
 } from "../common/responses";
