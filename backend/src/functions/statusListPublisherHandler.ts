@@ -1,4 +1,9 @@
-import { Context, SQSEvent } from "aws-lambda";
+import {
+  Context,
+  SQSBatchItemFailure,
+  SQSBatchResponse,
+  SQSEvent,
+} from "aws-lambda";
 import {
   GetPublicKeyCommand,
   KMSClient,
@@ -33,25 +38,37 @@ const STATUS_LIST_TABLE = process.env.STATUS_LIST_TABLE ?? "";
 // 100,000 2-bit values = 200,000 bits = 25,000 bytes
 export const numValues = 100000;
 const bytesNeeded = Math.ceil(numValues / 4); // 4 values per byte
-export async function handler(event: SQSEvent, context: Context) {
+export async function handler(
+  event: SQSEvent,
+  context: Context,
+): Promise<SQSBatchResponse> {
   setupLogger(context);
+  //returns any failed messages in the batch to the sqs for reprocessing (up to 10 times)
+  const batchItemFailures: SQSBatchItemFailure[] = [];
 
-  let groupId: string | undefined;
   logger.info(LogMessage.STATUS_LIST_PUBLISHER_LAMBDA_STARTED);
+  let groupIdMap;
+  try {
+    groupIdMap = createGroupIdToMessageIdsMap(event, batchItemFailures);
+  } catch (error) {
+    logger.error("Error creating group ID map:", error);
+    return { batchItemFailures };
+  }
+  logger.info(`Group ID Map: ${JSON.stringify(groupIdMap)}`);
 
-  for (const record of event.Records) {
-    logger.info(`Processing SQS message: ${record.messageId}`);
-    groupId = record?.attributes?.MessageGroupId;
-
-    if (!groupId) {
-      return badRequestResponse("MessageGroupId is required");
-    }
+  for (const groupId of groupIdMap.keys()) {
+    logger.info(`Processing Group ID: ${groupId}`);
 
     let jwt = "";
     const revokedUriItems = await getUriItems(groupId);
 
     if (!revokedUriItems || revokedUriItems.length === 0) {
-      return notFoundResponse(`No revoked items found for uri: ${groupId}`);
+      logger.error(`No revoked items found for uri: ${groupId}`);
+      const failedMessageIds = groupIdMap.get(groupId) || [];
+      failedMessageIds.forEach((messageId) => {
+        batchItemFailures.push({ itemIdentifier: messageId });
+      });
+      continue;
     }
 
     const firstItem = revokedUriItems[0];
@@ -71,13 +88,22 @@ export async function handler(event: SQSEvent, context: Context) {
           "TokenStatusList",
         );
       } else {
-        return notFoundResponse(
-          `The group Id has an invalid type: ${groupType}`,
+        logger.error(
+          JSON.stringify(
+            notFoundResponse(`The group Id has an invalid type: ${groupType}`),
+          ),
         );
+        const failedMessageIds = groupIdMap.get(groupId) || [];
+        failedMessageIds.forEach((messageId) => {
+          batchItemFailures.push({ itemIdentifier: messageId });
+        });
       }
     } catch (error) {
       logger.error("Error generating JWT:", error);
-      return internalServerErrorResponse("Failed to generate a signed JWT");
+      const failedMessageIds = groupIdMap.get(groupId) || [];
+      failedMessageIds.forEach((messageId) => {
+        batchItemFailures.push({ itemIdentifier: messageId });
+      });
     }
 
     logger.info(`JWT successfully generated for groupId: ${groupId}`);
@@ -86,7 +112,10 @@ export async function handler(event: SQSEvent, context: Context) {
       await publishJWT(groupType, jwt, groupId);
     } catch (error) {
       logger.error("Error publishing JWT to S3:", error);
-      return internalServerErrorResponse("Failed to publish JWT to S3");
+      const failedMessageIds = groupIdMap.get(groupId) || [];
+      failedMessageIds.forEach((messageId) => {
+        batchItemFailures.push({ itemIdentifier: messageId });
+      });
     }
 
     logger.info(
@@ -96,13 +125,7 @@ export async function handler(event: SQSEvent, context: Context) {
 
   logger.info(LogMessage.STATUS_LIST_PUBLISHER_LAMBDA_COMPLETED);
 
-  return {
-    statusCode: 200,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      message: "SQS Event processed successfully",
-    }),
-  };
+  return { batchItemFailures: batchItemFailures };
 }
 
 async function publishJWT(
@@ -425,4 +448,30 @@ export async function compressAndEncode(dataToBeCompressed, compresstionType) {
   writer.close();
   const compressed = await new Response(cs.readable).arrayBuffer();
   return Buffer.from(compressed).toString("base64");
+}
+
+function createGroupIdToMessageIdsMap(
+  event: SQSEvent,
+  batchItemFailures: SQSBatchItemFailure[],
+) {
+  const groupIdMap = new Map<string, string[]>();
+
+  for (const record of event.Records) {
+    logger.info(`Processing SQS record: ${JSON.stringify(record)}`);
+    const groupId = record?.attributes?.MessageGroupId;
+    const messageId = record?.messageId;
+
+    logger.info(
+      `Processing message with ID: ${messageId}, Group ID: ${groupId}`,
+    );
+    if (!groupId) {
+      logger.error(
+        `MessageGroupId is missing in the following messageID: ${messageId}`,
+      );
+      batchItemFailures.push({ itemIdentifier: messageId });
+    } else {
+      groupIdMap.set(groupId, [...(groupIdMap.get(groupId) || []), messageId]);
+    }
+  }
+  return groupIdMap;
 }
