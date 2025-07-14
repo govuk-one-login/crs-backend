@@ -1716,6 +1716,7 @@ Resources:
                   - sqs:ReceiveMessage
                   - sqs:DeleteMessage
                   - sqs:GetQueueAttributes
+                  - sqs:ChangeMessageVisibility
                 Effect: Allow
                 Resource:
                   - !GetAtt StatusChangeQueue.Arn
