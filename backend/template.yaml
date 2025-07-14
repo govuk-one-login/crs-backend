@@ -1664,6 +1664,16 @@ Resources:
           - !ImportValue
             Fn::Sub: ${VpcStackName}-ProtectedSubnetIdC
 
+  StatusListPublisherSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt StatusChangeQueue.Arn
+      FunctionName: !Ref StatusListPublisherFunction
+      BatchSize: 10 # Adjust batch size as needed
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+      Enabled: true
+
   StatusListPublisherFunctionLambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -1678,6 +1688,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaSQSQueueExecutionRole
       Policies:
         - PolicyName: KmsSigningPolicy
           PolicyDocument:
@@ -1743,16 +1754,6 @@ Resources:
         - UsePermissionsBoundary
         - !Ref PermissionsBoundary
         - !Ref AWS::NoValue
-
-  StatusListPublisherSourceMapping:
-    Type: AWS::Lambda::EventSourceMapping
-    Properties:
-      EventSourceArn: !GetAtt StatusChangeQueue.Arn
-      FunctionName: !Ref StatusListPublisherFunction
-      BatchSize: 10 # Adjust batch size as needed
-      FunctionResponseTypes:
-        - ReportBatchItemFailures
-      Enabled: true
 
   StatusListPublisherLogGroup:
     Type: AWS::Logs::LogGroup
