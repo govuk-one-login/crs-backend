@@ -26,7 +26,7 @@ import {
   PUBLISHING_GOLDEN_TOKEN_JWT,
   TEST_CLIENT_ID_BITSTRING,
 } from "../../utils/testConstants";
-import { S3Client } from "@aws-sdk/client-s3";
+import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import {
   GetPublicKeyCommand,
   KMSClient,
@@ -39,7 +39,6 @@ import {
   createMultipleRecordSQSEvent,
   createSQSEvent,
 } from "../../utils/mockSQSEvent";
-import { APIGatewayProxyResult } from "aws-lambda";
 
 let validKmsPublicKeyDer: Uint8Array;
 
@@ -48,19 +47,6 @@ const mockS3Client = mockClient(S3Client);
 const mockKMSClient = mockClient(KMSClient); // Assuming KMS is also mocked similarly
 const context = buildLambdaContext();
 let mockSQSEvent;
-
-const EXPECTED_ERROR_RESPONSE = {
-  error: "INTERNAL_SERVER_ERROR",
-  error_description: "Failed to generate a signed JWT",
-};
-
-const expectErrorResponse = (
-  result: APIGatewayProxyResult,
-  expectedResponse = EXPECTED_ERROR_RESPONSE,
-) => {
-  expect(result.statusCode).toBe(500);
-  expect(JSON.parse(result.body)).toEqual(expectedResponse);
-};
 
 const setupValidKmsResponse = () => {
   mockKMSClient.on(GetPublicKeyCommand).resolves({
@@ -147,13 +133,7 @@ describe("Testing Status List Publisher Lambda", () => {
       expect(get2BitValue(testByteArray, 1)).toBe(0b00); // First item is not revoked
       expect(get2BitValue(testByteArray, 2)).toBe(0b01); // Second item is revoked
 
-      expect(result).toEqual({
-        statusCode: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: '{"message":"SQS Event processed successfully"}',
-      });
+      expect(result).toEqual({ batchItemFailures: [] });
 
       expect(loggerInfoSpy).toHaveBeenCalledWith(
         LogMessage.STATUS_LIST_PUBLISHER_LAMBDA_STARTED,
@@ -195,13 +175,7 @@ describe("Testing Status List Publisher Lambda", () => {
       expect(get2BitValueTokenList(testByteArray, 3)).toBe(0b01); // Third item is revoked
       expect(testByteArray.byteLength).toBe(25000); // Ensure byte array length is 25000 bytes
 
-      expect(result).toEqual({
-        statusCode: 200,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: '{"message":"SQS Event processed successfully"}',
-      });
+      expect(result).toEqual({ batchItemFailures: [] });
 
       expect(loggerInfoSpy).toHaveBeenCalledWith(
         `JWT successfully published to S3 for groupId: T2757C3F6091, groupType: TokenStatusList`,
@@ -327,8 +301,8 @@ describe("Testing Status List Publisher Lambda", () => {
     });
   });
 
-  describe("error scenarios", () => {
-    it("should return 404 when there is no revoked items for a groupId", async () => {
+  describe("Error Scenarios", () => {
+    it("should return items failed when there is no revoked items for a groupId", async () => {
       mockSQSEvent = createSQSEvent("T2757C3F6091");
 
       mockDBClient.on(QueryCommand).resolves({
@@ -336,44 +310,71 @@ describe("Testing Status List Publisher Lambda", () => {
       });
 
       const result = await handler(mockSQSEvent, context);
-
-      expect(result).toEqual({
-        statusCode: 404,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: '{"error":"NOT_FOUND","error_description":"No revoked items found for uri: T2757C3F6091"}',
-      });
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "No revoked items found for uri: T2757C3F6091",
+      );
+      expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "1" }] });
     });
-    it("should return 404 when there are no items when querying", async () => {
+    it("should return items failed when there is incorrect group type for a groupId", async () => {
+      mockSQSEvent = createSQSEvent("T2757C3F6091");
+
+      mockDBClient.on(QueryCommand).resolves({
+        Items: [
+          {
+            uri: { S: "T2757C3F6091" },
+            idx: { N: "3" },
+            clientId: { S: TEST_CLIENT_ID_BITSTRING },
+            issuedAt: { N: String(Date.now()) },
+            listType: { S: "UNKNOWN_STATUS_LIST_TYPE" },
+            revokedAt: { N: String(Date.now()) },
+          },
+        ],
+      });
+
+      const result = await handler(mockSQSEvent, context);
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "The group Id has an invalid type: UNKNOWN_STATUS_LIST_TYPE",
+      );
+      expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "1" }] });
+    });
+    it("should return items failed when there are no items when querying", async () => {
       mockSQSEvent = createSQSEvent("T2757C3F6091");
 
       mockDBClient.on(QueryCommand).resolves({});
 
       const result = await handler(mockSQSEvent, context);
 
-      expect(result).toEqual({
-        statusCode: 404,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: '{"error":"NOT_FOUND","error_description":"No revoked items found for uri: T2757C3F6091"}',
-      });
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "No revoked items found for uri: T2757C3F6091",
+      );
+      expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "1" }] });
     });
-    it("should return 400 when there is no groupId in the sqs event", async () => {
+    it("should return items failed when there is no groupId in the sqs event", async () => {
       mockSQSEvent = createSQSEvent("");
 
       const result = await handler(mockSQSEvent, context);
-
-      expect(result).toEqual({
-        statusCode: 400,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: '{"error":"BAD_REQUEST","error_description":"MessageGroupId is required"}',
-      });
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "MessageGroupId is missing in the following messageID: 1",
+      );
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "No valid group IDs found in the SQS event records.",
+      );
+      expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "1" }] });
     });
-    it("should throw 500 when there there is a error querying the db", async () => {
+    it("should return items failed when there is a error publishing the jwt", async () => {
+      mockSQSEvent = createSQSEvent("T2757C3F6091");
+
+      mockS3Client
+        .on(PutObjectCommand)
+        .rejects(new Error("Publishing JWT error"));
+      const result = await handler(mockSQSEvent, context);
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "Error publishing JWT to S3: Error: Publishing JWT error",
+      );
+      expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "1" }] });
+    });
+    it("should throw 500 when there is a error querying the db", async () => {
       mockSQSEvent = createSQSEvent("T2757C3F6091");
 
       mockDBClient.on(QueryCommand).rejects(new Error("Dynamo db error"));
@@ -426,7 +427,9 @@ describe("Testing Status List Publisher Lambda", () => {
     test.each(testCases)("returns 500 when $description", async ({ setup }) => {
       setup();
       const result = await handler(mockSQSEvent, context);
-      expectErrorResponse(result);
+      expect(result).toStrictEqual({
+        batchItemFailures: [{ itemIdentifier: "1" }],
+      });
       expect(loggerErrorSpy).toHaveBeenCalledWith(
         "Error generating JWT:",
         expect.any(Error),
@@ -434,7 +437,7 @@ describe("Testing Status List Publisher Lambda", () => {
     });
   });
   describe("JWT Verification Error Scenarios", () => {
-    it("returns 500 when JWT verification fails with bad signature", async () => {
+    it("logs error and returns batchItemFailure when JWT verification fails with bad signature", async () => {
       const { publicKey: goodPublicKey } = await generateKeyPair("ES256");
       const { privateKey: badPrivateKey } = await generateKeyPair("ES256");
       const spkiPem = await exportSPKI(goodPublicKey);
@@ -449,7 +452,9 @@ describe("Testing Status List Publisher Lambda", () => {
       await setupKmsSignWithKey(badPrivateKey);
 
       const result = await handler(mockSQSEvent, context);
-      expectErrorResponse(result);
+      expect(result).toStrictEqual({
+        batchItemFailures: [{ itemIdentifier: "1" }],
+      });
       expect(loggerErrorSpy).toHaveBeenCalledWith(
         "Error generating JWT:",
         expect.objectContaining({
@@ -482,7 +487,9 @@ describe("Testing Status List Publisher Lambda", () => {
         });
 
         const result = await handler(mockSQSEvent, context);
-        expectErrorResponse(result);
+        expect(result).toStrictEqual({
+          batchItemFailures: [{ itemIdentifier: "1" }],
+        });
       },
     );
   });
@@ -501,7 +508,9 @@ describe("Testing Status List Publisher Lambda", () => {
         .rejects(new Error("Invalid KeyId or ARN"));
 
       const result = await handler(mockSQSEvent, context);
-      expectErrorResponse(result);
+      expect(result).toStrictEqual({
+        batchItemFailures: [{ itemIdentifier: "1" }],
+      });
     });
   });
   describe("JOSE Library Error Scenarios", () => {
@@ -513,7 +522,9 @@ describe("Testing Status List Publisher Lambda", () => {
       });
 
       const result = await handler(mockSQSEvent, context);
-      expectErrorResponse(result);
+      expect(result).toStrictEqual({
+        batchItemFailures: [{ itemIdentifier: "1" }],
+      });
       expect(loggerErrorSpy).toHaveBeenCalledWith(
         "Error generating JWT:",
         expect.objectContaining({

@@ -76,7 +76,7 @@ export async function validateStatusListEntryAgainstRequest(
   }
 
   logger.info(
-    `Found valid item in table: ${expectedListType} ${statusListItem.uri} ${statusListItem.idx}`,
+    `Found valid item in table: ${expectedListType} ${JSON.stringify(statusListItem.uri)} ${JSON.stringify(statusListItem.idx)}`,
   );
 
   return {
