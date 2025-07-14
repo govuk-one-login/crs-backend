@@ -20,7 +20,6 @@ import { logger } from "../common/logging/logger";
 import { LogMessage } from "../common/logging/LogMessages";
 import {
   internalServerErrorResponse,
-  notFoundResponse,
 } from "../common/responses";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { importSPKI, jwtVerify, KeyLike } from "jose";
