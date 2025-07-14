@@ -18,9 +18,7 @@ import {
 } from "@aws-sdk/client-dynamodb";
 import { logger } from "../common/logging/logger";
 import { LogMessage } from "../common/logging/LogMessages";
-import {
-  internalServerErrorResponse,
-} from "../common/responses";
+import { internalServerErrorResponse } from "../common/responses";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { importSPKI, jwtVerify, KeyLike } from "jose";
 import { bitStringPayload, tokenPayload } from "../common/types";
