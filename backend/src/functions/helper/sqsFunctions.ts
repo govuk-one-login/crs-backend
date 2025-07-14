@@ -21,7 +21,7 @@ export async function sendTxmaEventToSQSQueue(
       error,
     });
     throw Error(
-      `Failed to send TXMA Event: ${txmaEvent} to sqs, error: ${error}`,
+      `Failed to send TXMA Event: ${JSON.stringify(txmaEvent)} to sqs, error: ${error}`,
     );
   }
 }
