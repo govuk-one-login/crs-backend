@@ -26,7 +26,7 @@ import {
   PUBLISHING_GOLDEN_TOKEN_JWT,
   TEST_CLIENT_ID_BITSTRING,
 } from "../../utils/testConstants";
-import { S3Client } from "@aws-sdk/client-s3";
+import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import {
   GetPublicKeyCommand,
   KMSClient,
@@ -301,8 +301,8 @@ describe("Testing Status List Publisher Lambda", () => {
     });
   });
 
-  describe("error scenarios", () => {
-    it("should return 404 when there is no revoked items for a groupId", async () => {
+  describe("Error Scenarios", () => {
+    it("should return items failed when there is no revoked items for a groupId", async () => {
       mockSQSEvent = createSQSEvent("T2757C3F6091");
 
       mockDBClient.on(QueryCommand).resolves({
@@ -315,7 +315,29 @@ describe("Testing Status List Publisher Lambda", () => {
       );
       expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "1" }] });
     });
-    it("should return 404 when there are no items when querying", async () => {
+    it("should return items failed when there is incorrect group type for a groupId", async () => {
+      mockSQSEvent = createSQSEvent("T2757C3F6091");
+
+      mockDBClient.on(QueryCommand).resolves({
+        Items: [
+          {
+            uri: { S: "T2757C3F6091" },
+            idx: { N: "3" },
+            clientId: { S: TEST_CLIENT_ID_BITSTRING },
+            issuedAt: { N: String(Date.now()) },
+            listType: { S: "UNKNOWN_STATUS_LIST_TYPE" },
+            revokedAt: { N: String(Date.now()) },
+          },
+        ],
+      });
+
+      const result = await handler(mockSQSEvent, context);
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "The group Id has an invalid type: UNKNOWN_STATUS_LIST_TYPE",
+      );
+      expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "1" }] });
+    });
+    it("should return items failed when there are no items when querying", async () => {
       mockSQSEvent = createSQSEvent("T2757C3F6091");
 
       mockDBClient.on(QueryCommand).resolves({});
@@ -327,16 +349,32 @@ describe("Testing Status List Publisher Lambda", () => {
       );
       expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "1" }] });
     });
-    it("should return 400 when there is no groupId in the sqs event", async () => {
+    it("should return items failed when there is no groupId in the sqs event", async () => {
       mockSQSEvent = createSQSEvent("");
 
       const result = await handler(mockSQSEvent, context);
       expect(loggerErrorSpy).toHaveBeenCalledWith(
         "MessageGroupId is missing in the following messageID: 1",
       );
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "No valid group IDs found in the SQS event records.",
+      );
       expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "1" }] });
     });
-    it("should throw 500 when there there is a error querying the db", async () => {
+    it("should return items failed when there is a error publishing the jwt", async () => {
+      mockSQSEvent = createSQSEvent("T2757C3F6091");
+
+      mockS3Client
+        .on(PutObjectCommand)
+        .rejects(new Error("Publishing JWT error"));
+      const result = await handler(mockSQSEvent, context);
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        "Error publishing JWT to S3: Error: Publishing JWT error",
+      );
+      expect(result).toEqual({ batchItemFailures: [{ itemIdentifier: "1" }] });
+    });
+    it("should throw 500 when there is a error querying the db", async () => {
       mockSQSEvent = createSQSEvent("T2757C3F6091");
 
       mockDBClient.on(QueryCommand).rejects(new Error("Dynamo db error"));
@@ -399,7 +437,7 @@ describe("Testing Status List Publisher Lambda", () => {
     });
   });
   describe("JWT Verification Error Scenarios", () => {
-    it("returns 500 when JWT verification fails with bad signature", async () => {
+    it("logs error and returns batchItemFailure when JWT verification fails with bad signature", async () => {
       const { publicKey: goodPublicKey } = await generateKeyPair("ES256");
       const { privateKey: badPrivateKey } = await generateKeyPair("ES256");
       const spkiPem = await exportSPKI(goodPublicKey);

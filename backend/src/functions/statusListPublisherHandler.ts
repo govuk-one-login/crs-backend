@@ -46,13 +46,12 @@ export async function handler(
   const batchItemFailures: SQSBatchItemFailure[] = [];
 
   logger.info(LogMessage.STATUS_LIST_PUBLISHER_LAMBDA_STARTED);
-  let groupIdMap;
-  try {
-    groupIdMap = createGroupIdToMessageIdsMap(event, batchItemFailures);
-  } catch (error) {
-    logger.error("Error creating group ID map:", error);
+  const groupIdMap = createGroupIdToMessageIdsMap(event, batchItemFailures);
+  if (groupIdMap.size === 0) {
+    logger.error("No valid group IDs found in the SQS event records.");
     return { batchItemFailures };
   }
+
   logger.info(`Group ID Map: ${JSON.stringify(groupIdMap)}`);
 
   for (const groupId of groupIdMap.keys()) {
@@ -87,11 +86,7 @@ export async function handler(
           "TokenStatusList",
         );
       } else {
-        logger.error(
-          JSON.stringify(
-            notFoundResponse(`The group Id has an invalid type: ${groupType}`),
-          ),
-        );
+        logger.error(`The group Id has an invalid type: ${groupType}`);
         const failedMessageIds = groupIdMap.get(groupId) || [];
         failedMessageIds.forEach((messageId) => {
           batchItemFailures.push({ itemIdentifier: messageId });
@@ -110,7 +105,7 @@ export async function handler(
     try {
       await publishJWT(groupType, jwt, groupId);
     } catch (error) {
-      logger.error("Error publishing JWT to S3:", error);
+      logger.error(`Error publishing JWT to S3: ${error}`);
       const failedMessageIds = groupIdMap.get(groupId) || [];
       failedMessageIds.forEach((messageId) => {
         batchItemFailures.push({ itemIdentifier: messageId });
