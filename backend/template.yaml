@@ -489,7 +489,7 @@ Resources:
               Value: $.messageCode
             - Key: Version
               Value: $.functionVersion
-          MetricName: IssueStatusListEntryMessageCode
+          MetricName: IssueStatusListEntryLogMessageCode
           MetricNamespace: !Sub ${AWS::StackName}/LogMessages
           MetricValue: "1"
     Condition: DeployMetricFilters
@@ -576,7 +576,7 @@ Resources:
       MetricTransformations:
         - MetricValue: "1"
           MetricNamespace: !Sub ${AWS::StackName}/LogMessages
-          MetricName: IssueStatusListEntryMessageCode
+          MetricName: IssueStatusListEntryLogMessageCode
           Dimensions:
             - Key: MessageCode
               Value: $.messageCode
@@ -609,7 +609,7 @@ Resources:
           MetricStat:
             Metric:
               Namespace: !Sub ${AWS::StackName}/LogMessages
-              MetricName: IssueStatusListEntryMessageCode
+              MetricName: IssueStatusListEntryLogMessageCode
               Dimensions:
                 - Name: MessageCode
                   Value: ISSUE_STATUS_LIST_ENTRY_LAMBDA_STARTED
@@ -623,7 +623,7 @@ Resources:
           MetricStat:
             Metric:
               Namespace: !Sub ${AWS::StackName}/LogMessages
-              MetricName: IssueStatusListEntryMessageCode
+              MetricName: IssueStatusListEntryLogMessageCode
               Dimensions:
                 - Name: MessageCode
                   Value: ISSUE_STATUS_LIST_ENTRY_LAMBDA_COMPLETED
@@ -1758,7 +1758,7 @@ Resources:
   StatusListPublisherLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-status-list-publisher-logs
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-status-list-publisher
       RetentionInDays: !FindInMap
         - LogRetention
         - !Ref Environment
@@ -1773,26 +1773,6 @@ Resources:
         - CSLSEGRESS
       FilterPattern: ""
       LogGroupName: !Ref StatusListPublisherLogGroup
-    Condition: IsProdLikeEnvironment
-
-  StatusListPublisherAccessLogs:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-status-list-publisher-access-logs
-      RetentionInDays: !FindInMap
-        - LogRetention
-        - !Ref Environment
-        - RetentionPeriod
-
-  CSLSStatusListPublisherFunctionAccessSubscriptionFilter:
-    Type: AWS::Logs::SubscriptionFilter
-    Properties:
-      DestinationArn: !FindInMap
-        - CslsConfiguration
-        - !Ref Environment
-        - CSLSEGRESS
-      FilterPattern: ""
-      LogGroupName: !Ref StatusListPublisherAccessLogs
     Condition: IsProdLikeEnvironment
 
     # Canary error alarm
@@ -2647,26 +2627,26 @@ Resources:
     Condition: DeployAlarms
 
   # Alerts for FAS Lambda errors and auto retry
-  FindAvailableSlotsErrorsSNSTopic:
+  FindAvailableSlotsLogErrorsSNSTopic:
     Type: AWS::SNS::Topic
     Properties:
-      TopicName: !Sub ${AWS::StackName}-FindAvailableSlotsErrorsTopic
+      TopicName: !Sub ${AWS::StackName}-FindAvailableSlotsLogErrorsTopic
       DisplayName: Lambda Error Topic for FindAvailableSlots
 
-  FindAvailableSlotsErrorsSNSSubscription:
+  FindAvailableSlotsLogErrorsSNSSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       Protocol: lambda
-      TopicArn: !Ref FindAvailableSlotsErrorsSNSTopic
+      TopicArn: !Ref FindAvailableSlotsLogErrorsSNSTopic
       Endpoint: !GetAtt FindAvailableSlotsFunction.Arn
 
-  FindAvailableSlotsErrorsSNSPermission:
+  FindAvailableSlotsLogErrorsSNSPermission:
     Type: AWS::Lambda::Permission
     Properties:
       FunctionName: !Ref FindAvailableSlotsFunction
       Action: lambda:InvokeFunction
       Principal: sns.amazonaws.com
-      SourceArn: !Ref FindAvailableSlotsErrorsSNSTopic
+      SourceArn: !Ref FindAvailableSlotsLogErrorsSNSTopic
 
   FindAvailableSlotsLogGroup:
     Type: AWS::Logs::LogGroup
@@ -2678,24 +2658,24 @@ Resources:
         - RetentionPeriod
 
   # Metric filter to detect errors in logs
-  FindAvailableSlotsErrorMetricFilter:
+  FindAvailableSlotsLogErrorMetricFilter:
     Type: AWS::Logs::MetricFilter
     Properties:
       LogGroupName: !Ref FindAvailableSlotsLogGroup
       FilterPattern: '{$.level = "ERROR" || $.message = "*Error*"}'
       MetricTransformations:
-        - MetricName: FindAvailableSlotsErrors
+        - MetricName: FindAvailableSlotsLogErrors
           MetricNamespace: !Sub ${AWS::StackName}/LogMessages
           MetricValue: "1"
     Condition: DeployMetricFilters
 
   # CloudWatch Alarm to monitor the error metric
-  FindAvailableSlotsErrorAlarm:
+  FindAvailableSlotsLogErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub ${AWS::StackName}-FindAvailableSlotsErrorAlarm
+      AlarmName: !Sub ${AWS::StackName}-FindAvailableSlotsLogErrorAlarm
       AlarmDescription: Alarm when FindAvailableSlots Lambda encounters an error, triggering auto-retry
-      MetricName: FindAvailableSlotsErrors
+      MetricName: FindAvailableSlotsLogError
       Namespace: !Sub ${AWS::StackName}/LogMessages
       Statistic: SampleCount
       Period: 60 # Check every minute
