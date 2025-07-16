@@ -478,7 +478,7 @@ Resources:
         - !Ref Environment
         - RetentionPeriod
 
-  IssueStatusListEntryVersionMetricFilter:
+  IssueStatusListEntryMessageCodeMetricFilter:
     Type: AWS::Logs::MetricFilter
     Properties:
       FilterPattern: '{ ($.messageCode = *) }'
