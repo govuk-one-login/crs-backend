@@ -1,0 +1,385 @@
+{
+  "partial": false,
+  "policies": [
+    {
+      "type": "inline",
+      "name": "FindAvailableSlotsFunctionRolePolicy2",
+      "document": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Action": [
+              "s3:GetObject"
+            ],
+            "Resource": "arn:aws:s3:::matts-stack-dev-list-configuration/*",
+            "Effect": "Allow"
+          }
+        ]
+      }
+    },
+    {
+      "type": "inline",
+      "name": "FindAvailableSlotsFunctionRolePolicy3",
+      "document": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Action": [
+              "sqs:SendMessage",
+              "sqs:GetQueueAttributes"
+            ],
+            "Resource": [
+              "arn:aws:sqs:eu-west-2:537124944731:matts-stack-BitstringAvailableSlotsSQS-aTnCqdVEu9UF",
+              "arn:aws:sqs:eu-west-2:537124944731:matts-stack-TokenStatusAvailableSlotsSQS-YTd0BZYgcCfZ"
+            ],
+            "Effect": "Allow"
+          }
+        ]
+      }
+    },
+    {
+      "type": "inline",
+      "name": "FindAvailableSlotsFunctionRolePolicy4",
+      "document": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Action": [
+              "kms:GenerateDataKey",
+              "kms:Decrypt"
+            ],
+            "Resource": [
+              "arn:aws:kms:eu-west-2:537124944731:key/4206cf06-822f-4a4e-bbb3-1aee0a286e74",
+              "arn:aws:kms:eu-west-2:537124944731:key/d66d5044-9d0e-43b4-b072-5f9bc57c9060"
+            ],
+            "Effect": "Allow"
+          }
+        ]
+      }
+    },
+    {
+      "type": "managed",
+      "name": "AWSLambdaVPCAccessExecutionRole",
+      "arn": "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole",
+      "id": "ANPAJVTME3YLVNL72YR2K",
+      "document": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Sid": "AWSLambdaVPCAccessExecutionPermissions",
+            "Effect": "Allow",
+            "Action": [
+              "logs:CreateLogGroup",
+              "logs:CreateLogStream",
+              "logs:PutLogEvents",
+              "ec2:CreateNetworkInterface",
+              "ec2:DescribeNetworkInterfaces",
+              "ec2:DescribeSubnets",
+              "ec2:DeleteNetworkInterface",
+              "ec2:AssignPrivateIpAddresses",
+              "ec2:UnassignPrivateIpAddresses"
+            ],
+            "Resource": "*"
+          }
+        ]
+      }
+    },
+    {
+      "type": "managed",
+      "name": "AWSLambdaBasicExecutionRole",
+      "arn": "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+      "id": "ANPAJNCQGXC42545SKXIK",
+      "document": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Action": [
+              "logs:CreateLogGroup",
+              "logs:CreateLogStream",
+              "logs:PutLogEvents"
+            ],
+            "Resource": "*"
+          }
+        ]
+      }
+    }
+  ],
+  "resources": {
+    "s3": {
+      "service": {
+        "name": "Amazon S3",
+        "icon": "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAAAAAAALAAAAAABAAEAAAICRAEAOw"
+      },
+      "statements": [
+        {
+          "service": "s3",
+          "effect": "Allow",
+          "action": "s3:GetObject",
+          "resource": "arn:aws:s3:::matts-stack-dev-list-configuration/*",
+          "source": {
+            "policyName": "FindAvailableSlotsFunctionRolePolicy2",
+            "policyType": "inline",
+            "index": "0"
+          }
+        }
+      ]
+    },
+    "sqs": {
+      "service": {
+        "name": "Amazon SQS",
+        "icon": "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAAAAAAALAAAAAABAAEAAAICRAEAOw"
+      },
+      "statements": [
+        {
+          "service": "sqs",
+          "effect": "Allow",
+          "action": "sqs:SendMessage",
+          "resource": "arn:aws:sqs:eu-west-2:537124944731:matts-stack-BitstringAvailableSlotsSQS-aTnCqdVEu9UF",
+          "source": {
+            "policyName": "FindAvailableSlotsFunctionRolePolicy3",
+            "policyType": "inline",
+            "index": "0"
+          }
+        },
+        {
+          "service": "sqs",
+          "effect": "Allow",
+          "action": "sqs:SendMessage",
+          "resource": "arn:aws:sqs:eu-west-2:537124944731:matts-stack-TokenStatusAvailableSlotsSQS-YTd0BZYgcCfZ",
+          "source": {
+            "policyName": "FindAvailableSlotsFunctionRolePolicy3",
+            "policyType": "inline",
+            "index": "0"
+          }
+        },
+        {
+          "service": "sqs",
+          "effect": "Allow",
+          "action": "sqs:GetQueueAttributes",
+          "resource": "arn:aws:sqs:eu-west-2:537124944731:matts-stack-BitstringAvailableSlotsSQS-aTnCqdVEu9UF",
+          "source": {
+            "policyName": "FindAvailableSlotsFunctionRolePolicy3",
+            "policyType": "inline",
+            "index": "0"
+          }
+        },
+        {
+          "service": "sqs",
+          "effect": "Allow",
+          "action": "sqs:GetQueueAttributes",
+          "resource": "arn:aws:sqs:eu-west-2:537124944731:matts-stack-TokenStatusAvailableSlotsSQS-YTd0BZYgcCfZ",
+          "source": {
+            "policyName": "FindAvailableSlotsFunctionRolePolicy3",
+            "policyType": "inline",
+            "index": "0"
+          }
+        }
+      ]
+    },
+    "kms": {
+      "service": {
+        "name": "AWS Key Management Service",
+        "icon": "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAAAAAAALAAAAAABAAEAAAICRAEAOw"
+      },
+      "statements": [
+        {
+          "service": "kms",
+          "effect": "Allow",
+          "action": "kms:GenerateDataKey",
+          "resource": "arn:aws:kms:eu-west-2:537124944731:key/4206cf06-822f-4a4e-bbb3-1aee0a286e74",
+          "source": {
+            "policyName": "FindAvailableSlotsFunctionRolePolicy4",
+            "policyType": "inline",
+            "index": "0"
+          }
+        },
+        {
+          "service": "kms",
+          "effect": "Allow",
+          "action": "kms:GenerateDataKey",
+          "resource": "arn:aws:kms:eu-west-2:537124944731:key/d66d5044-9d0e-43b4-b072-5f9bc57c9060",
+          "source": {
+            "policyName": "FindAvailableSlotsFunctionRolePolicy4",
+            "policyType": "inline",
+            "index": "0"
+          }
+        },
+        {
+          "service": "kms",
+          "effect": "Allow",
+          "action": "kms:Decrypt",
+          "resource": "arn:aws:kms:eu-west-2:537124944731:key/4206cf06-822f-4a4e-bbb3-1aee0a286e74",
+          "source": {
+            "policyName": "FindAvailableSlotsFunctionRolePolicy4",
+            "policyType": "inline",
+            "index": "0"
+          }
+        },
+        {
+          "service": "kms",
+          "effect": "Allow",
+          "action": "kms:Decrypt",
+          "resource": "arn:aws:kms:eu-west-2:537124944731:key/d66d5044-9d0e-43b4-b072-5f9bc57c9060",
+          "source": {
+            "policyName": "FindAvailableSlotsFunctionRolePolicy4",
+            "policyType": "inline",
+            "index": "0"
+          }
+        }
+      ]
+    },
+    "logs": {
+      "service": {
+        "name": "Amazon CloudWatch Logs",
+        "icon": "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAAAAAAALAAAAAABAAEAAAICRAEAOw"
+      },
+      "statements": [
+        {
+          "service": "logs",
+          "effect": "Allow",
+          "action": "logs:CreateLogGroup",
+          "resource": "*",
+          "source": {
+            "policyName": "AWSLambdaVPCAccessExecutionRole",
+            "policyType": "managed",
+            "index": "AWSLambdaVPCAccessExecutionPermissions"
+          }
+        },
+        {
+          "service": "logs",
+          "effect": "Allow",
+          "action": "logs:CreateLogStream",
+          "resource": "*",
+          "source": {
+            "policyName": "AWSLambdaVPCAccessExecutionRole",
+            "policyType": "managed",
+            "index": "AWSLambdaVPCAccessExecutionPermissions"
+          }
+        },
+        {
+          "service": "logs",
+          "effect": "Allow",
+          "action": "logs:PutLogEvents",
+          "resource": "*",
+          "source": {
+            "policyName": "AWSLambdaVPCAccessExecutionRole",
+            "policyType": "managed",
+            "index": "AWSLambdaVPCAccessExecutionPermissions"
+          }
+        },
+        {
+          "service": "logs",
+          "effect": "Allow",
+          "action": "logs:CreateLogGroup",
+          "resource": "*",
+          "source": {
+            "policyName": "AWSLambdaBasicExecutionRole",
+            "policyType": "managed",
+            "index": "0"
+          }
+        },
+        {
+          "service": "logs",
+          "effect": "Allow",
+          "action": "logs:CreateLogStream",
+          "resource": "*",
+          "source": {
+            "policyName": "AWSLambdaBasicExecutionRole",
+            "policyType": "managed",
+            "index": "0"
+          }
+        },
+        {
+          "service": "logs",
+          "effect": "Allow",
+          "action": "logs:PutLogEvents",
+          "resource": "*",
+          "source": {
+            "policyName": "AWSLambdaBasicExecutionRole",
+            "policyType": "managed",
+            "index": "0"
+          }
+        }
+      ]
+    },
+    "ec2": {
+      "service": {
+        "name": "Amazon EC2",
+        "icon": "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAAAAAAALAAAAAABAAEAAAICRAEAOw"
+      },
+      "statements": [
+        {
+          "service": "ec2",
+          "effect": "Allow",
+          "action": "ec2:CreateNetworkInterface",
+          "resource": "*",
+          "source": {
+            "policyName": "AWSLambdaVPCAccessExecutionRole",
+            "policyType": "managed",
+            "index": "AWSLambdaVPCAccessExecutionPermissions"
+          }
+        },
+        {
+          "service": "ec2",
+          "effect": "Allow",
+          "action": "ec2:DescribeNetworkInterfaces",
+          "resource": "*",
+          "source": {
+            "policyName": "AWSLambdaVPCAccessExecutionRole",
+            "policyType": "managed",
+            "index": "AWSLambdaVPCAccessExecutionPermissions"
+          }
+        },
+        {
+          "service": "ec2",
+          "effect": "Allow",
+          "action": "ec2:DescribeSubnets",
+          "resource": "*",
+          "source": {
+            "policyName": "AWSLambdaVPCAccessExecutionRole",
+            "policyType": "managed",
+            "index": "AWSLambdaVPCAccessExecutionPermissions"
+          }
+        },
+        {
+          "service": "ec2",
+          "effect": "Allow",
+          "action": "ec2:DeleteNetworkInterface",
+          "resource": "*",
+          "source": {
+            "policyName": "AWSLambdaVPCAccessExecutionRole",
+            "policyType": "managed",
+            "index": "AWSLambdaVPCAccessExecutionPermissions"
+          }
+        },
+        {
+          "service": "ec2",
+          "effect": "Allow",
+          "action": "ec2:AssignPrivateIpAddresses",
+          "resource": "*",
+          "source": {
+            "policyName": "AWSLambdaVPCAccessExecutionRole",
+            "policyType": "managed",
+            "index": "AWSLambdaVPCAccessExecutionPermissions"
+          }
+        },
+        {
+          "service": "ec2",
+          "effect": "Allow",
+          "action": "ec2:UnassignPrivateIpAddresses",
+          "resource": "*",
+          "source": {
+            "policyName": "AWSLambdaVPCAccessExecutionRole",
+            "policyType": "managed",
+            "index": "AWSLambdaVPCAccessExecutionPermissions"
+          }
+        }
+      ]
+    }
+  },
+  "roleName": "matts-stack-FindAvailableSlotsFunctionRole-aCATPZThe6f8",
+  "trustedEntities": [
+    "lambda.amazonaws.com"
+  ]
+}
