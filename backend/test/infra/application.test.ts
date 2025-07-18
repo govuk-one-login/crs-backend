@@ -30,6 +30,62 @@ const template = Template.fromJSON(yamltemplate, {
 console.log("template:" + template);
 
 describe("Backend application infrastructure", () => {
+
+  // Tests that all lambdas have a DependsOn condition which ensures a log group is defined for every lambda
+  // describe("Lambda Log Groups", () => {
+  //   test("All Lambdas depend on their corresponding Log Group", () => {
+  //   const allFunctions = template.findResources("AWS::Serverless::Function");
+  //   Object.keys(allFunctions).forEach((functionName) => {
+  //     const functionResource = allFunctions[functionName];
+  //     const logGroupName = functionName.substring(0, functionName.length - "Function".length) + "LogGroup";
+  //     expect(functionResource.DependsOn).toEqual([logGroupName]);
+  //   });
+  //   });
+  // });
+
+  describe("DynamoDB Streams", () => {
+    test("StatusListTable has streams enabled", () => {
+    template.hasResourceProperties("AWS::DynamoDB::Table", {
+      StreamSpecification: {
+      StreamViewType: "NEW_AND_OLD_IMAGES",
+      },
+    });
+    });
+  });
+
+  describe("Event Source Mapping", () => {
+    test("StatusListPublisherFunction is triggered by StatusChangeQueue", () => {
+    template.hasResource("AWS::Lambda::EventSourceMapping", {
+      "Properties": {
+      "EventSourceArn": {
+        "Fn::GetAtt": ["StatusChangeQueue", "Arn"],
+      },
+      "FunctionName": {
+        "Ref": "StatusListPublisherFunction",
+      },
+      },
+    });
+    });
+  });
+
+  describe("EventBridge Pipe", () => {
+    test("StatusChangeEventBridgePipe has correct MessageGroupId", () => {
+    template.hasResourceProperties("AWS::Pipes::Pipe", {
+      Source: {
+      "Fn::GetAtt": ["StatusListTable", "StreamArn"],
+      },
+      Target: {
+      "Fn::GetAtt": ["StatusChangeQueue", "Arn"],
+      },
+      TargetParameters: {
+      SqsQueueParameters: {
+        MessageGroupId: "$.dynamodb.Keys.uri.S",
+      },
+      },
+    });
+    });
+  });
+
   describe("CloudWatch alarms", () => {
     test("All alarms are configured with a Condition", () => {
       const conditionalNames = ["DeployAlarms", "DeployMetricFilters"];
