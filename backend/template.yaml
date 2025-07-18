@@ -223,7 +223,7 @@ Globals:
       - !Ref PermissionsBoundary
       - !Ref AWS::NoValue
     Runtime: nodejs22.x
-    Timeout: 3
+    Timeout: 30 # 30 seconds default timeout for all Lambda functions
     LoggingConfig:
       ApplicationLogLevel: !FindInMap
         - EnvironmentVariables
