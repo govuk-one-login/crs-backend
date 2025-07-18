@@ -2290,7 +2290,7 @@ Resources:
       Target: !GetAtt StatusChangeQueue.Arn
       TargetParameters:
         SqsQueueParameters:
-          MessageGroupId: "$.dynamodb.Keys.uri.S"
+          MessageGroupId: $.dynamodb.Keys.uri.S
 
           # TxMA SQS Queue
   TxMAKMSEncryptionKey:
