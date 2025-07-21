@@ -30,7 +30,6 @@ const template = Template.fromJSON(yamltemplate, {
 console.log("template:" + template);
 
 describe("Backend application infrastructure", () => {
-
   // Tests that all lambdas have a DependsOn condition which ensures a log group is defined for every lambda
   // describe("Lambda Log Groups", () => {
   //   test("All Lambdas depend on their corresponding Log Group", () => {
@@ -45,44 +44,44 @@ describe("Backend application infrastructure", () => {
 
   describe("DynamoDB Streams", () => {
     test("StatusListTable has streams enabled", () => {
-    template.hasResourceProperties("AWS::DynamoDB::Table", {
-      StreamSpecification: {
-      StreamViewType: "NEW_AND_OLD_IMAGES",
-      },
-    });
+      template.hasResourceProperties("AWS::DynamoDB::Table", {
+        StreamSpecification: {
+          StreamViewType: "NEW_AND_OLD_IMAGES",
+        },
+      });
     });
   });
 
   describe("Event Source Mapping", () => {
     test("StatusListPublisherFunction is triggered by StatusChangeQueue", () => {
-    template.hasResource("AWS::Lambda::EventSourceMapping", {
-      "Properties": {
-      "EventSourceArn": {
-        "Fn::GetAtt": ["StatusChangeQueue", "Arn"],
-      },
-      "FunctionName": {
-        "Ref": "StatusListPublisherFunction",
-      },
-      },
-    });
+      template.hasResource("AWS::Lambda::EventSourceMapping", {
+        Properties: {
+          EventSourceArn: {
+            "Fn::GetAtt": ["StatusChangeQueue", "Arn"],
+          },
+          FunctionName: {
+            Ref: "StatusListPublisherFunction",
+          },
+        },
+      });
     });
   });
 
   describe("EventBridge Pipe", () => {
     test("StatusChangeEventBridgePipe has correct MessageGroupId", () => {
-    template.hasResourceProperties("AWS::Pipes::Pipe", {
-      Source: {
-      "Fn::GetAtt": ["StatusListTable", "StreamArn"],
-      },
-      Target: {
-      "Fn::GetAtt": ["StatusChangeQueue", "Arn"],
-      },
-      TargetParameters: {
-      SqsQueueParameters: {
-        MessageGroupId: "$.dynamodb.Keys.uri.S",
-      },
-      },
-    });
+      template.hasResourceProperties("AWS::Pipes::Pipe", {
+        Source: {
+          "Fn::GetAtt": ["StatusListTable", "StreamArn"],
+        },
+        Target: {
+          "Fn::GetAtt": ["StatusChangeQueue", "Arn"],
+        },
+        TargetParameters: {
+          SqsQueueParameters: {
+            MessageGroupId: "$.dynamodb.Keys.uri.S",
+          },
+        },
+      });
     });
   });
 
