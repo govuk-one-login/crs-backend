@@ -46,7 +46,7 @@ describe("Backend application infrastructure", () => {
     test("StatusListTable has streams enabled", () => {
       template.hasResourceProperties("AWS::DynamoDB::Table", {
         StreamSpecification: {
-          StreamViewType: "NEW_AND_OLD_IMAGES",
+          StreamViewType: "KEYS_ONLY",
         },
       });
     });
