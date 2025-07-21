@@ -330,7 +330,7 @@ Resources:
         RecoveryPeriodInDays: 7
       BillingMode: PAY_PER_REQUEST
       StreamSpecification:
-        StreamViewType: NEW_AND_OLD_IMAGES
+        StreamViewType: KEYS_ONLY
       Tags:
         - Key: BackupFrequency
           Value: Bihourly
@@ -2271,14 +2271,34 @@ Resources:
                   - sqs:SendMessage
                 Resource:
                   - !GetAtt StatusChangeQueue.Arn
+              - Effect: Allow
+                Action:
+                  - kms:GenerateDataKey
+                  - kms:Encrypt
+                  - kms:Decrypt
+                Resource:
+                  - !GetAtt StatusChangeQueueEncryptionKey.Arn
       PermissionsBoundary: !If
         - UsePermissionsBoundary
         - !Ref PermissionsBoundary
         - !Ref AWS::NoValue
 
+  StatusChangeEventBridgePipeLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/events/${AWS::StackName}-status-change-pipe
+      RetentionInDays: !FindInMap
+        - LogRetention
+        - !Ref Environment
+        - RetentionPeriod
+
   StatusChangeEventBridgePipe:
     Type: AWS::Pipes::Pipe
     Properties:
+      Name: !If
+        - IsDevEnvironment
+        - !Sub ${AWS::StackName}-StatusChangeEventBridge
+        - StatusChangeEventBridge
       RoleArn: !GetAtt StatusChangeEventBridgePipeRole.Arn
       Source: !GetAtt StatusListTable.StreamArn
       SourceParameters:
@@ -2291,6 +2311,13 @@ Resources:
       TargetParameters:
         SqsQueueParameters:
           MessageGroupId: $.dynamodb.Keys.uri.S
+      LogConfiguration:
+        CloudwatchLogsLogDestination:
+          LogGroupArn: !GetAtt StatusChangeEventBridgePipeLogGroup.Arn
+        Level: !If
+          - IsDevEnvironment
+          - TRACE
+          - ERROR
 
           # TxMA SQS Queue
   TxMAKMSEncryptionKey:
