@@ -2286,7 +2286,7 @@ Resources:
   StatusChangeEventBridgePipeLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/events/${AWS::StackName}-status-change-pipe
+      LogGroupName: !Sub /aws/vendedlogs/pipes/${AWS::StackName}-status-change
       RetentionInDays: !FindInMap
         - LogRetention
         - !Ref Environment
