@@ -2295,10 +2295,7 @@ Resources:
   StatusChangeEventBridgePipe:
     Type: AWS::Pipes::Pipe
     Properties:
-      Name: !If
-        - IsDevEnvironment
-        - !Sub ${AWS::StackName}-StatusChangeEventBridge
-        - StatusChangeEventBridge
+      Name: !Sub ${AWS::StackName}-status-change
       RoleArn: !GetAtt StatusChangeEventBridgePipeRole.Arn
       Source: !GetAtt StatusListTable.StreamArn
       SourceParameters:
@@ -2314,12 +2311,9 @@ Resources:
       LogConfiguration:
         CloudwatchLogsLogDestination:
           LogGroupArn: !GetAtt StatusChangeEventBridgePipeLogGroup.Arn
-        Level: !If
-          - IsDevEnvironment
-          - TRACE
-          - ERROR
+        Level: ERROR
 
-          # TxMA SQS Queue
+        # TxMA SQS Queue
   TxMAKMSEncryptionKey:
     Type: AWS::KMS::Key
     Properties:
