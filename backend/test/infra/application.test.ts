@@ -65,9 +65,9 @@ describe("Backend application infrastructure", () => {
           FilterCriteria: {
             Filters: [
               {
-                Pattern: '{ "eventName": ["MODIFY", "REMOVE"] }'
-              }
-            ]
+                Pattern: '{ "eventName": ["MODIFY", "REMOVE"] }',
+              },
+            ],
           },
         },
         Target: {
@@ -82,12 +82,21 @@ describe("Backend application infrastructure", () => {
     });
 
     test("StatusChangeEventBridgePipe and StatusChangeEventBridgePipeLogGroup follow consistent naming convention", () => {
-      const eventBridgePipe = template.findResources('AWS::Pipes::Pipe')['StatusChangeEventBridgePipe'];
-      const eventBridgePipeName = eventBridgePipe.Properties.Name['Fn::Sub'];
-      
-      const eventBridgePipeLogGroup = template.findResources('AWS::Logs::LogGroup')['StatusChangeEventBridgePipeLogGroup'];
-      const eventBridgePipeLogGroupName = eventBridgePipeLogGroup.Properties.LogGroupName['Fn::Sub'].replace('/aws/vendedlogs/pipes/', '');
-      
+      const eventBridgePipe =
+        template.findResources("AWS::Pipes::Pipe")[
+          "StatusChangeEventBridgePipe"
+        ];
+      const eventBridgePipeName = eventBridgePipe.Properties.Name["Fn::Sub"];
+
+      const eventBridgePipeLogGroup = template.findResources(
+        "AWS::Logs::LogGroup",
+      )["StatusChangeEventBridgePipeLogGroup"];
+      const eventBridgePipeLogGroupName =
+        eventBridgePipeLogGroup.Properties.LogGroupName["Fn::Sub"].replace(
+          "/aws/vendedlogs/pipes/",
+          "",
+        );
+
       expect(eventBridgePipeLogGroupName).toBe(eventBridgePipeName);
     });
   });
