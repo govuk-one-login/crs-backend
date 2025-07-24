@@ -2312,6 +2312,8 @@ Resources:
         CloudwatchLogsLogDestination:
           LogGroupArn: !GetAtt StatusChangeEventBridgePipeLogGroup.Arn
         Level: ERROR
+        IncludeExecutionData: 
+          - ALL
 
         # TxMA SQS Queue
   TxMAKMSEncryptionKey:
