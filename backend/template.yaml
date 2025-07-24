@@ -2312,10 +2312,10 @@ Resources:
         CloudwatchLogsLogDestination:
           LogGroupArn: !GetAtt StatusChangeEventBridgePipeLogGroup.Arn
         Level: ERROR
-        IncludeExecutionData: 
+        IncludeExecutionData:
           - ALL
 
-        # TxMA SQS Queue
+          # TxMA SQS Queue
   TxMAKMSEncryptionKey:
     Type: AWS::KMS::Key
     Properties:
