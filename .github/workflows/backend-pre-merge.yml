@@ -1,4 +1,4 @@
-name: Backend pull request
+name: Backend Pre-Merge
 on:
   # Triggers the workflow on pull request events for all branches
   pull_request:
@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - "backend/**"
-      - ".github/workflows/pull-request.yml"
+      - ".github/workflows/backend-pre-merge.yml"
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -53,7 +53,7 @@ jobs:
 
       - name: Run infra tests
         run: npm run test:infra
-        
+
       - name: Run unit tests
         run: npm run test:unit
 

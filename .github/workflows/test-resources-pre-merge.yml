@@ -1,0 +1,81 @@
+name: Test Resources Pre-Merge
+on:
+  # Triggers the workflow on pull request events for all branches
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "test-resources/**"
+      - ".github/workflows/test-resources-pre-merge.yml"
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  ci-checks:
+    name: Run CI checks
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+        working-directory: test-resources
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Setup nodeJS v22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: test-resources/.nvmrc
+          cache: npm
+          cache-dependency-path: test-resources/package-lock.json
+
+      - name: Install dependencies
+        run: npm clean-install
+
+      - name: Linting
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Install rain
+        run: |
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          brew install rain
+
+      - name: Check infra formatting
+        run: |
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          npm run infra:format:check
+
+      - name: Run infra tests
+        run: npm run test:infra
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Validate SAM template
+        run: sam validate --lint
+
+      - name: Validate SAM build
+        run: sam build --parallel
+
+      - name: Run SonarCloud Scan
+        uses: sonarsource/sonarqube-scan-action@2500896589ef8f7247069a56136f8dc177c27ccf # v5.2.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectBaseDir: test-resources
+
+      - name: SonarQube Quality Gate check
+        uses: SonarSource/sonarqube-quality-gate-action@d304d050d930b02a896b0f85935344f023928496 # v1.1.0
+        # Force to fail step after specific time
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          scanMetadataReportFile: test-resources/.scannerwork/report-task.txt

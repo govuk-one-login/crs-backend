@@ -1,0 +1,83 @@
+# All Parameters, Conditions, Mappings and other configuration for the stack should be defined here. Resources should be
+# defined in an appropriate sub-template according to their function.
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: Creates the necessary components to create test resources.
+
+Parameters:
+  CodeSigningConfigArn:
+    Description: The ARN of the Code Signing Config to use, provided by the deployment pipeline
+    Type: String
+    Default: none
+
+  Environment:
+    Description: The name of the environment to deploy to
+    Type: String
+    AllowedValues:
+      - dev
+      - build
+
+  PermissionsBoundary:
+    Description: The ARN of the permissions boundary to apply to any role created by the template
+    Type: String
+    Default: none
+
+  VpcStackName:
+    Description: The stack name of the VPC where the Lambda functions will be deployed
+    Type: String
+    Default: devplatform-vpc
+
+Mappings:
+  EnvironmentVariables:
+    build:
+      CloudwatchLogRetentionDays: 3
+      EventInspectionApiUrl: event-inspection.crs.build.account.gov.uk
+      EventsTableTtlSeconds: 3600
+    dev:
+      CloudwatchLogRetentionDays: 3
+      EventInspectionApiUrl: event-inspection.crs.dev.account.gov.uk
+      EventsTableTtlSeconds: 3600
+
+Conditions:
+  IsProdLikeEnvironment: !Equals
+    - !Ref Environment
+    - build
+
+  Never: !Equals
+    - true
+    - false
+
+  UseCodeSigning: !Not
+    - !Equals
+      - !Ref CodeSigningConfigArn
+      - none
+
+  UsePermissionsBoundary: !Not
+    - !Equals
+      - !Ref PermissionsBoundary
+      - none
+
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  Function:
+    AutoPublishAlias: live
+    CodeSigningConfigArn: !If
+      - UseCodeSigning
+      - !Ref CodeSigningConfigArn
+      - !Ref AWS::NoValue
+    MemorySize: 512
+    PermissionsBoundary: !If
+      - UsePermissionsBoundary
+      - !Ref PermissionsBoundary
+      - !Ref AWS::NoValue
+    Runtime: nodejs22.x
+    Timeout: 3 # seconds
+
+Resources:
+
+  # CloudFormation requires at least one resource definition per template, so this resource is here to satisfy the
+  # linter. It has no required properties, will never be deployed, and would have no effect if it were deployed.
+  NullResource:
+    Type: AWS::CloudFormation::WaitConditionHandle
+    Condition: Never
