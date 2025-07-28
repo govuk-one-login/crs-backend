@@ -27,22 +27,21 @@ Parameters:
     Type: String
     Default: devplatform-vpc
 
-Mappings:
-  EnvironmentVariables:
-    build:
-      CloudwatchLogRetentionDays: 3
-      EventInspectionApiUrl: event-inspection.crs.build.account.gov.uk
-      EventsTableTtlSeconds: 3600
-    dev:
-      CloudwatchLogRetentionDays: 3
-      EventInspectionApiUrl: event-inspection.crs.dev.account.gov.uk
-      EventsTableTtlSeconds: 3600
-
+# Mappings:
+# EnvironmentVariables:
+#   build:
+#     CloudwatchLogRetentionDays: 3
+#     EventInspectionApiUrl: event-inspection.crs.build.account.gov.uk
+#     EventsTableTtlSeconds: 3600
+#   dev:
+#     CloudwatchLogRetentionDays: 3
+#     EventInspectionApiUrl: event-inspection.crs.dev.account.gov.uk
+#     EventsTableTtlSeconds: 3600
 Conditions:
-  IsProdLikeEnvironment: !Equals
-    - !Ref Environment
-    - build
 
+  # IsProdLikeEnvironment: !Equals
+  #   - !Ref Environment
+  #   - build
   Never: !Equals
     - true
     - false
