@@ -11,7 +11,7 @@
     "test:unit": "JEST_JUNIT_OUTPUT_NAME=unit-report.xml ./node_modules/.bin/jest --testPathPattern=test/unit/ --silent",
     "test:api": " JEST_JUNIT_OUTPUT_NAME=api-report.xml  ./node_modules/.bin/jest --testPathPattern=test/api/  --silent --coverage false",
     "test:infra": " JEST_JUNIT_OUTPUT_NAME=api-report.xml  ./node_modules/.bin/jest --testPathPattern=test/infra/  --silent",
-    "lint": "./node_modules/.bin/eslint ./src/functions",
+    "lint": "./node_modules/.bin/eslint ./src/functions || ./node_modules/.bin/eslint ./",
     "format": "./node_modules/.bin/prettier --write '**/*.ts'",
     "format:check": "./node_modules/.bin/prettier --check '**/*.ts'",
     "build:infra": "./combine_template.sh",
