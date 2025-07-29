@@ -1,7 +1,7 @@
 {
   "name": "crs-test-resources",
   "version": "1.0.0",
-  "description": "SUpporting infrastructure to test the bounds of the crs-backend service",
+  "description": "Supporting infrastructure to test the bounds of the crs-backend service",
   "type": "module",
   "engines": {
     "node": "22"
