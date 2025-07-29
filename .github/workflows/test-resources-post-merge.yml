@@ -128,7 +128,7 @@ jobs:
     runs-on: ubuntu-24.04
     if: ${{ github.ref == 'refs/heads/main' }}
     env:
-      BUILD_TEST_IMAGE_REPOSITORY: ${{ secrets.BUILD_TEST_RESOURCES_TEST_IMAGE_REPOSITORY }}
+      BUILD_TEST_RESOURCES_TEST_IMAGE_REPOSITORY: ${{ secrets.BUILD_TEST_RESOURCES_TEST_IMAGE_REPOSITORY }}
       BUILD_CONTAINER_SIGN_KMS_KEY: ${{ secrets.BUILD_CONTAINER_SIGN_KMS_KEY }}
       IMAGE_TAG: latest
     defaults:
