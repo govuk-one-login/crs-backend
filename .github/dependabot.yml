@@ -31,4 +31,17 @@ updates:
           - minor
           - patch
 
-          
+  - package-ecosystem: npm
+    directory: /test-resources
+    schedule:
+      interval: weekly
+      day: sunday
+    versioning-strategy: increase
+    open-pull-requests-limit: 5
+    groups:
+      backend-versions:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
