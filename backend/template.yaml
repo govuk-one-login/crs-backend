@@ -744,7 +744,7 @@ Resources:
       AlarmName: !Sub ${AWS::StackName}-find-available-slots-error-rate
       DatapointsToAlarm: 1
       EvaluationPeriods: 1
-      Threshold: 10
+      Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
       Metrics:
