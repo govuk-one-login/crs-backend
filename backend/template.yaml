@@ -736,7 +736,7 @@ Resources:
       OKActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       AlarmDescription: !Sub
-        - 'The number of Find Available Slots Lambda errors is greater than or equal to 10% for the latest function version. See runbook: ${WarningAlarmsRunbookUrl}'
+        - 'The number of Find Available Slots Lambda errors is greater than or equal to 1% for the latest function version. See runbook: ${WarningAlarmsRunbookUrl}'
         - WarningAlarmsRunbookUrl: !FindInMap
             - StaticVariables
             - urls
