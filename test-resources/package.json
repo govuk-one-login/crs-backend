@@ -7,10 +7,10 @@
     "node": "22"
   },
   "scripts": {
-    "test": "      JEST_JUNIT_OUTPUT_NAME=test-report.xml  ./node_modules/.bin/jest --testPathPattern=test/       --silent --passWithNoTests                 ",
-    "test:unit": " JEST_JUNIT_OUTPUT_NAME=unit-report.xml  ./node_modules/.bin/jest --testPathPattern=test/unit/  --silent --passWithNoTests                 ",
-    "test:api": "  JEST_JUNIT_OUTPUT_NAME=api-report.xml   ./node_modules/.bin/jest --testPathPattern=test/api/   --silent --passWithNoTests --coverage false",
-    "test:infra": "JEST_JUNIT_OUTPUT_NAME=infra-report.xml ./node_modules/.bin/jest --testPathPattern=test/infra/ --silent --passWithNoTests                 ",
+    "test": "      JEST_JUNIT_OUTPUT_NAME=test-report.xml  ./node_modules/.bin/jest --testPathPatterns=test/       --silent --passWithNoTests                 ",
+    "test:unit": " JEST_JUNIT_OUTPUT_NAME=unit-report.xml  ./node_modules/.bin/jest --testPathPatterns=test/unit/  --silent --passWithNoTests                 ",
+    "test:api": "  JEST_JUNIT_OUTPUT_NAME=api-report.xml   ./node_modules/.bin/jest --testPathPatterns=test/api/   --silent --passWithNoTests --coverage false",
+    "test:infra": "JEST_JUNIT_OUTPUT_NAME=infra-report.xml ./node_modules/.bin/jest --testPathPatterns=test/infra/ --silent --passWithNoTests                 ",
     "lint": "./node_modules/.bin/eslint ./src/functions  --no-error-on-unmatched-pattern",
     "format": "./node_modules/.bin/prettier --write '**/*.ts'",
     "format:check": "./node_modules/.bin/prettier --check '**/*.ts'",
