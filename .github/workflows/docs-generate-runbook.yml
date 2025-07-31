@@ -1,5 +1,8 @@
 name: Docs Generate Alarm Runbooks
 on:
+  push:
+    branches:
+      - spike-douglast-alarm-runbooks
   workflow_dispatch:
 
 jobs:
