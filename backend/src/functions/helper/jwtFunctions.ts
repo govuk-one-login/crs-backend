@@ -11,7 +11,7 @@ import {
   badRequestResponse,
   internalServerErrorResponse,
   unauthorizedResponse,
-  forbiddenResponse
+  forbiddenResponse,
 } from "../../common/responses";
 import { ClientRegistry } from "./clientRegistryFunctions";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
@@ -155,25 +155,34 @@ async function validateJWT(
   jsonHeader,
   config: ClientRegistry,
 ): Promise<ValidationResult> {
-  // if(!jsonHeader.typ) {
-  //   return { isValid: false, error: badRequestResponse("No Type in Header")}
-  // }
+  if (!jsonHeader.typ) {
+    return { isValid: false, error: badRequestResponse("No Type in Header") };
+  }
 
-  // if (jsonHeader.typ !== "JWT") {
-  //   return { isValid: false, error: badRequestResponse("Invalid Type in Header") };
-  // }
+  if (jsonHeader.typ !== "JWT") {
+    return {
+      isValid: false,
+      error: badRequestResponse("Invalid Type in Header"),
+    };
+  }
 
-  // if (!jsonHeader.alg) {
-  //   return { isValid: false, error: badRequestResponse("No Algorithm in Header") };
-  // }
+  if (!jsonHeader.alg) {
+    return {
+      isValid: false,
+      error: badRequestResponse("No Algorithm in Header"),
+    };
+  }
 
-  // if (jsonHeader.alg !== "ES256") {
-  //   return { isValid: false, error: badRequestResponse("Invalid Algorithm in Header") };
-  // }
+  if (jsonHeader.alg !== "ES256") {
+    return {
+      isValid: false,
+      error: badRequestResponse("Invalid Algorithm in Header"),
+    };
+  }
 
-  // if (!jsonHeader.kid) {
-  //   return { isValid: false, error: badRequestResponse("No Kid in Header") };
-  // }
+  if (!jsonHeader.kid) {
+    return { isValid: false, error: badRequestResponse("No Kid in Header") };
+  }
 
   if (!jsonPayload.iat) {
     return {
@@ -181,7 +190,7 @@ async function validateJWT(
       error: badRequestResponse("No IssuedAt in Payload"),
     };
   }
-  
+
   if (!jsonPayload.iss) {
     return {
       isValid: false,
