@@ -37,12 +37,14 @@ async function main() {
     builders.hardBreak(),
     builders.heading({ level: 2 })(builders.p("Alarms")),
     builders.heading({ level: 3 })(builders.p(validAlarmDefinitions[0][0])),
-    builders.codeBlock({ language: "yaml" })(
+    builders.codeBlock({ language: "json" })(
       builders.text(validAlarmDefinitions[0][1].Metadata.RunBook.Cause),
       builders.text(validAlarmDefinitions[0][1].Metadata.RunBook.Action)
     ),
-    builders.codeBlock({ language: "yml" })(
-      builders.text(JSON.stringify(validAlarmDefinitions[0][1], null, 2))
+    builders.expand({ __expanded: false, title: "Alarm Definition" })(
+      builders.codeBlock({ language: "json" })(
+        builders.text(JSON.stringify(validAlarmDefinitions[0][1], null, 2))
+      )
     )
   );
 
