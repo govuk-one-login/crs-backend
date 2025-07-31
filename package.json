@@ -1,5 +1,8 @@
 {
   "devDependencies": {
     "prettier": "^3.5.3"
+  },
+  "dependencies": {
+    "@atlaskit/adf-utils": "^19.20.2"
   }
 }
