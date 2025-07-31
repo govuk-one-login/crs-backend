@@ -35,8 +35,10 @@ async function main() {
     builders.p("This page is auto generated!"),
     builders.p("2"),
     builders.hardBreak(),
-    builders.heading({ level: 2 })(builders.p("Alarms")),
-    builders.heading({ level: 3 })(builders.p(validAlarmDefinitions[0][0])),
+    builders.heading({ level: 2 })(builders.text("Alarms")),
+    builders.heading({ level: 3 })(
+      builders.textColor({ color: "#16ab3e" })(validAlarmDefinitions[0][0])
+    ),
     builders.codeBlock({ language: "json" })(
       builders.text(validAlarmDefinitions[0][1].Metadata.RunBook.Cause),
       builders.text(validAlarmDefinitions[0][1].Metadata.RunBook.Action)
