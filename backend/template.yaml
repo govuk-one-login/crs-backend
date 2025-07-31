@@ -1386,52 +1386,32 @@ Resources:
       TreatMissingData: notBreaching
     Condition: DeployAlarms
 
-  RevokeThroughputAlarm:
+  RevokeThrottlesAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
       ActionsEnabled: true
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       AlarmDescription: !Sub
-        - 60% of the Revoke Lambda capacity has been used. ${WarningAlarmsRunbookURL}
+        - Throttling detected on the Revoke Lambda. ${WarningAlarmsRunbookURL}
         - WarningAlarmsRunbookURL: !FindInMap
             - StaticVariables
             - urls
             - WarningAlarmsRunbook
-      AlarmName: !Sub ${AWS::StackName}-revoke-throughput
+      AlarmName: !Sub ${AWS::StackName}-revoke-throttles
       ComparisonOperator: GreaterThanOrEqualToThreshold
       DatapointsToAlarm: 1
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref RevokeFunction
       EvaluationPeriods: 1
-      Metrics:
-        - Id: e1
-          MetricStat:
-            Metric:
-              Dimensions:
-                - Name: FunctionName
-                  Value: !Ref RevokeFunction
-              MetricName: ConcurrentExecutions
-              Namespace: AWS/Lambda
-            Period: 60
-            Stat: Maximum
-          ReturnData: false
-        - Id: e2
-          MetricStat:
-            Metric:
-              Dimensions:
-                - Name: FunctionName
-                  Value: !Ref RevokeFunction
-              MetricName: UnreservedConcurrentExecutions
-              Namespace: AWS/Lambda
-            Period: 60
-            Stat: Maximum
-          ReturnData: false
-        - Expression: e1 / e2 * 100
-          Id: e3
-          Label: Throughput Percentage
-          ReturnData: true
+      MetricName: Throttles
+      Namespace: AWS/Lambda
       OKActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
-      Threshold: 60
+      Period: 60
+      Statistic: Sum
+      Threshold: 1
       TreatMissingData: notBreaching
     Condition: DeployAlarms
 
