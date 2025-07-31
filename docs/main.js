@@ -1,4 +1,9 @@
 import * as builders from "@atlaskit/adf-utils/builders";
+import { Match, Template } from "aws-cdk-lib/assertions";
+import { readFileSync } from "fs";
+import { load } from "js-yaml";
+import { stringify } from "querystring";
+import { schema } from "yaml-cfn";
 
 const CONFLUENCE_BASE = "https://govukverify.atlassian.net/wiki";
 const CONFLUENCE_PAGE_ID = "5537169450";
@@ -13,10 +18,32 @@ console.log(CONFLUENCE_PAGE_ID);
 // https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/
 
 async function main() {
+  const yamlTemplate = load(readFileSync("../backend/template.yaml", "utf-8"), {
+    schema: schema,
+  });
+
+  let validAlarmDefinitions = Object.entries(yamlTemplate.Resources).filter(
+    ([LogicalResourceId, Definition]) => {
+      return Definition.Type == "AWS::CloudWatch::Alarm" && Definition.Metadata;
+    }
+  );
+
+  console.log(JSON.stringify(validAlarmDefinitions, null, 2));
+
   const adfDoc = builders.doc(
     builders.heading({ level: 1 })(builders.strong("CRS Runbooks - Alarms")),
     builders.p("This page is auto generated!"),
-    builders.p("2")
+    builders.p("2"),
+    builders.hardBreak(),
+    builders.heading({ level: 2 })(builders.p("Alarms")),
+    builders.heading({ level: 3 })(builders.p(validAlarmDefinitions[0][0])),
+    builders.codeBlock({ language: "yaml" })(
+      builders.text(validAlarmDefinitions[0][1].Metadata.RunBook.Cause),
+      builders.text(validAlarmDefinitions[0][1].Metadata.RunBook.Action)
+    ),
+    builders.codeBlock({ language: "yml" })(
+      builders.text(JSON.stringify(validAlarmDefinitions[0][1], null, 2))
+    )
   );
 
   console.log(JSON.stringify(adfDoc, null, 2));

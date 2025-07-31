@@ -2,8 +2,11 @@
   "type": "module",
   "dependencies": {
     "@atlaskit/adf-utils": "^19.20.2",
+    "aws-cdk-lib": "^2.208.0",
     "eslint": "^9.32.0",
     "eslint-config-prettier": "^10.1.8",
-    "prettier": "^3.6.2"
+    "js-yaml": "^4.1.0",
+    "prettier": "^3.6.2",
+    "yaml-cfn": "^0.3.2"
   }
 }
