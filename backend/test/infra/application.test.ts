@@ -116,7 +116,7 @@ describe("Backend application infrastructure", () => {
     describe("Warning alarms", () => {
       test.each([
         ["revoke-concurrency"],
-        ["revoke-throughput"],
+        ["revoke-throttles"],
         ["high-threshold-revoke-4xx-api-gw"],
         ["low-threshold-revoke-4xx-api-gw"],
         ["high-threshold-revoke-5xx-api-gw"],
