@@ -11,6 +11,7 @@ import {
   badRequestResponse,
   internalServerErrorResponse,
   unauthorizedResponse,
+  forbiddenResponse
 } from "../../common/responses";
 import { ClientRegistry } from "./clientRegistryFunctions";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
@@ -154,17 +155,33 @@ async function validateJWT(
   jsonHeader,
   config: ClientRegistry,
 ): Promise<ValidationResult> {
+  // if(!jsonHeader.typ) {
+  //   return { isValid: false, error: badRequestResponse("No Type in Header")}
+  // }
+
+  // if (jsonHeader.typ !== "JWT") {
+  //   return { isValid: false, error: badRequestResponse("Invalid Type in Header") };
+  // }
+
+  // if (!jsonHeader.alg) {
+  //   return { isValid: false, error: badRequestResponse("No Algorithm in Header") };
+  // }
+
+  // if (jsonHeader.alg !== "ES256") {
+  //   return { isValid: false, error: badRequestResponse("Invalid Algorithm in Header") };
+  // }
+
+  // if (!jsonHeader.kid) {
+  //   return { isValid: false, error: badRequestResponse("No Kid in Header") };
+  // }
+
   if (!jsonPayload.iat) {
     return {
       isValid: false,
       error: badRequestResponse("No IssuedAt in Payload"),
     };
   }
-
-  if (!jsonHeader.kid) {
-    return { isValid: false, error: badRequestResponse("No Kid in Header") };
-  }
-
+  
   if (!jsonPayload.iss) {
     return {
       isValid: false,
@@ -202,7 +219,7 @@ async function validateJWT(
     return {
       isValid: false,
       matchingClientEntry: matchingClientEntry,
-      error: unauthorizedResponse(
+      error: badRequestResponse(
         `No matching Key ID found in JWKS Endpoint for Kid: ${jsonHeader.kid}`,
       ),
     };
@@ -237,7 +254,7 @@ async function validateJWT(
       isValid: false,
       signingKey: ecPublicKey,
       matchingClientEntry: matchingClientEntry,
-      error: unauthorizedResponse(`Failure verifying the signature of the jwt`),
+      error: forbiddenResponse(`Failure verifying the signature of the jwt`),
     };
   }
 
