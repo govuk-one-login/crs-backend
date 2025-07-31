@@ -1,0 +1,15 @@
+name: Docs Generate Alarm Runbooks
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: publishToConfluence
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+        # working-directory: test-resources
+    steps:
+      - name: hw
+        run: echo hw!

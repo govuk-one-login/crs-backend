@@ -507,6 +507,18 @@ Resources:
 
   IssueStatusListEntryErrorsWarningAlarm:
     Type: AWS::CloudWatch::Alarm
+    Metadata:
+      RunBook:
+        Section: LambdaAlarms # Determines which section of the runbook this alarm is displayed. Helps for grouping. SHould be tested for specific values.
+        Cause: |
+          The number of Errors for the Issue Status List Entry Lambda alarm are over 10% for the latest function version.
+        Action: |
+          This alarm is a canary alarm so if fired during deployment should trigger a roll back.
+          Splunk link: etc.
+          Dynatrace Link: etc
+          Can this section handle mark down? [LINK](www.example.com)
+          # HEADING
+          <h1>or html?</h1>
     Properties:
       ActionsEnabled: true
       AlarmActions:
