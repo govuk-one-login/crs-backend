@@ -1,0 +1,189 @@
+name: Test Resources Post Merge
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "test-resources/**"
+      - ".github/workflows/test-resources-post-merge.yml"
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  ci-checks:
+    name: Sonar main branch scan
+    runs-on: ubuntu-24.04
+    env:
+      SAM_CLI_TELEMETRY: 0
+    defaults:
+      run:
+        shell: bash
+        working-directory: test-resources
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Setup nodeJS
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: test-resources/.nvmrc
+          cache: npm
+          cache-dependency-path: test-resources/package-lock.json
+
+      - name: Install dependencies
+        run: npm clean-install
+
+      # Generate unit test coverage report for Sonar main branch analysis
+      - name: Run Tests
+        run: npm run test
+
+      - name: Run SonarCloud Scan
+        uses: sonarsource/sonarqube-scan-action@8c71dc039c2dd71d3821e89a2b58ecc7fee6ced9 # v5.3.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          projectBaseDir: test-resources
+
+  build-and-push-to-dev:
+    name: 'Push test image and SAM artifact to dev'
+    needs: ci-checks
+    runs-on: ubuntu-24.04
+    env:
+      DEV_TEST_RESOURCES_TEST_IMAGE_REPOSITORY: ${{ secrets.DEV_TEST_RESOURCES_TEST_IMAGE_REPOSITORY }}
+      DEV_CONTAINER_SIGN_KMS_KEY: ${{ secrets.DEV_CONTAINER_SIGN_KMS_KEY }}
+      IMAGE_TAG: latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: test-resources
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: true
+
+      - name: Setup nodeJS
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: test-resources/.nvmrc
+          cache: npm
+          cache-dependency-path: test-resources/package-lock.json
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 #v3.9.2
+        with:
+          cosign-release: 'v2.5.2'
+
+      - name: Install dependencies
+        run: npm clean-install
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df # v4.2.1
+        with:
+          aws-region: eu-west-2
+          role-to-assume: ${{ secrets.DEV_TEST_RESOURCES_GH_ACTIONS_ROLE_ARN }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Build test image
+        run: docker build -t $DEV_TEST_RESOURCES_TEST_IMAGE_REPOSITORY:$IMAGE_TAG .
+
+      - name: Push image
+        run: docker push $DEV_TEST_RESOURCES_TEST_IMAGE_REPOSITORY:$IMAGE_TAG
+
+      - name: Sign the image
+        run: cosign sign --key awskms:///$DEV_CONTAINER_SIGN_KMS_KEY $DEV_TEST_RESOURCES_TEST_IMAGE_REPOSITORY:$IMAGE_TAG
+
+      - name: SAM validate and lint
+        run: sam validate --lint
+
+      - name: SAM build
+        run: sam build
+
+      - name: Upload SAM artifact into the S3 artifact bucket
+        uses: govuk-one-login/devplatform-upload-action@v3.10.1
+        with:
+          artifact-bucket-name: ${{ secrets.DEV_TEST_RESOURCES_ARTIFACT_BUCKET }}
+          signing-profile-name: ${{ secrets.DEV_SIGNING_PROFILE_NAME }}
+          template-file: .aws-sam/build/template.yaml
+          working-directory: test-resources
+
+  build-and-push-to-build:
+    name: Push test image and SAM artifact to build
+    needs: ci-checks
+    runs-on: ubuntu-24.04
+    if: ${{ github.ref == 'refs/heads/main' }}
+    env:
+      BUILD_TEST_RESOURCES_TEST_IMAGE_REPOSITORY: ${{ secrets.BUILD_TEST_RESOURCES_TEST_IMAGE_REPOSITORY }}
+      BUILD_CONTAINER_SIGN_KMS_KEY: ${{ secrets.BUILD_CONTAINER_SIGN_KMS_KEY }}
+      IMAGE_TAG: latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: test-resources
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: true
+
+      - name: Setup nodeJS
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: test-resources/.nvmrc
+          cache: npm
+          cache-dependency-path: test-resources/package-lock.json
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 #v3.9.2
+        with:
+          cosign-release: 'v2.5.2'
+
+      - name: Install dependencies
+        run: npm clean-install
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df # v4.2.1
+        with:
+          aws-region: eu-west-2
+          role-to-assume: ${{ secrets.BUILD_TEST_RESOURCES_GH_ACTIONS_ROLE_ARN }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Build test image
+        run: docker build -t $BUILD_TEST_RESOURCES_TEST_IMAGE_REPOSITORY:$IMAGE_TAG .
+
+      - name: Push image
+        run: docker push $BUILD_TEST_RESOURCES_TEST_IMAGE_REPOSITORY:$IMAGE_TAG
+
+      - name: Sign the image
+        run: cosign sign --key awskms:///$BUILD_CONTAINER_SIGN_KMS_KEY $BUILD_TEST_RESOURCES_TEST_IMAGE_REPOSITORY:$IMAGE_TAG
+
+      - name: Sam validate and lint
+        run: sam validate --lint
+
+      - name: Sam build
+        run: sam build
+
+      - name: Upload SAM artifact into the S3 artifact bucket
+        uses: govuk-one-login/devplatform-upload-action@v3.10.1
+        with:
+          artifact-bucket-name: ${{ secrets.BUILD_TEST_RESOURCES_ARTIFACT_BUCKET }}
+          signing-profile-name: ${{ secrets.BUILD_SIGNING_PROFILE_NAME}}
+          template-file: .aws-sam/build/template.yaml
+          working-directory: test-resources

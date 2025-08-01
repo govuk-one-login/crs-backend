@@ -330,7 +330,7 @@ Resources:
         RecoveryPeriodInDays: 7
       BillingMode: PAY_PER_REQUEST
       StreamSpecification:
-        StreamViewType: NEW_AND_OLD_IMAGES
+        StreamViewType: KEYS_ONLY
       Tags:
         - Key: BackupFrequency
           Value: Bihourly
@@ -783,7 +783,7 @@ Resources:
       OKActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       AlarmDescription: !Sub
-        - 'The number of Find Available Slots Lambda errors is greater than or equal to 10% for the latest function version. See runbook: ${WarningAlarmsRunbookUrl}'
+        - 'The number of Find Available Slots Lambda errors is greater than or equal to 1% for the latest function version. See runbook: ${WarningAlarmsRunbookUrl}'
         - WarningAlarmsRunbookUrl: !FindInMap
             - StaticVariables
             - urls
@@ -791,7 +791,7 @@ Resources:
       AlarmName: !Sub ${AWS::StackName}-find-available-slots-error-rate
       DatapointsToAlarm: 1
       EvaluationPeriods: 1
-      Threshold: 10
+      Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
       Metrics:
@@ -1433,52 +1433,32 @@ Resources:
       TreatMissingData: notBreaching
     Condition: DeployAlarms
 
-  RevokeThroughputAlarm:
+  RevokeThrottlesAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
       ActionsEnabled: true
       AlarmActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
       AlarmDescription: !Sub
-        - 60% of the Revoke Lambda capacity has been used. ${WarningAlarmsRunbookURL}
+        - Throttling detected on the Revoke Lambda. ${WarningAlarmsRunbookURL}
         - WarningAlarmsRunbookURL: !FindInMap
             - StaticVariables
             - urls
             - WarningAlarmsRunbook
-      AlarmName: !Sub ${AWS::StackName}-revoke-throughput
+      AlarmName: !Sub ${AWS::StackName}-revoke-throttles
       ComparisonOperator: GreaterThanOrEqualToThreshold
       DatapointsToAlarm: 1
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref RevokeFunction
       EvaluationPeriods: 1
-      Metrics:
-        - Id: e1
-          MetricStat:
-            Metric:
-              Dimensions:
-                - Name: FunctionName
-                  Value: !Ref RevokeFunction
-              MetricName: ConcurrentExecutions
-              Namespace: AWS/Lambda
-            Period: 60
-            Stat: Maximum
-          ReturnData: false
-        - Id: e2
-          MetricStat:
-            Metric:
-              Dimensions:
-                - Name: FunctionName
-                  Value: !Ref RevokeFunction
-              MetricName: UnreservedConcurrentExecutions
-              Namespace: AWS/Lambda
-            Period: 60
-            Stat: Maximum
-          ReturnData: false
-        - Expression: e1 / e2 * 100
-          Id: e3
-          Label: Throughput Percentage
-          ReturnData: true
+      MetricName: Throttles
+      Namespace: AWS/Lambda
       OKActions:
         - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
-      Threshold: 60
+      Period: 60
+      Statistic: Sum
+      Threshold: 1
       TreatMissingData: notBreaching
     Condition: DeployAlarms
 
@@ -2289,7 +2269,80 @@ Resources:
       AliasName: !Sub alias/${AWS::StackName}-StatusChangeQueueEncryptionKey
       TargetKeyId: !Ref StatusChangeQueueEncryptionKey
 
-      # TxMA SQS Queue
+  #  Status List Update Event Bridge Pipe
+  StatusChangeEventBridgePipeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: pipes.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StatusChangeEventBridgePipePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:DescribeStream
+                  - dynamodb:GetRecords
+                  - dynamodb:GetShardIterator
+                  - dynamodb:ListStreams
+                Resource:
+                  - !GetAtt StatusListTable.StreamArn
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  - !GetAtt StatusChangeQueue.Arn
+              - Effect: Allow
+                Action:
+                  - kms:GenerateDataKey
+                  - kms:Encrypt
+                  - kms:Decrypt
+                Resource:
+                  - !GetAtt StatusChangeQueueEncryptionKey.Arn
+      PermissionsBoundary: !If
+        - UsePermissionsBoundary
+        - !Ref PermissionsBoundary
+        - !Ref AWS::NoValue
+
+  StatusChangeEventBridgePipeLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/vendedlogs/pipes/${AWS::StackName}-status-change
+      RetentionInDays: !FindInMap
+        - LogRetention
+        - !Ref Environment
+        - RetentionPeriod
+
+  StatusChangeEventBridgePipe:
+    Type: AWS::Pipes::Pipe
+    Properties:
+      Name: !Sub ${AWS::StackName}-status-change
+      RoleArn: !GetAtt StatusChangeEventBridgePipeRole.Arn
+      Source: !GetAtt StatusListTable.StreamArn
+      SourceParameters:
+        DynamoDBStreamParameters:
+          StartingPosition: TRIM_HORIZON
+        FilterCriteria:
+          Filters:
+            - Pattern: '{ "eventName": ["MODIFY", "REMOVE"] }'
+      Target: !GetAtt StatusChangeQueue.Arn
+      TargetParameters:
+        SqsQueueParameters:
+          MessageGroupId: $.dynamodb.Keys.uri.S
+      LogConfiguration:
+        CloudwatchLogsLogDestination:
+          LogGroupArn: !GetAtt StatusChangeEventBridgePipeLogGroup.Arn
+        Level: ERROR
+        IncludeExecutionData:
+          - ALL
+
+          # TxMA SQS Queue
   TxMAKMSEncryptionKey:
     Type: AWS::KMS::Key
     Properties:

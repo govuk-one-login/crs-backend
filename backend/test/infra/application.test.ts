@@ -30,6 +30,77 @@ const template = Template.fromJSON(yamltemplate, {
 console.log("template:" + template);
 
 describe("Backend application infrastructure", () => {
+  describe("DynamoDB Streams", () => {
+    test("StatusListTable has streams enabled", () => {
+      template.hasResourceProperties("AWS::DynamoDB::Table", {
+        StreamSpecification: {
+          StreamViewType: "KEYS_ONLY",
+        },
+      });
+    });
+  });
+
+  describe("Event Source Mapping", () => {
+    test("StatusListPublisherFunction is triggered by StatusChangeQueue", () => {
+      template.hasResource("AWS::Lambda::EventSourceMapping", {
+        Properties: {
+          EventSourceArn: {
+            "Fn::GetAtt": ["StatusChangeQueue", "Arn"],
+          },
+          FunctionName: {
+            Ref: "StatusListPublisherFunction",
+          },
+        },
+      });
+    });
+  });
+
+  describe("EventBridge Pipe", () => {
+    test("StatusChangeEventBridgePipe has correct MessageGroupId", () => {
+      template.hasResourceProperties("AWS::Pipes::Pipe", {
+        Source: {
+          "Fn::GetAtt": ["StatusListTable", "StreamArn"],
+        },
+        SourceParameters: {
+          FilterCriteria: {
+            Filters: [
+              {
+                Pattern: '{ "eventName": ["MODIFY", "REMOVE"] }',
+              },
+            ],
+          },
+        },
+        Target: {
+          "Fn::GetAtt": ["StatusChangeQueue", "Arn"],
+        },
+        TargetParameters: {
+          SqsQueueParameters: {
+            MessageGroupId: "$.dynamodb.Keys.uri.S",
+          },
+        },
+      });
+    });
+
+    test("StatusChangeEventBridgePipe and StatusChangeEventBridgePipeLogGroup follow consistent naming convention", () => {
+      const eventBridgePipe =
+        template.findResources("AWS::Pipes::Pipe")[
+          "StatusChangeEventBridgePipe"
+        ];
+      const eventBridgePipeName = eventBridgePipe.Properties.Name["Fn::Sub"];
+
+      const eventBridgePipeLogGroup = template.findResources(
+        "AWS::Logs::LogGroup",
+      )["StatusChangeEventBridgePipeLogGroup"];
+      const eventBridgePipeLogGroupName =
+        eventBridgePipeLogGroup.Properties.LogGroupName["Fn::Sub"].replace(
+          "/aws/vendedlogs/pipes/",
+          "",
+        );
+
+      expect(eventBridgePipeLogGroupName).toBe(eventBridgePipeName);
+    });
+  });
+
   describe("CloudWatch alarms", () => {
     test("All alarms are configured with a Condition", () => {
       const conditionalNames = ["DeployAlarms", "DeployMetricFilters"];
@@ -45,7 +116,7 @@ describe("Backend application infrastructure", () => {
     describe("Warning alarms", () => {
       test.each([
         ["revoke-concurrency"],
-        ["revoke-throughput"],
+        ["revoke-throttles"],
         ["high-threshold-revoke-4xx-api-gw"],
         ["low-threshold-revoke-4xx-api-gw"],
         ["high-threshold-revoke-5xx-api-gw"],

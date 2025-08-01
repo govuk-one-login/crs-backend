@@ -1,0 +1,4 @@
+# Provides cfn-lint configuration for sam validate --lint
+
+ignore_checks:
+  - W8003 # Fn::Equals will always return true or false. Triggered by the Never condition

@@ -134,6 +134,7 @@ dist
 samconfig.toml
 
 backend/results
+test-resources/results
 cf-output.txt
 docker-vars.env
 
