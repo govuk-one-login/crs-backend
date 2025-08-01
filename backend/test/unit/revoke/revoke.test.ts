@@ -26,10 +26,13 @@ import {
   REVOKE_JWT_WITH_NO_INDEX,
   REVOKE_JWT_WITH_NO_JWKS_URI,
   REVOKE_JWT_WITH_NO_KID,
+  REVOKE_JWT_WITH_NO_TYP,
   REVOKE_JWT_WITH_NO_URI,
   REVOKE_JWT_WITH_NON_MATCHING_CLIENT_ID,
   REVOKE_JWT_WITH_NON_MATCHING_KID,
   REVOKE_JWT_WITH_NON_VERIFIED_SIGNATURE,
+  REVOKE_JWT_WITH_INVALID_TYP,
+  REVOKE_JWT_WITH_WRONG_ALG,
   TEST_CLIENT_ID_BITSTRING,
   TEST_CLIENT_ID_TOKEN,
   TEST_KID,
@@ -254,6 +257,30 @@ describe("Testing Revoke Lambda", () => {
   describe("Bad Request Error Scenarios", () => {
     test.each([
       [
+        buildRequest({ body: REVOKE_JWT_WITH_NO_TYP }),
+        "No Type in Header",
+        REVOKE_JWT_WITH_NO_TYP,
+        TEST_KID,
+        TEST_CLIENT_ID_BITSTRING,
+        EMPTY_SIGNING_KEY,
+      ],
+      [
+        buildRequest({ body: REVOKE_JWT_WITH_INVALID_TYP }),
+        "Invalid Type in Header",
+        REVOKE_JWT_WITH_INVALID_TYP,
+        TEST_KID,
+        TEST_CLIENT_ID_BITSTRING,
+        EMPTY_SIGNING_KEY,
+      ],
+      [
+        buildRequest({ body: REVOKE_JWT_WITH_WRONG_ALG }),
+        "Invalid Algorithm in Header",
+        REVOKE_JWT_WITH_WRONG_ALG,
+        TEST_KID,
+        TEST_CLIENT_ID_BITSTRING,
+        EMPTY_SIGNING_KEY,
+      ],
+      [
         buildRequest({ body: REVOKE_JWT_WITH_NO_KID }),
         "No Kid in Header",
         REVOKE_JWT_WITH_NO_KID,
@@ -358,6 +385,8 @@ describe("Testing Revoke Lambda", () => {
         TEST_KID,
         "asvvnsjeEJEWjjwSHsIksIksIhBe",
         EMPTY_SIGNING_KEY,
+        401,
+        "UNAUTHORISED",
       ],
       [
         buildRequest({ body: REVOKE_JWT_WITH_NON_MATCHING_KID }),
@@ -366,6 +395,8 @@ describe("Testing Revoke Lambda", () => {
         TEST_NON_MATCHING_KID,
         TEST_CLIENT_ID_BITSTRING,
         EMPTY_SIGNING_KEY,
+        400,
+        "BAD_REQUEST",
       ],
       [
         buildRequest({ body: REVOKE_JWT_WITH_NON_VERIFIED_SIGNATURE }),
@@ -374,17 +405,28 @@ describe("Testing Revoke Lambda", () => {
         TEST_KID,
         TEST_CLIENT_ID_TOKEN,
         JWKS_SIGNING_KEY,
+        403,
+        "FORBIDDEN",
       ],
     ])(
-      "Returns 401 with correct descriptions",
-      async (event, errorDescription, request, kid, clientId, signingKey) => {
+      "Returns correct status codes with correct descriptions",
+      async (
+        event,
+        errorDescription,
+        request,
+        kid,
+        clientId,
+        signingKey,
+        expectedStatusCode,
+        expectedError,
+      ) => {
         const result = await handler(event, mockContext);
 
         expect(result).toStrictEqual({
           headers: { "Content-Type": "application/json" },
-          statusCode: 401,
+          statusCode: expectedStatusCode,
           body: JSON.stringify({
-            error: "UNAUTHORISED",
+            error: expectedError,
             error_description: errorDescription,
           }),
         });
@@ -395,8 +437,8 @@ describe("Testing Revoke Lambda", () => {
           signingKey,
           kid,
           request,
-          "401",
-          "UNAUTHORISED",
+          expectedStatusCode.toString(),
+          expectedError,
         );
       },
     );

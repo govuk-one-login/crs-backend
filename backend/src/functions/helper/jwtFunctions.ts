@@ -249,8 +249,8 @@ async function validateJWT(
       isValid: false,
       signingKey: ecPublicKey,
       matchingClientEntry: matchingClientEntry,
-      error: unauthorizedResponse(
-        `No matching Key ID found in JWKS Endpoint for Kid:  ${jsonHeader.kid}`,
+      error: badRequestResponse(
+        `Could not import public key for Kid:  ${jsonHeader.kid}`,
       ),
     };
   }
