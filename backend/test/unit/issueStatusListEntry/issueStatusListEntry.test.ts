@@ -41,6 +41,9 @@ import {
   ISSUE_JWT_WITH_NON_MATCHING_CLIENT_ID,
   ISSUE_JWT_WITH_NON_MATCHING_KID,
   ISSUE_JWT_WITH_NON_VERIFIED_SIGNATURE,
+  ISSUE_JWT_WITH_NO_TYP,
+  ISSUE_JWT_WITH_INVALID_TYP,
+  ISSUE_JWT_WITH_WRONG_ALG,
   PUBLIC_KEY,
   TEST_KID,
   TEST_NON_MATCHING_KID,
@@ -303,6 +306,27 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         TEST_KID,
         "",
       ],
+      [
+        buildRequest({ body: ISSUE_JWT_WITH_NO_TYP }),
+        "No Type in Header",
+        ISSUE_JWT_WITH_NO_TYP,
+        TEST_KID,
+        TEST_CLIENT_ID_BITSTRING,
+      ],
+      [
+        buildRequest({ body: ISSUE_JWT_WITH_INVALID_TYP }),
+        "Invalid Type in Header",
+        ISSUE_JWT_WITH_INVALID_TYP,
+        TEST_KID,
+        TEST_CLIENT_ID_BITSTRING,
+      ],
+      [
+        buildRequest({ body: ISSUE_JWT_WITH_WRONG_ALG }),
+        "Invalid Algorithm in Header",
+        ISSUE_JWT_WITH_WRONG_ALG,
+        TEST_KID,
+        TEST_CLIENT_ID_BITSTRING,
+      ],
     ])(
       "Returns 400 with correct descriptions",
       async (event, errorDescription, request, kid, clientId: string) => {
@@ -354,6 +378,8 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         "DAkekdNSkekSNljrwevOIUPenGeS",
         TEST_NON_MATCHING_KID,
         EMPTY_SIGNING_KEY,
+        401,
+        "UNAUTHORISED",
       ],
       [
         buildRequest({ body: ISSUE_JWT_WITH_NON_MATCHING_KID }),
@@ -362,6 +388,8 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         TEST_CLIENT_ID_TOKEN,
         TEST_NON_MATCHING_KID,
         EMPTY_SIGNING_KEY,
+        400,
+        "BAD_REQUEST",
       ],
       [
         buildRequest({ body: ISSUE_JWT_WITH_NON_VERIFIED_SIGNATURE }),
@@ -370,9 +398,11 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         TEST_CLIENT_ID_TOKEN,
         TEST_KID,
         JWKS_SIGNING_KEY,
+        403,
+        "FORBIDDEN",
       ],
     ])(
-      "Returns 401 with correct descriptions",
+      "Returns correct status codes with correct descriptions",
       async (
         event,
         errorDescription,
@@ -380,14 +410,16 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         clientId: string,
         kid: string,
         signingKey: string,
+        expectedStatusCode: number,
+        expectedError: string,
       ) => {
         result = await handler(event, context);
 
         expect(result).toStrictEqual({
           headers: { "Content-Type": "application/json" },
-          statusCode: 401,
+          statusCode: expectedStatusCode,
           body: JSON.stringify({
-            error: "UNAUTHORISED",
+            error: expectedError,
             error_description: errorDescription,
           }),
         });
@@ -397,8 +429,8 @@ describe("Testing IssueStatusListEntry Lambda", () => {
           signingKey,
           kid,
           request,
-          "401",
-          "UNAUTHORISED",
+          expectedStatusCode.toString(),
+          expectedError,
         );
         expect(mockDBClient.commandCalls(PutItemCommand)).toHaveLength(0);
       },

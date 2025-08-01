@@ -42,6 +42,19 @@ export const unauthorizedResponse = (
   };
 };
 
+export const forbiddenResponse = (
+  errorDescription: string,
+): APIGatewayProxyResult => {
+  return {
+    headers: { "Content-Type": "application/json" },
+    statusCode: 403,
+    body: JSON.stringify({
+      error: "FORBIDDEN",
+      error_description: errorDescription,
+    }),
+  };
+};
+
 export const notFoundResponse = (
   errorDescription: string,
 ): APIGatewayProxyResult => {
