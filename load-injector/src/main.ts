@@ -2,6 +2,9 @@ import {DynamoDBClient, DynamoDBClientConfig, PutItemCommand, PutItemCommandInpu
 
 const LOCAL_TABLE_NAME = "backend-crs-ddunford-StatusListTable"
 const GLOBAL_TABLE_NAME = "backend-crs-ddunford-StatusListGlobalTable"
+const GLOBAL_TABLE_NAME_PARIS = "backend-crs-ddunford-StatusListGlobalTableParis"
+const GLOBAL_TABLE_NAME_EC = "backend-crs-ddunford-StatusListGlobalTableEC"
+const START_INDEX = 7000;
 const MAX_SOCKETS = 100;
 const MAX_HTTPS_TIMEOUT_IN_MS = 10000;
 const MAX_ATTEMPTS = 10;
@@ -56,12 +59,38 @@ const insertItemsIntoTable = async (tableName: string, numberOfItemsToInsert: nu
 }
 
 const runTest = async () => {
+
+  // PutItem into Local Table
   console.log("Starting Local Insert")
   const startTimeLocal = new Date();
-  await insertItemsIntoTable(GLOBAL_TABLE_NAME, 1000, 2000)
+  await insertItemsIntoTable(LOCAL_TABLE_NAME, 1000, START_INDEX)
   const endTimeLocal = new Date();
-  const elapsedSeconds = (endTimeLocal.getTime() - startTimeLocal.getTime()) / 1000;
-  console.log(`Completed in ${elapsedSeconds} seconds`);
+  const elapsedSecondsLocal = (endTimeLocal.getTime() - startTimeLocal.getTime()) / 1000;
+  console.log(`Completed in ${elapsedSecondsLocal} seconds`);
+
+  // PutItem into Global Table with MRSC
+  console.log("Starting Global Insert")
+  const startTimeGlobal = new Date();
+  await insertItemsIntoTable(GLOBAL_TABLE_NAME, 1000, START_INDEX)
+  const endTimeGlobal = new Date();
+  const elapsedSecondsGlobal = (endTimeGlobal.getTime() - startTimeGlobal.getTime()) / 1000;
+  console.log(`Completed in ${elapsedSecondsGlobal} seconds`);
+
+  // PutItem into Global Table with MRSC in Paris
+  console.log("Starting Global Insert with Paris")
+  const startTimeGlobalParis = new Date();
+  await insertItemsIntoTable(GLOBAL_TABLE_NAME_PARIS, 1000, START_INDEX)
+  const endTimeGlobalParis = new Date();
+  const elapsedSecondsGlobalParis = (endTimeGlobalParis.getTime() - startTimeGlobalParis.getTime()) / 1000;
+  console.log(`Completed in ${elapsedSecondsGlobalParis} seconds`);
+
+  // PutItem into Global Table with MREC in Dublin
+  console.log("Starting Global Insert with Dublin MREC")
+  const startTimeGlobalEc = new Date();
+  await insertItemsIntoTable(GLOBAL_TABLE_NAME_EC, 1000, START_INDEX)
+  const endTimeGlobalEd = new Date();
+  const elapsedSecondsGlobalEc = (endTimeGlobalEd.getTime() - startTimeGlobalEc.getTime()) / 1000;
+  console.log(`Completed in ${elapsedSecondsGlobalEc} seconds`);
 }
 
 runTest().then(() => {
