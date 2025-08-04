@@ -145,6 +145,35 @@ Mappings:
     production:
       ApiBurstLimit: 0
       ApiRateLimit: 0
+  
+  ProxyApigw:
+    dev:
+      ApiBurstLimit: 10
+      ApiRateLimit: 10
+    build:
+      ApiBurstLimit: 10
+      ApiRateLimit: 10
+    staging:
+      ApiBurstLimit: 10
+      ApiRateLimit: 10
+    integration:
+      ApiBurstLimit: 0
+      ApiRateLimit: 0
+    production:
+      ApiBurstLimit: 0
+      ApiRateLimit: 0
+  
+  DNS:
+    build:
+      BaseDns: crs.build.account.gov.uk
+    dev:
+      BaseDns: crs.dev.account.gov.uk
+    integration:
+      BaseDns: crs.integration.account.gov.uk
+    production:
+      BaseDns: crs.account.gov.uk
+    staging:
+      BaseDns: crs.staging.account.gov.uk
 
   StaticVariables:
     urls:
@@ -159,10 +188,31 @@ Conditions:
     - !Equals
       - !Ref DeployAlarmsInDev
       - true
+  
+  DeployProxyAlarms: !And
+    - !Condition DeployAlarms
+    - !Condition ProxyApiDeployment
+  
+  ProxyApiDeployment: !Or
+    - !Equals
+      - !Ref Environment
+      - dev
+    - !Equals
+      - !Ref Environment
+      - build
 
   IsDevEnvironment: !Equals
     - !Ref Environment
     - dev
+  
+  DevelopmentStack: !And
+    - !Equals
+      - !Ref Environment
+      - dev
+    - !Not
+      - !Equals
+        - !Ref AWS::StackName
+        - crs-backend
 
   UsePermissionsBoundary: !Not
     - !Equals
@@ -1992,6 +2042,96 @@ Resources:
         - LogRetention
         - !Ref Environment
         - RetentionPeriod
+
+# Proxy API Gateway
+  ProxyApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub ${AWS::StackName}-private-api
+      Description: Public API gateway for Index Issuance flow
+      # AlwaysDeploy: true
+      StageName: !Ref Environment
+      OpenApiVersion: 3.0.0
+      AccessLogSetting:
+        # DestinationArn: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${CrsPrivateApiAccessLogs}
+        DestinationArn: !GetAtt CrsProxyApiAccessLogs.Arn
+        Format: '{ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "caller":"$context.identity.caller", "user":"$context.identity.user","requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath", "status":"$context.status","protocol":"$context.protocol", "responseLength":"$context.responseLength" }'
+        # In Async private and proxy accesslogs format are different
+      MethodSettings:
+        - LoggingLevel: INFO
+          ResourcePath: /*
+          HttpMethod: '*'
+          DataTraceEnabled: false
+          MetricsEnabled: true
+          ThrottlingBurstLimit: !FindInMap
+            - ProxyApigw
+            - !Ref Environment
+            - ApiBurstLimit
+          ThrottlingRateLimit: !FindInMap
+            - ProxyApigw
+            - !Ref Environment
+            - ApiRateLimit
+      DefinitionBody:
+        Fn::Transform:
+          Name: AWS::Include
+          Parameters:
+            Location: ./openApiSpecs/crs-public-spec.yaml
+  
+  # Do we want to rename this and log group for private apigateway to remove Crs?
+  CrsProxyApiAccessLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/apigateway/${AWS::StackName}-proxy-api-access-logs
+      RetentionInDays: !FindInMap
+        - LogRetention
+        - !Ref Environment
+        - RetentionPeriod
+  
+  ProxyApiBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Properties:
+      DomainName: !Ref ProxyApiDomainName
+      RestApiId: !Ref ProxyApi
+      Stage: !Ref ProxyApi.Stage
+    Condition: ProxyApiDeployment
+
+  ProxyApiDomainName:
+    Type: AWS::ApiGateway::DomainName
+    Properties:
+      DomainName: !If
+        - DevelopmentStack
+        - !Sub
+          - proxy-${AWS::StackName}.${DNS_RECORD}
+          - DNS_RECORD: !FindInMap
+              - DNS
+              - !Ref Environment
+              - BaseDns
+        - !Sub
+          - proxy.${DNS_RECORD}
+          - DNS_RECORD: !FindInMap
+              - DNS
+              - !Ref Environment
+              - BaseDns
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      RegionalCertificateArn: !If
+        - DevelopmentStack
+        - !Sub '{{resolve:ssm:/${Environment}/Platform/ACM/AsyncPrimaryZoneWildcardCertificateV1ARN}}'
+        - !Sub '{{resolve:ssm:/${Environment}/Platform/ACM/AsyncPrimaryZoneProxyCertificateV2ARN}}'
+      SecurityPolicy: TLS_1_2
+    Condition: ProxyApiDeployment
+
+  ProxyApiRecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        DNSName: !GetAtt ProxyApiDomainName.RegionalDomainName
+        HostedZoneId: !GetAtt ProxyApiDomainName.RegionalHostedZoneId
+      HostedZoneId: !Sub '{{resolve:ssm:/${Environment}/Platform/Route53/PrimaryZoneID}}'
+      Name: !Ref ProxyApiDomainName
+      Type: A
+    Condition: ProxyApiDeployment
 
   # Available Slots SQS Queues (Bitstring and Token Status)
   BitstringAvailableSlotsEncryptionKey:
