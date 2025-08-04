@@ -327,6 +327,13 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         TEST_KID,
         TEST_CLIENT_ID_BITSTRING,
       ],
+      [
+        buildRequest({ body: ISSUE_JWT_WITH_NON_MATCHING_KID }),
+        `No matching Key ID found in JWKS Endpoint for Kid: ${TEST_NON_MATCHING_KID}`,
+        ISSUE_JWT_WITH_NON_MATCHING_KID,
+        TEST_NON_MATCHING_KID,
+        TEST_CLIENT_ID_TOKEN,
+      ],
     ])(
       "Returns 400 with correct descriptions",
       async (event, errorDescription, request, kid, clientId: string) => {
@@ -369,7 +376,7 @@ describe("Testing IssueStatusListEntry Lambda", () => {
     });
   });
 
-  describe("Unauthorized Request Error Scenarios", () => {
+  describe("Forbidden or Unauthorized Request Error Scenarios", () => {
     test.each([
       [
         buildRequest({ body: ISSUE_JWT_WITH_NON_MATCHING_CLIENT_ID }),
@@ -380,16 +387,6 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         EMPTY_SIGNING_KEY,
         401,
         "UNAUTHORISED",
-      ],
-      [
-        buildRequest({ body: ISSUE_JWT_WITH_NON_MATCHING_KID }),
-        `No matching Key ID found in JWKS Endpoint for Kid: ${TEST_NON_MATCHING_KID}`,
-        ISSUE_JWT_WITH_NON_MATCHING_KID,
-        TEST_CLIENT_ID_TOKEN,
-        TEST_NON_MATCHING_KID,
-        EMPTY_SIGNING_KEY,
-        400,
-        "BAD_REQUEST",
       ],
       [
         buildRequest({ body: ISSUE_JWT_WITH_NON_VERIFIED_SIGNATURE }),

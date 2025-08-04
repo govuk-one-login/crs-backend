@@ -336,6 +336,14 @@ describe("Testing Revoke Lambda", () => {
         "",
         JWKS_SIGNING_KEY,
       ],
+      [
+        buildRequest({ body: REVOKE_JWT_WITH_NON_MATCHING_KID }),
+        `No matching Key ID found in JWKS Endpoint for Kid: ${TEST_NON_MATCHING_KID}`,
+        REVOKE_JWT_WITH_NON_MATCHING_KID,
+        TEST_NON_MATCHING_KID,
+        TEST_CLIENT_ID_BITSTRING,
+        EMPTY_SIGNING_KEY,
+      ],
     ])(
       "Returns 400 with correct descriptions",
       async (event, errorDescription, request, kid, clientId, signingKey) => {
@@ -376,7 +384,7 @@ describe("Testing Revoke Lambda", () => {
     });
   });
 
-  describe("Unauthorized Request Error Scenarios", () => {
+  describe("Forbidden or Unauthorized Request Error Scenarios", () => {
     test.each([
       [
         buildRequest({ body: REVOKE_JWT_WITH_NON_MATCHING_CLIENT_ID }),
@@ -387,16 +395,6 @@ describe("Testing Revoke Lambda", () => {
         EMPTY_SIGNING_KEY,
         401,
         "UNAUTHORISED",
-      ],
-      [
-        buildRequest({ body: REVOKE_JWT_WITH_NON_MATCHING_KID }),
-        `No matching Key ID found in JWKS Endpoint for Kid: ${TEST_NON_MATCHING_KID}`,
-        REVOKE_JWT_WITH_NON_MATCHING_KID,
-        TEST_NON_MATCHING_KID,
-        TEST_CLIENT_ID_BITSTRING,
-        EMPTY_SIGNING_KEY,
-        400,
-        "BAD_REQUEST",
       ],
       [
         buildRequest({ body: REVOKE_JWT_WITH_NON_VERIFIED_SIGNATURE }),
