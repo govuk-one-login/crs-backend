@@ -193,6 +193,10 @@ Conditions:
     - !Condition DeployAlarms
     - !Condition ProxyApiDeployment
   
+  DeployProxyCsls: !And
+    - !Condition ProxyApiDeployment
+    - !Condition isNotDev
+  
   ProxyApiDeployment: !Or
     - !Equals
       - !Ref Environment
@@ -2075,7 +2079,8 @@ Resources:
         Fn::Transform:
           Name: AWS::Include
           Parameters:
-            Location: ./openApiSpecs/crs-public-spec.yaml
+            Location: ./openApiSpecs/crs-proxy-private-spec.yaml
+            #  this will only work once scripting process has been implemented
   
   # Do we want to rename this and log group for private apigateway to remove Crs?
   CrsProxyApiAccessLogs:
@@ -2132,6 +2137,132 @@ Resources:
       Name: !Ref ProxyApiDomainName
       Type: A
     Condition: ProxyApiDeployment
+
+  ProxyApiSubscriptionFilter:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !FindInMap
+        - CslsConfiguration
+        - !Ref Environment
+        - CSLSEGRESS
+      FilterPattern: ""
+      LogGroupName: !Ref ProxyApiAccessLogs
+    Condition: DeployProxyCsls
+
+  ProxyLambda:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - ProxyLambdaLogGroup
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+          - src/functions/proxy/proxyHandler.ts
+        Minify: true
+        Sourcemap: false
+        Target: es2022
+    Properties:
+      Environment:
+        Variables:
+          PRIVATE_API_URL: !Sub https://${PrivateApi.RestApiId}.execute-api.eu-west-2.amazonaws.com/${Environment}
+      FunctionName: !Sub ${AWS::StackName}-proxy-lambda
+      Handler: proxyHandler.lambdaHandler
+      Role: !GetAtt ProxyLambdaRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-AWSServicesEndpointSecurityGroupId
+        SubnetIds:
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-ProtectedSubnetIdA
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-ProtectedSubnetIdB
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-ProtectedSubnetIdC
+    Condition: ProxyApiDeployment
+
+  ProxyLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-proxy-lambda
+      RetentionInDays: !FindInMap
+        - LogRetention
+        - !Ref Environment
+        - RetentionPeriod
+    Condition: ProxyApiDeployment
+  
+  ProxyLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt ProxyLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceAccount: !Sub ${AWS::AccountId}
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ProxyApi}/*/*/*
+    Condition: ProxyApiDeployment
+  
+  ProxyLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+        Version: "2012-10-17"
+      PermissionsBoundary: !If
+        - UsePermissionsBoundary
+        - !Ref PermissionsBoundary
+        - !Ref AWS::NoValue
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Effect: Allow
+                Resource: !GetAtt ProxyLambdaLogGroup.Arn
+            Version: "2012-10-17"
+          PolicyName: ProxyFunctionLoggingPolicy
+        - PolicyDocument:
+            Statement:
+              - Action:
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:CreateNetworkInterface
+                  - ec2:DeleteNetworkInterface
+                Effect: Allow
+                Resource: '*'
+            Version: "2012-10-17"
+          PolicyName: VpcPolicy
+      RoleName: !Sub ${AWS::StackName}-proxy-lambda-role
+    Condition: ProxyApiDeployment
+  
+  ProxyLambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Lambda Security group ruleset.
+      GroupName: !Sub ${AWS::StackName}-proxy-sg
+      SecurityGroupEgress:
+        - CidrIp: !ImportValue devplatform-vpc-VpcCidr
+          Description: TCP HTTPS outbound to vpc.
+          FromPort: 443
+          IpProtocol: tcp
+          ToPort: 443
+      VpcId: !ImportValue devplatform-vpc-VpcId
+    Condition: ProxyApiDeployment
+  
+  ProxyLambdaSubscriptionFilter:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !FindInMap
+        - CslsConfiguration
+        - !Ref Environment
+        - CSLSEGRESS
+      FilterPattern: ""
+      LogGroupName: !Ref ProxyLambdaLogGroup
+    Condition: DeployProxyCsls
 
   # Available Slots SQS Queues (Bitstring and Token Status)
   BitstringAvailableSlotsEncryptionKey:
