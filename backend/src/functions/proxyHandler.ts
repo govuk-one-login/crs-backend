@@ -66,6 +66,7 @@ export async function handler(
         },
       },
     );
+    logger.info("PROXY_LAMBDA_AXIOS_RESPONSE", { response: response });
 
     logger.info(LogMessage.PROXY_LAMBDA_COMPLETED);
     return {

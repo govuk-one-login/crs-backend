@@ -2009,6 +2009,12 @@ Resources:
       Name: !Sub ${AWS::StackName}-private-api
       Description: Private API gateway for Index Issuance flow
       AlwaysDeploy: true
+      EndpointConfiguration:
+        Type: PRIVATE
+      Auth:
+        ResourcePolicy:
+          IntrinsicVpceWhitelist:
+            - !ImportValue devplatform-vpc-ExecuteApiGatewayEndpointId
       StageName: !Ref Environment
       OpenApiVersion: 3.0.0
       AccessLogSetting:
@@ -2061,8 +2067,8 @@ Resources:
   ProxyApi:
     Type: AWS::Serverless::Api
     Properties:
-      Name: !Sub ${AWS::StackName}-private-api
-      Description: Public API gateway for Index Issuance flow
+      Name: !Sub ${AWS::StackName}-proxy-api
+      Description: Proxy API gateway for Index Issuance flow
       StageName: !Ref Environment
       OpenApiVersion: 3.0.0
       AccessLogSetting:
