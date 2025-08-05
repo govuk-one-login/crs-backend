@@ -20,12 +20,10 @@ Run the following commands:
 
 stack_name="<your-stack-name-here>"
 
-sam build --cached --parallel
-
-sam deploy \
+sam build --cached --parallel && sam deploy \
   --stack-name "${stack_name}" \
   --resolve-s3 \
-  --capabilities CAPABILITY_IAM
+  --capabilities 'CAPABILITY_NAMED_IAM'
 ```
 
 ## Architecture

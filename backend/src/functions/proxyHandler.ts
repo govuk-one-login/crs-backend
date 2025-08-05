@@ -4,43 +4,39 @@ import {
   APIGatewayProxyResult,
   Context,
 } from "aws-lambda";
-import { dependencies, IMockProxyDependencies } from "./handlerDependencies";
-import { getProxyConfig } from "./proxyConfig";
+import { logger } from "../common/logging/logger";
+import { LogMessage } from "../common/logging/LogMessages";
+import axios, { AxiosResponseHeaders, RawAxiosResponseHeaders } from "axios";
+
+// TODO: Implement strong env var checking.
+const ENV = {
+  PRIVATE_API_URL: process.env.PRIVATE_API_URL ?? ""
+};
 
 export type StandardisedHeaders = {
   [key in string]: string | number | boolean;
 };
 
-export async function lambdaHandlerConstructor(
-  dependencies: IMockProxyDependencies,
-  event: APIGatewayProxyEvent,
-  context: Context,
-): Promise<APIGatewayProxyResult> {
-  const logger = dependencies.logger();
+export async function handler(event: APIGatewayProxyEvent,
+  context: Context): Promise<APIGatewayProxyResult> {
   logger.addContext(context);
-  logger.log("STARTED");
-
-  const configResult = getProxyConfig(dependencies.env, logger);
-  if (configResult.isError) {
-    return internalServerErrorResponse;
-  }
-
-  const config = configResult.value;
+  logger.info(LogMessage.PROXY_LAMBDA_STARTED);
 
   const { path } = event;
-  const allowedPaths = ["/async/token", "/async/credential"];
+  const allowedPaths = ["/issue"];
 
   if (!allowedPaths.includes(path)) {
-    logger.log("UNEXPECTED_PATH", {
+    logger.error(LogMessage.PROXY_UNEXPECTED_PATH, {
       errorMessage: "Path is not one of the permitted values",
     });
     return internalServerErrorResponse;
   }
 
+
   const method = event.httpMethod;
 
   if (method !== "POST") {
-    logger.log("UNEXPECTED_HTTP_METHOD", {
+    logger.error(LogMessage.PROXY_UNEXPECTED_HTTP_METHOD, {
       errorMessage: "API method is not POST",
     });
     return internalServerErrorResponse;
@@ -49,35 +45,39 @@ export async function lambdaHandlerConstructor(
   const incomingHeaders = event.headers;
   const standardisedHeaders = standardiseAndStripApiGwHeaders(incomingHeaders);
 
-  const customAuthHeaderValue =
-    standardisedHeaders["X-Custom-Auth"] ??
-    standardisedHeaders["x-custom-auth"];
+  // Auth header not needed? Or is needed for sigv4?
+  // const customAuthHeaderValue =
+  //   standardisedHeaders["X-Custom-Auth"] ??
+  //   standardisedHeaders["x-custom-auth"];
 
-  if (customAuthHeaderValue) {
-    standardisedHeaders["Authorization"] = customAuthHeaderValue;
-  }
+  // if (customAuthHeaderValue) {
+  //   standardisedHeaders["Authorization"] = customAuthHeaderValue;
+  // }
 
-  const proxyRequestService = dependencies.proxyRequestService();
-  const proxyRequestResult = await proxyRequestService.makeProxyRequest({
-    backendApiUrl: config.PRIVATE_API_URL,
-    body: event.body,
-    path,
-    headers: standardisedHeaders,
-    method,
-  });
-  if (proxyRequestResult.isError) {
-    logger.log("PROXY_REQUEST_ERROR", {
-      errorMessage: proxyRequestResult.value.errorMessage,
+  try {
+    const response = await axios.post(
+      `${ENV.PRIVATE_API_URL}${path}`,
+      event.body,
+      {
+        headers: standardisedHeaders,
+        validateStatus: (status: number) => { return status < 600; }
+      },
+    );
+
+    logger.info(LogMessage.PROXY_LAMBDA_COMPLETED);
+    return {
+      statusCode: response.status,
+      body: JSON.stringify(response.data),
+      headers: standardiseAxiosHeaders(response.headers),
+    };
+  } catch {
+    logger.error(LogMessage.PROXY_REQUEST_ERROR, {
+      errorMessage: "Error sending network request",
     });
-
     return internalServerErrorResponse;
+
   }
-
-  logger.log("COMPLETED");
-  return proxyRequestResult.value;
 }
-
-export const lambdaHandler = lambdaHandlerConstructor.bind(null, dependencies);
 
 const standardiseAndStripApiGwHeaders = (
   apiGwHeaders: APIGatewayProxyEventHeaders,
@@ -104,7 +104,27 @@ const standardiseAndStripApiGwHeaders = (
   return standardisedHeaders;
 };
 
-const internalServerErrorResponse = {
+
+const standardiseAxiosHeaders = (
+  axiosResponseHeaders: RawAxiosResponseHeaders | AxiosResponseHeaders,
+): StandardisedHeaders => {
+  const standardisedHeaders: StandardisedHeaders = {};
+  const headerKeys = Object.keys(axiosResponseHeaders);
+  headerKeys.forEach((headerKey) => {
+    const headerValue = axiosResponseHeaders[headerKey];
+    if (
+      typeof headerValue === "string" ||
+      typeof headerValue === "number" ||
+      typeof headerValue === "boolean"
+    ) {
+      standardisedHeaders[headerKey] = headerValue;
+    }
+  });
+
+  return standardisedHeaders;
+};
+
+const internalServerErrorResponse: APIGatewayProxyResult = {
   headers: {
     "Content-Type": "application/json",
   },

@@ -180,7 +180,6 @@ Mappings:
   #     BaseDns: crs.account.gov.uk
   #   staging:
   #     BaseDns: crs.staging.account.gov.uk
-
   StaticVariables:
     urls:
       WarningAlarmsRunbook: https://govukverify.atlassian.net/wiki/spaces/DCMAW/pages/5435195529/Alarm+Runbook+Warnings+-+In+Progress
@@ -2064,14 +2063,23 @@ Resources:
     Properties:
       Name: !Sub ${AWS::StackName}-private-api
       Description: Public API gateway for Index Issuance flow
-      # AlwaysDeploy: true
       StageName: !Ref Environment
       OpenApiVersion: 3.0.0
       AccessLogSetting:
-        # DestinationArn: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${CrsPrivateApiAccessLogs}
         DestinationArn: !GetAtt CrsProxyApiAccessLogs.Arn
-        Format: '{ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "caller":"$context.identity.caller", "user":"$context.identity.user","requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath", "status":"$context.status","protocol":"$context.protocol", "responseLength":"$context.responseLength" }'
-        # In Async private and proxy accesslogs format are different
+        Format: '{ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "caller":"$context.identity.caller", "user":"$context.identity.user","requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath", "status":"$context.status","protocol":"$context.protocol", "responseLength":"$context.responseLength" }' # In Async private and proxy accesslogs format are different
+      Auth:
+        ApiKeyRequired: false
+        DefaultAuthorizer: AWS_IAM
+        ResourcePolicy:
+          CustomStatements:
+            - Action:
+                - execute-api:Invoke
+              Effect: Allow
+              Principal:
+                AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+              Resource: !Sub execute-api:/*
+              Sid: AllowAccountAccessToAllEndpoints
       MethodSettings:
         - LoggingLevel: INFO
           ResourcePath: /*
@@ -2090,11 +2098,13 @@ Resources:
         Fn::Transform:
           Name: AWS::Include
           Parameters:
-            Location: ./openApiSpecs/crs-proxy-private-spec.yaml
-            #  this will only work once scripting process has been implemented
+            Location: ./openApiSpecs/crs-proxy-private-spec.yaml #  this will only work once scripting process has been implemented
+    Condition: ProxyApiDeployment
 
   # Do we want to rename this and log group for private apigateway to remove Crs?
   CrsProxyApiAccessLogs:
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /aws/apigateway/${AWS::StackName}-proxy-api-access-logs
@@ -2114,27 +2124,29 @@ Resources:
   ProxyApiDomainName:
     Type: AWS::ApiGateway::DomainName
     Properties:
-      DomainName: !If
-        - DevelopmentStack
-        - !Sub
-          - proxy-${AWS::StackName}.${DNS_RECORD}
-          - DNS_RECORD: !FindInMap
-              - DNS
-              - !Ref Environment
-              - BaseDns
-        - !Sub
-          - proxy.${DNS_RECORD}
-          - DNS_RECORD: !FindInMap
-              - DNS
-              - !Ref Environment
-              - BaseDns
+      DomainName: !Sub
+        - ${dnsPrefix}${dnsSuffix}
+        - dnsPrefix: !If
+            - StackNameIsCrsBackend
+            - "proxy."
+            - !Sub proxy-${AWS::StackName}.
+          dnsSuffix: !FindInMap
+            - EnvironmentVariables
+            - !Ref Environment
+            - dnsSuffix
       EndpointConfiguration:
         Types:
           - REGIONAL
       RegionalCertificateArn: !If
-        - DevelopmentStack
-        - !Sub '{{resolve:ssm:/${Environment}/Platform/CRSPrimaryZoneWildcardCertificateV1ARN}}'
-        - !Sub '{{resolve:ssm:/${Environment}/Platform/ACM/CRSPrimaryZoneProxyCertificateV2ARN}}'
+        - StackNameIsCrsBackend
+        - !FindInMap
+          - EnvironmentVariables
+          - !Ref Environment
+          - CertificateArnV1EuWest2
+        - !FindInMap
+          - EnvironmentVariables
+          - dev
+          - CertificateWildcardArnV1EuWest2
       SecurityPolicy: TLS_1_2
     Condition: ProxyApiDeployment
 
@@ -2157,7 +2169,7 @@ Resources:
         - !Ref Environment
         - CSLSEGRESS
       FilterPattern: ""
-      LogGroupName: !Ref ProxyApiAccessLogs
+      LogGroupName: !Ref CrsProxyApiAccessLogs
     Condition: DeployProxyCsls
 
   ProxyLambda:
@@ -2177,22 +2189,37 @@ Resources:
         Variables:
           PRIVATE_API_URL: !Sub https://${PrivateApi.RestApiId}.execute-api.eu-west-2.amazonaws.com/${Environment}
       FunctionName: !Sub ${AWS::StackName}-proxy-lambda
-      Handler: proxyHandler.lambdaHandler
+      Handler: src/functions/proxyHandler.handler
       Role: !GetAtt ProxyLambdaRole.Arn
       VpcConfig:
         SecurityGroupIds:
-          - !ImportValue
-            Fn::Sub: ${VpcStackName}-AWSServicesEndpointSecurityGroupId
+          - !Ref ProxyLambdaSecurityGroup
         SubnetIds:
           - !ImportValue
-            Fn::Sub: ${VpcStackName}-ProtectedSubnetIdA
+            Fn::Sub: ${VpcStackName}-PrivateSubnetIdA
           - !ImportValue
-            Fn::Sub: ${VpcStackName}-ProtectedSubnetIdB
+            Fn::Sub: ${VpcStackName}-PrivateSubnetIdB
           - !ImportValue
-            Fn::Sub: ${VpcStackName}-ProtectedSubnetIdC
+            Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
+    Condition: ProxyApiDeployment
+
+  ProxyLambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Lambda Security group ruleset.
+      GroupName: !Sub ${AWS::StackName}-proxy-sg
+      SecurityGroupEgress:
+        - CidrIp: !ImportValue devplatform-vpc-VpcCidr
+          Description: TCP HTTPS outbound to vpc.
+          FromPort: 443
+          IpProtocol: tcp
+          ToPort: 443
+      VpcId: !ImportValue devplatform-vpc-VpcId
     Condition: ProxyApiDeployment
 
   ProxyLambdaLogGroup:
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /aws/lambda/${AWS::StackName}-proxy-lambda
@@ -2248,20 +2275,6 @@ Resources:
             Version: "2012-10-17"
           PolicyName: VpcPolicy
       RoleName: !Sub ${AWS::StackName}-proxy-lambda-role
-    Condition: ProxyApiDeployment
-
-  ProxyLambdaSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Lambda Security group ruleset.
-      GroupName: !Sub ${AWS::StackName}-proxy-sg
-      SecurityGroupEgress:
-        - CidrIp: !ImportValue devplatform-vpc-VpcCidr
-          Description: TCP HTTPS outbound to vpc.
-          FromPort: 443
-          IpProtocol: tcp
-          ToPort: 443
-      VpcId: !ImportValue devplatform-vpc-VpcId
     Condition: ProxyApiDeployment
 
   ProxyLambdaSubscriptionFilter:

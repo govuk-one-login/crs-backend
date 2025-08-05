@@ -140,3 +140,4 @@ docker-vars.env
 
 #Mock data files
 src/mockData/*
+backend/openApiSpecs/crs-proxy-private-spec.yaml
