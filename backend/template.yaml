@@ -50,24 +50,30 @@ Parameters:
 Mappings:
   EnvironmentVariables:
     dev:
+      CertificateArnV1EuWest2: arn:aws:acm:eu-west-2:537124944731:certificate/45d0b59a-aebc-4e86-a36a-63d0624168e7
       CertificateArnV1UsEast1: arn:aws:acm:us-east-1:537124944731:certificate/b0322e50-f75b-4fa3-ac65-4a42ac2380d3
+      CertificateWildcardArnV1EuWest2: arn:aws:acm:eu-west-2:537124944731:certificate/bb585ec1-0343-42bf-98bf-59153247adac
       CertificateWildcardArnV1UsEast1: arn:aws:acm:us-east-1:537124944731:certificate/c1f3daa3-fa88-4cb2-b3cc-0d5ca43d8d80
       dnsSuffix: crs.dev.account.gov.uk
       LambdaLogLevel: DEBUG
     build:
       CertificateArnV1UsEast1: arn:aws:acm:us-east-1:881490088364:certificate/e913c6e7-1b41-4d5a-8731-6f026ea12b62
+      CertificateArnV1EuWest2: arn:aws:acm:eu-west-2:881490088364:certificate/30e09d51-fe2f-451e-ab87-7bd8ffd5257a
       dnsSuffix: crs.build.account.gov.uk
       LambdaLogLevel: INFO
     staging:
       CertificateArnV1UsEast1: arn:aws:acm:us-east-1:253490791635:certificate/2a8b32c4-9893-476b-a57f-881029f00db0
+      CertificateArnV1EuWest2: arn:aws:acm:eu-west-2:253490791635:certificate/fe34d1d6-2253-4234-bfe6-b5578019187e
       dnsSuffix: crs.staging.account.gov.uk
       LambdaLogLevel: INFO
     integration:
       CertificateArnV1UsEast1: PLACEHOLDER
+      CertificateArnV1EuWest2: PLACEHOLDER
       dnsSuffix: crs.integration.account.gov.uk
       LambdaLogLevel: INFO
     production:
       CertificateArnV1UsEast1: PLACEHOLDER
+      CertificateArnV1EuWest2: PLACEHOLDER
       dnsSuffix: crs.account.gov.uk
       LambdaLogLevel: INFO
 
@@ -145,7 +151,7 @@ Mappings:
     production:
       ApiBurstLimit: 0
       ApiRateLimit: 0
-  
+
   ProxyApigw:
     dev:
       ApiBurstLimit: 10
@@ -162,18 +168,18 @@ Mappings:
     production:
       ApiBurstLimit: 0
       ApiRateLimit: 0
-  
-  DNS:
-    build:
-      BaseDns: crs.build.account.gov.uk
-    dev:
-      BaseDns: crs.dev.account.gov.uk
-    integration:
-      BaseDns: crs.integration.account.gov.uk
-    production:
-      BaseDns: crs.account.gov.uk
-    staging:
-      BaseDns: crs.staging.account.gov.uk
+
+  # DNS:
+  #   build:
+  #     BaseDns: crs.build.account.gov.uk
+  #   dev:
+  #     BaseDns: crs.dev.account.gov.uk
+  #   integration:
+  #     BaseDns: crs.integration.account.gov.uk
+  #   production:
+  #     BaseDns: crs.account.gov.uk
+  #   staging:
+  #     BaseDns: crs.staging.account.gov.uk
 
   StaticVariables:
     urls:
@@ -188,16 +194,9 @@ Conditions:
     - !Equals
       - !Ref DeployAlarmsInDev
       - true
-  
-  DeployProxyAlarms: !And
-    - !Condition DeployAlarms
-    - !Condition ProxyApiDeployment
-  
-  DeployProxyCsls: !And
-    - !Condition ProxyApiDeployment
-    - !Condition isNotDev
-  
+
   # This condition was taken from Async but would mean out higher environments do not match build and dev, I'm not sure this is right...
+  # This is fine in this case. This is only to support the running of tests from a local machine.
   ProxyApiDeployment: !Or
     - !Equals
       - !Ref Environment
@@ -206,10 +205,21 @@ Conditions:
       - !Ref Environment
       - build
 
+  DeployProxyAlarms: !And
+    - !Condition DeployAlarms
+    - !Condition ProxyApiDeployment
+
+  DeployProxyCsls: !And
+    - !Condition ProxyApiDeployment
+    - !Not
+      - !Equals
+        - !Ref Environment
+        - dev
+
   IsDevEnvironment: !Equals
     - !Ref Environment
     - dev
-  
+
   DevelopmentStack: !And
     - !Equals
       - !Ref Environment
@@ -2048,7 +2058,7 @@ Resources:
         - !Ref Environment
         - RetentionPeriod
 
-# Proxy API Gateway
+  # Proxy API Gateway
   ProxyApi:
     Type: AWS::Serverless::Api
     Properties:
@@ -2082,7 +2092,7 @@ Resources:
           Parameters:
             Location: ./openApiSpecs/crs-proxy-private-spec.yaml
             #  this will only work once scripting process has been implemented
-  
+
   # Do we want to rename this and log group for private apigateway to remove Crs?
   CrsProxyApiAccessLogs:
     Type: AWS::Logs::LogGroup
@@ -2092,7 +2102,7 @@ Resources:
         - LogRetention
         - !Ref Environment
         - RetentionPeriod
-  
+
   ProxyApiBasePathMapping:
     Type: AWS::ApiGateway::BasePathMapping
     Properties:
@@ -2191,7 +2201,7 @@ Resources:
         - !Ref Environment
         - RetentionPeriod
     Condition: ProxyApiDeployment
-  
+
   ProxyLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -2201,7 +2211,7 @@ Resources:
       SourceAccount: !Sub ${AWS::AccountId}
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ProxyApi}/*/*/*
     Condition: ProxyApiDeployment
-  
+
   ProxyLambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -2239,7 +2249,7 @@ Resources:
           PolicyName: VpcPolicy
       RoleName: !Sub ${AWS::StackName}-proxy-lambda-role
     Condition: ProxyApiDeployment
-  
+
   ProxyLambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -2253,7 +2263,7 @@ Resources:
           ToPort: 443
       VpcId: !ImportValue devplatform-vpc-VpcId
     Condition: ProxyApiDeployment
-  
+
   ProxyLambdaSubscriptionFilter:
     Type: AWS::Logs::SubscriptionFilter
     Properties:
@@ -2264,7 +2274,7 @@ Resources:
       FilterPattern: ""
       LogGroupName: !Ref ProxyLambdaLogGroup
     Condition: DeployProxyCsls
-  
+
   ProxyLambdaThrottleAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
