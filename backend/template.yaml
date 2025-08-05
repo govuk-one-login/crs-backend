@@ -197,6 +197,7 @@ Conditions:
     - !Condition ProxyApiDeployment
     - !Condition isNotDev
   
+  # This condition was taken from Async but would mean out higher environments do not match build and dev, I'm not sure this is right...
   ProxyApiDeployment: !Or
     - !Equals
       - !Ref Environment
@@ -2263,6 +2264,36 @@ Resources:
       FilterPattern: ""
       LogGroupName: !Ref ProxyLambdaLogGroup
     Condition: DeployProxyCsls
+  
+  ProxyLambdaThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
+      AlarmDescription: !Sub
+        - 'Trigger an alarm if the Proxy Lambda throttles. See runbook: ${RunbookUrl}'
+        - RunbookUrl: !FindInMap
+            - StaticVariables
+            - urls
+            - WarningAlarmsRunbook
+      AlarmName: !Sub ${AWS::StackName}-proxy-lambda-throttle
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      DatapointsToAlarm: 1
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ProxyLambda
+      EvaluationPeriods: 1
+      InsufficientDataActions: []
+      MetricName: Throttles
+      Namespace: AWS/Lambda
+      OKActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
+      Period: 60
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
+    Condition: DeployProxyAlarms
 
   # Available Slots SQS Queues (Bitstring and Token Status)
   BitstringAvailableSlotsEncryptionKey:
