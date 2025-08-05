@@ -2128,7 +2128,7 @@ Resources:
         - ${dnsPrefix}${dnsSuffix}
         - dnsPrefix: !If
             - StackNameIsCrsBackend
-            - "proxy."
+            - proxy.
             - !Sub proxy-${AWS::StackName}.
           dnsSuffix: !FindInMap
             - EnvironmentVariables

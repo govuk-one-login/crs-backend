@@ -95,12 +95,11 @@ export class LogMessage implements LogAttributes {
     "N/A",
   );
 
-
   private constructor(
     public readonly messageCode: string,
     public readonly message: string,
     public readonly userImpact: string,
-  ) { }
+  ) {}
 
   [key: string]: string; // Index signature needed to implement LogAttributesWithMessage
 }

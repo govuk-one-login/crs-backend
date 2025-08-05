@@ -10,15 +10,17 @@ import axios, { AxiosResponseHeaders, RawAxiosResponseHeaders } from "axios";
 
 // TODO: Implement strong env var checking.
 const ENV = {
-  PRIVATE_API_URL: process.env.PRIVATE_API_URL ?? ""
+  PRIVATE_API_URL: process.env.PRIVATE_API_URL ?? "",
 };
 
 export type StandardisedHeaders = {
   [key in string]: string | number | boolean;
 };
 
-export async function handler(event: APIGatewayProxyEvent,
-  context: Context): Promise<APIGatewayProxyResult> {
+export async function handler(
+  event: APIGatewayProxyEvent,
+  context: Context,
+): Promise<APIGatewayProxyResult> {
   logger.addContext(context);
   logger.info(LogMessage.PROXY_LAMBDA_STARTED);
 
@@ -31,7 +33,6 @@ export async function handler(event: APIGatewayProxyEvent,
     });
     return internalServerErrorResponse;
   }
-
 
   const method = event.httpMethod;
 
@@ -60,7 +61,9 @@ export async function handler(event: APIGatewayProxyEvent,
       event.body,
       {
         headers: standardisedHeaders,
-        validateStatus: (status: number) => { return status < 600; }
+        validateStatus: (status: number) => {
+          return status < 600;
+        },
       },
     );
 
@@ -75,7 +78,6 @@ export async function handler(event: APIGatewayProxyEvent,
       errorMessage: "Error sending network request",
     });
     return internalServerErrorResponse;
-
   }
 }
 
@@ -103,7 +105,6 @@ const standardiseAndStripApiGwHeaders = (
 
   return standardisedHeaders;
 };
-
 
 const standardiseAxiosHeaders = (
   axiosResponseHeaders: RawAxiosResponseHeaders | AxiosResponseHeaders,
