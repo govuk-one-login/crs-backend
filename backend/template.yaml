@@ -2158,7 +2158,7 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         EntryPoints:
-          - src/functions/proxy/proxyHandler.ts
+          - src/functions/proxyHandler.ts
         Minify: true
         Sourcemap: false
         Target: es2022
