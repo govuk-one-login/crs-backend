@@ -8,15 +8,8 @@ import { parse, stringify } from 'yaml'
 const privateOpenApiSpec =  readFileSync('./openApiSpecs/crs-private-spec.yaml', 'utf8')
 const parsedYaml = parse(privateOpenApiSpec)
 
-
-// TODO: We could find all instances of `paths.${endpoint}.${method}.x-amazon-apigateway-integration.uri` and replace with our proxy function. But i think it is good to be explicit. 
 // Update proxy integration to point to the proxy lambda
 parsedYaml['paths']
 ['/issue']['post']['x-amazon-apigateway-integration']['uri']['Fn::Sub'] = "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProxyLambda}/invocations"
-
-// I don't think we need this as it is a specific async thing 
-// Add the X-Custom-Auth header to the schema. This is mapped in the proxy lambda to a Authorization header for requests to the private apigw
-// parsedYaml['paths']['/issue']['post']['parameters'] =  [{ name: "X-Custom-Auth", in: 'header', required: true, schema: {type: 'string'}}]
-// parsedYaml['paths']['/async/credential']['post']['parameters'] =  [{ name: "X-Custom-Auth", in: 'header', required: true, schema: {type: 'string'}}]
 
 writeFileSync("./openApiSpecs/crs-proxy-private-spec.yaml",stringify(parsedYaml))
