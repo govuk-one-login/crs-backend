@@ -78,7 +78,7 @@ export async function handler(
 
   const validationResult = await validateRevokingJWT(
     dynamoDBClient,
-    <string>event.body,
+    event.body,
     jsonPayload,
     jsonHeader,
     config,
@@ -97,7 +97,7 @@ export async function handler(
       revokeFailTXMAEvent(
         jsonPayload.iss,
         signingKeyString,
-        <string>event.body,
+        event.body,
         validationResult.error,
         jsonHeader.kid,
       ),
@@ -123,7 +123,7 @@ export async function handler(
       revokeSuccessTXMAEvent(
         jsonPayload.iss,
         signingKeyString,
-        <string>event.body,
+        event.body,
         jsonHeader.kid,
       ),
     );
@@ -139,7 +139,7 @@ export async function handler(
       revokeFailTXMAEvent(
         jsonPayload.iss,
         signingKeyString,
-        <string>event.body,
+        event.body,
         revocationError,
         jsonHeader.kid,
       ),
