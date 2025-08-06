@@ -169,17 +169,6 @@ Mappings:
       ApiBurstLimit: 0
       ApiRateLimit: 0
 
-  # DNS:
-  #   build:
-  #     BaseDns: crs.build.account.gov.uk
-  #   dev:
-  #     BaseDns: crs.dev.account.gov.uk
-  #   integration:
-  #     BaseDns: crs.integration.account.gov.uk
-  #   production:
-  #     BaseDns: crs.account.gov.uk
-  #   staging:
-  #     BaseDns: crs.staging.account.gov.uk
   StaticVariables:
     urls:
       WarningAlarmsRunbook: https://govukverify.atlassian.net/wiki/spaces/DCMAW/pages/5435195529/Alarm+Runbook+Warnings+-+In+Progress
@@ -194,8 +183,6 @@ Conditions:
       - !Ref DeployAlarmsInDev
       - true
 
-  # This condition was taken from Async but would mean out higher environments do not match build and dev, I'm not sure this is right...
-  # This is fine in this case. This is only to support the running of tests from a local machine.
   ProxyApiDeployment: !Or
     - !Equals
       - !Ref Environment
@@ -2073,7 +2060,7 @@ Resources:
       OpenApiVersion: 3.0.0
       AccessLogSetting:
         DestinationArn: !GetAtt CrsProxyApiAccessLogs.Arn
-        Format: '{ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "caller":"$context.identity.caller", "user":"$context.identity.user","requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath", "status":"$context.status","protocol":"$context.protocol", "responseLength":"$context.responseLength" }' # In Async private and proxy accesslogs format are different
+        Format: '{ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "caller":"$context.identity.caller", "user":"$context.identity.user","requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath", "status":"$context.status","protocol":"$context.protocol", "responseLength":"$context.responseLength" }'
       Auth:
         ApiKeyRequired: false
         DefaultAuthorizer: AWS_IAM
@@ -2104,10 +2091,9 @@ Resources:
         Fn::Transform:
           Name: AWS::Include
           Parameters:
-            Location: ./openApiSpecs/crs-proxy-private-spec.yaml #  this will only work once scripting process has been implemented
+            Location: ./openApiSpecs/crs-proxy-private-spec.yaml
     Condition: ProxyApiDeployment
 
-  # Do we want to rename this and log group for private apigateway to remove Crs?
   CrsProxyApiAccessLogs:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
