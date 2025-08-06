@@ -50,7 +50,10 @@ import {
   EMPTY_SIGNING_KEY,
   TEST_CLIENT_ID_TOKEN,
   TEST_CLIENT_ID_BITSTRING,
+  ISSUE_JWT_WITH_NON_NUMERIC_EXPIRES,
 } from "../../utils/testConstants";
+import https from "node:https";
+import resetAllMocks = jest.resetAllMocks;
 
 const mockS3Client = mockClient(S3Client);
 const mockSQSClient = mockClient(SQSClient);
@@ -66,6 +69,8 @@ describe("Testing IssueStatusListEntry Lambda", () => {
     mockS3Client.reset();
     mockSQSClient.reset();
     mockDBClient.reset();
+    resetAllMocks();
+
     loggerInfoSpy = jest.spyOn(logger, "info");
     context = buildLambdaContext();
     event = buildRequest();
@@ -95,6 +100,16 @@ describe("Testing IssueStatusListEntry Lambda", () => {
                     "https://mobile.dev.account.gov.uk/.well-known/jwks.json",
                   type: "TokenStatusList",
                   format: "statuslist+jwt",
+                },
+              },
+              {
+                clientName: "OVA",
+                clientId: "asKWnsjeEJEWjjwSHsIksIksIhBe-TEST",
+                statusList: {
+                  jwksUri:
+                    "https://mobile.dev.account.gov.uk/MOCK-WITH-FAILED-URI",
+                  type: "BitStringStatusList",
+                  format: "vc+jwt",
                 },
               },
               {
@@ -293,6 +308,13 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         TEST_CLIENT_ID_TOKEN,
       ],
       [
+        buildRequest({ body: ISSUE_JWT_WITH_NON_NUMERIC_EXPIRES }),
+        "Expiry Date in Payload must be a number",
+        ISSUE_JWT_WITH_NON_NUMERIC_EXPIRES,
+        TEST_KID,
+        TEST_CLIENT_ID_BITSTRING,
+      ],
+      [
         buildRequest({ body: ISSUE_JWT_WITH_NO_KID }),
         "No Kid in Header",
         ISSUE_JWT_WITH_NO_KID,
@@ -368,7 +390,46 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         statusCode: 400,
         body: JSON.stringify({
           error: "BAD_REQUEST",
-          error_description: "No Request Body Found",
+          error_description: "No Event Body or Headers Found",
+        }),
+      });
+
+      expect(mockDBClient.commandCalls(PutItemCommand)).toHaveLength(0);
+    });
+
+    it("Returns 400 on empty request headers", async () => {
+      result = await handler(buildRequest({ headers: null }), context);
+
+      expect(result).toStrictEqual({
+        headers: { "Content-Type": "application/json" },
+        statusCode: 400,
+        body: JSON.stringify({
+          error: "BAD_REQUEST",
+          error_description: "No Event Body or Headers Found",
+        }),
+      });
+
+      expect(mockDBClient.commandCalls(PutItemCommand)).toHaveLength(0);
+    });
+
+    it("Returns 400 on bad content-type header", async () => {
+      result = await handler(
+        buildRequest({
+          headers: {
+            Host: "api.status-list.service.gov.uk",
+            Accept: "application/json",
+            "Content-Type": "application/test",
+          },
+        }),
+        context,
+      );
+
+      expect(result).toStrictEqual({
+        headers: { "Content-Type": "application/json" },
+        statusCode: 400,
+        body: JSON.stringify({
+          error: "BAD_REQUEST",
+          error_description: "Content-Type header must be application/jwt",
         }),
       });
 
@@ -432,6 +493,37 @@ describe("Testing IssueStatusListEntry Lambda", () => {
         expect(mockDBClient.commandCalls(PutItemCommand)).toHaveLength(0);
       },
     );
+
+    it("Returns 403 Forbidden when JWKS fetch fails", async () => {
+      event = buildRequest({ body: ISSUE_GOLDEN_JWT });
+      const httpsRequestSpy = jest
+        .spyOn(https, "request")
+        .mockImplementation(() => {
+          throw new Error("Failure fetching jwks");
+        });
+      result = await handler(event, context);
+
+      expect(result).toStrictEqual({
+        headers: { "Content-Type": "application/json" },
+        statusCode: 403,
+        body: JSON.stringify({
+          error: "FORBIDDEN",
+          error_description:
+            "Failed to fetch JWKS from URI: https://mobile.dev.account.gov.uk/.well-known/jwks.json, Error: Failure fetching jwks",
+        }),
+      });
+      assertAndValidateErrorTXMAEvent(
+        TEST_CLIENT_ID_BITSTRING,
+        "CRS_ISSUANCE_FAILED",
+        'signingKey"',
+        TEST_KID,
+        ISSUE_GOLDEN_JWT,
+        "403",
+        "FORBIDDEN",
+      );
+      expect(mockDBClient.commandCalls(PutItemCommand)).toHaveLength(0);
+      httpsRequestSpy.mockRestore();
+    });
   });
 
   describe("Internal Server Error Scenarios", () => {

@@ -60,8 +60,14 @@ export async function handler(
   setupLogger(context);
   logger.info(LogMessage.ISSUE_STATUS_LIST_ENTRY_LAMBDA_STARTED);
 
-  if (event.body == null) {
-    return badRequestResponse("No Request Body Found");
+  if (event.body == null || event.headers == null) {
+    return badRequestResponse("No Event Body or Headers Found");
+  }
+  if (
+    !event.headers["Content-Type"] ||
+    event.headers["Content-Type"].toLowerCase() !== "application/jwt"
+  ) {
+    return badRequestResponse("Content-Type header must be application/jwt");
   }
 
   let jsonPayload;

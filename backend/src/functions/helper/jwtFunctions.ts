@@ -25,21 +25,13 @@ export interface DecodedJWT {
   error?: APIGatewayProxyResult;
 }
 
-export async function decodeJWT(
-  event: APIGatewayProxyEvent,
-): Promise<DecodedJWT> {
+export async function decodeJWT(eventBody: string): Promise<DecodedJWT> {
   let jsonPayload;
   let jsonHeader;
 
-  if (event.body == null) {
-    return {
-      error: badRequestResponse("No Request Body Found"),
-    };
-  }
-
   try {
-    const payload = decodeJwt(event.body);
-    const protectedHeader = decodeProtectedHeader(event.body);
+    const payload = decodeJwt(eventBody);
+    const protectedHeader = decodeProtectedHeader(eventBody);
 
     const payloadString = JSON.stringify(payload);
     const headerString = JSON.stringify(protectedHeader);
@@ -71,6 +63,16 @@ export async function validateIssuingJWT(
     };
   }
 
+  if (
+    typeof jsonPayload.expires !== "number" &&
+    isNaN(Number(jsonPayload.expires))
+  ) {
+    return {
+      isValid: false,
+      error: badRequestResponse("Expiry Date in Payload must be a number"),
+    };
+  }
+
   return validateJWT(jwt, jsonPayload, jsonHeader, config);
 }
 
@@ -85,6 +87,16 @@ export async function validateRevokingJWT(
     return {
       isValid: false,
       error: badRequestResponse("No Index in Payload"),
+    };
+  }
+
+  if (
+    (typeof jsonPayload.idx !== "number" && isNaN(Number(jsonPayload.idx))) ||
+    jsonPayload.idx < 0
+  ) {
+    return {
+      isValid: false,
+      error: badRequestResponse("Index must be a valid non-negative integer"),
     };
   }
 
@@ -221,7 +233,19 @@ async function validateJWT(
       ),
     };
   }
-  const jsonWebKeySet: JSONWebKeySet = await fetchJWKS(jwksUri);
+  let jsonWebKeySet: JSONWebKeySet;
+
+  try {
+    jsonWebKeySet = await fetchJWKS(jwksUri);
+  } catch (error) {
+    return {
+      isValid: false,
+      matchingClientEntry: matchingClientEntry,
+      error: forbiddenResponse(
+        `Failed to fetch JWKS from URI: ${jwksUri}, Error: ${error.message}`,
+      ),
+    };
+  }
 
   const jwk = jsonWebKeySet.keys.find((key) => key.kid == jsonHeader.kid);
   if (!jwk) {

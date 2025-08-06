@@ -7,6 +7,7 @@ import { LogMessage } from "../../../src/common/logging/LogMessages";
 import {
   DynamoDBClient,
   GetItemCommand,
+  PutItemCommand,
   UpdateItemCommand,
 } from "@aws-sdk/client-dynamodb";
 import { mockClient } from "aws-sdk-client-mock";
@@ -37,12 +38,18 @@ import {
   TEST_CLIENT_ID_TOKEN,
   TEST_KID,
   TEST_NON_MATCHING_KID,
+  ISSUE_GOLDEN_JWT,
+  REVOKE_JWT_WITH_NON_NUMERICAL_INDEX,
+  REVOKE_JWT_WITH_NEGATIVE_INDEX,
 } from "../../utils/testConstants";
 import { importSPKI } from "jose";
 import * as jose from "jose";
 import { sdkStreamMixin } from "@smithy/util-stream-node";
 import { Readable } from "stream";
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
+import https from "node:https";
+import { context } from "esbuild";
+import resetAllMocks = jest.resetAllMocks;
 
 jest.mock("../../../src/common/logging/logger", () => ({
   logger: {
@@ -70,6 +77,7 @@ describe("Testing Revoke Lambda", () => {
     mockDBClient.reset();
     mockS3Client.reset();
     mockSQSClient.reset();
+    resetAllMocks();
 
     const importedPublicKey = importSPKI(PUBLIC_KEY, "ES256");
 
@@ -305,6 +313,22 @@ describe("Testing Revoke Lambda", () => {
         EMPTY_SIGNING_KEY,
       ],
       [
+        buildRequest({ body: REVOKE_JWT_WITH_NON_NUMERICAL_INDEX }),
+        "Index must be a valid non-negative integer",
+        REVOKE_JWT_WITH_NON_NUMERICAL_INDEX,
+        TEST_KID,
+        TEST_CLIENT_ID_BITSTRING,
+        EMPTY_SIGNING_KEY,
+      ],
+      [
+        buildRequest({ body: REVOKE_JWT_WITH_NEGATIVE_INDEX }),
+        "Index must be a valid non-negative integer",
+        REVOKE_JWT_WITH_NEGATIVE_INDEX,
+        TEST_KID,
+        TEST_CLIENT_ID_BITSTRING,
+        EMPTY_SIGNING_KEY,
+      ],
+      [
         buildRequest({ body: REVOKE_JWT_WITH_NO_URI }),
         "No URI in Payload",
         REVOKE_JWT_WITH_NO_URI,
@@ -378,9 +402,49 @@ describe("Testing Revoke Lambda", () => {
         statusCode: 400,
         body: JSON.stringify({
           error: "BAD_REQUEST",
-          error_description: "No Request Body Found",
+          error_description: "No Event Body or Headers Found",
         }),
       });
+    });
+
+    it("Returns 400 on a empty request headers", async () => {
+      const result = await handler(
+        buildRequest({ headers: null }),
+        mockContext,
+      );
+
+      expect(result).toStrictEqual({
+        headers: { "Content-Type": "application/json" },
+        statusCode: 400,
+        body: JSON.stringify({
+          error: "BAD_REQUEST",
+          error_description: "No Event Body or Headers Found",
+        }),
+      });
+    });
+
+    it("Returns 400 on bad content-type header", async () => {
+      const result = await handler(
+        buildRequest({
+          headers: {
+            Host: "api.status-list.service.gov.uk",
+            Accept: "application/json",
+            "Content-Type": "application/test",
+          },
+        }),
+        mockContext,
+      );
+
+      expect(result).toStrictEqual({
+        headers: { "Content-Type": "application/json" },
+        statusCode: 400,
+        body: JSON.stringify({
+          error: "BAD_REQUEST",
+          error_description: "Content-Type header must be application/jwt",
+        }),
+      });
+
+      expect(mockDBClient.commandCalls(PutItemCommand)).toHaveLength(0);
     });
   });
 
@@ -474,6 +538,37 @@ describe("Testing Revoke Lambda", () => {
         "401",
         "UNAUTHORISED",
       );
+    });
+
+    it("Returns 403 Forbidden when JWKS fetch fails", async () => {
+      const event = buildRequest({ body: REVOKE_GOLDEN_JWT });
+      const httpsRequestSpy = jest
+        .spyOn(https, "request")
+        .mockImplementation(() => {
+          throw new Error("Failure fetching jwks");
+        });
+      const result = await handler(event, mockContext);
+
+      expect(result).toStrictEqual({
+        headers: { "Content-Type": "application/json" },
+        statusCode: 403,
+        body: JSON.stringify({
+          error: "FORBIDDEN",
+          error_description:
+            "Failed to fetch JWKS from URI: https://mobile.dev.account.gov.uk/.well-known/jwks.json, Error: Failure fetching jwks",
+        }),
+      });
+      assertAndValidateRevokeErrorTXMAEvent(
+        TEST_CLIENT_ID_BITSTRING,
+        "CRS_INDEX_REVOCATION_FAILED",
+        EMPTY_SIGNING_KEY,
+        TEST_KID,
+        REVOKE_GOLDEN_JWT,
+        "403",
+        "FORBIDDEN",
+      );
+      expect(mockDBClient.commandCalls(PutItemCommand)).toHaveLength(0);
+      httpsRequestSpy.mockRestore();
     });
   });
 

@@ -18,6 +18,7 @@ import {
   StatusListItem,
 } from "../common/types";
 import {
+  badRequestResponse,
   internalServerErrorResponse,
   notFoundResponse,
   revocationSuccessResponse,
@@ -50,7 +51,18 @@ export async function handler(
   setupLogger(context);
   logger.info(LogMessage.REVOKE_LAMBDA_STARTED);
 
-  const decodedJWTPromise = await decodeJWT(event);
+  if (event.body == null || event.headers == null) {
+    return badRequestResponse("No Event Body or Headers Found");
+  }
+
+  if (
+    !event.headers["Content-Type"] ||
+    event.headers["Content-Type"].toLowerCase() !== "application/jwt"
+  ) {
+    return badRequestResponse("Content-Type header must be application/jwt");
+  }
+
+  const decodedJWTPromise = await decodeJWT(event.body);
 
   if (decodedJWTPromise.error) {
     return decodedJWTPromise.error;
