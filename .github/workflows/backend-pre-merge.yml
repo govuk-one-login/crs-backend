@@ -18,6 +18,8 @@ jobs:
   ci-checks:
     name: Run CI checks
     runs-on: ubuntu-24.04
+    permissions:
+      security-events: write
     defaults:
       run:
         shell: bash
@@ -70,7 +72,7 @@ jobs:
       - name: Checkov GitHub Action
         uses: bridgecrewio/checkov-action@555b1fe117f21ed74b66d7d0182824d382e3c5ef # v12.3045.0
         with:
-          directory: backend/template.yaml
+          file: backend/template.yaml
           output_format: cli,sarif
           output_file_path: console,results.sarif
           framework: cloudformation
