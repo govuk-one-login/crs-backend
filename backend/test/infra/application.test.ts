@@ -103,7 +103,7 @@ describe("Backend application infrastructure", () => {
 
   describe("CloudWatch alarms", () => {
     test("All alarms are configured with a Condition", () => {
-      const conditionalNames = ["DeployAlarms", "DeployMetricFilters"];
+      const conditionalNames = ["DeployAlarms", "DeployMetricFilters", "DeployProxyAlarms"];
       const alarms = Object.values(
         template.findResources("AWS::CloudWatch::Alarm"),
       );
