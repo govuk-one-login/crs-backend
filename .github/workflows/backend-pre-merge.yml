@@ -70,7 +70,7 @@ jobs:
       - name: Checkov GitHub Action
         uses: bridgecrewio/checkov-action@555b1fe117f21ed74b66d7d0182824d382e3c5ef # v12.3045.0
         with:
-          file: /backend/template.yaml
+          directory: backend/template.yaml
           output_format: cli,sarif
           output_file_path: console,results.sarif
           framework: cloudformation
