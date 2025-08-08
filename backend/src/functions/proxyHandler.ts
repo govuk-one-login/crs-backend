@@ -7,6 +7,7 @@ import {
 import { logger } from "../common/logging/logger";
 import { LogMessage } from "../common/logging/LogMessages";
 import axios, { AxiosResponseHeaders, RawAxiosResponseHeaders } from "axios";
+import {internalServerErrorResponse} from "../common/responses";
 
 // TODO: Implement strong env var checking.
 const ENV = {
@@ -25,35 +26,26 @@ export async function handler(
   logger.info(LogMessage.PROXY_LAMBDA_STARTED);
 
   const { path } = event;
-  const allowedPaths = ["/issue"];
+  const allowedPaths = ["/issue", "/revoke"];
 
   if (!allowedPaths.includes(path)) {
     logger.error(LogMessage.PROXY_UNEXPECTED_PATH, {
-      errorMessage: "Path is not one of the permitted values",
+      errorMessage: `Path is not one of the permitted values: ${path}`,
     });
-    return internalServerErrorResponse;
+    return internalServerErrorResponse(`Path is not one of the permitted values: ${path}`);
   }
 
-  const method = event.httpMethod;
+  const httpMethod = event.httpMethod;
 
-  if (method !== "POST") {
+  if (httpMethod !== "POST") {
     logger.error(LogMessage.PROXY_UNEXPECTED_HTTP_METHOD, {
-      errorMessage: "API method is not POST",
+      errorMessage: `${httpMethod} request is unexpected, only POST is allowed.`,
     });
-    return internalServerErrorResponse;
+    return internalServerErrorResponse("Unexpected HTTP method");
   }
 
   const incomingHeaders = event.headers;
   const standardisedHeaders = standardiseAndStripApiGwHeaders(incomingHeaders);
-
-  // Auth header not needed? Or is needed for sigv4?
-  // const customAuthHeaderValue =
-  //   standardisedHeaders["X-Custom-Auth"] ??
-  //   standardisedHeaders["x-custom-auth"];
-
-  // if (customAuthHeaderValue) {
-  //   standardisedHeaders["Authorization"] = customAuthHeaderValue;
-  // }
 
   try {
     const response = await axios.post(
@@ -66,7 +58,8 @@ export async function handler(
         },
       },
     );
-    logger.info("PROXY_LAMBDA_AXIOS_RESPONSE", { response: response });
+
+    logger.info("PROXY_LAMBDA_AXIOS_RESPONSE:", { response: response });
 
     logger.info(LogMessage.PROXY_LAMBDA_COMPLETED);
     return {
@@ -74,11 +67,11 @@ export async function handler(
       body: JSON.stringify(response.data),
       headers: standardiseAxiosHeaders(response.headers),
     };
-  } catch {
+  } catch (error){
     logger.error(LogMessage.PROXY_REQUEST_ERROR, {
-      errorMessage: "Error sending network request",
+      errorMessage: `Error sending network request: ${error}`,
     });
-    return internalServerErrorResponse;
+    return internalServerErrorResponse("An error occurred while processing the request.");
   }
 }
 
@@ -126,13 +119,3 @@ const standardiseAxiosHeaders = (
   return standardisedHeaders;
 };
 
-const internalServerErrorResponse: APIGatewayProxyResult = {
-  headers: {
-    "Content-Type": "application/json",
-  },
-  statusCode: 500,
-  body: JSON.stringify({
-    error: "server_error",
-    error_description: "Server Error",
-  }),
-};
