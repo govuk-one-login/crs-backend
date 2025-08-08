@@ -21,7 +21,7 @@ import { LogMessage } from "../common/logging/LogMessages";
 import { internalServerErrorResponse } from "../common/responses";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { importSPKI, jwtVerify, KeyLike } from "jose";
-import { bitStringPayload, tokenPayload } from "../common/types";
+import { bitStringPayload, tokenPayload } from "../common/types/types";
 
 const kmsClient = new KMSClient({});
 const s3Client = new S3Client({});

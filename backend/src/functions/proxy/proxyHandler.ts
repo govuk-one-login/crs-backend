@@ -4,12 +4,12 @@ import {
   APIGatewayProxyResult,
   Context,
 } from "aws-lambda";
-import { logger } from "../common/logging/logger";
-import { LogMessage } from "../common/logging/LogMessages";
+import { logger } from "../../common/logging/logger";
+import { LogMessage } from "../../common/logging/LogMessages";
 import axios, { AxiosResponseHeaders, RawAxiosResponseHeaders } from "axios";
-import { internalServerErrorResponse } from "../common/responses";
+import { internalServerErrorResponse } from "../../common/responses";
+import { getConfigFromEnvironment } from "./proxyConfig";
 
-// TODO: Implement strong env var checking.
 const ENV = {
   PRIVATE_API_URL: process.env.PRIVATE_API_URL ?? "",
 };
@@ -24,6 +24,11 @@ export async function handler(
 ): Promise<APIGatewayProxyResult> {
   logger.addContext(context);
   logger.info(LogMessage.PROXY_LAMBDA_STARTED);
+
+  const configResult = getConfigFromEnvironment(process.env);
+  if (configResult.isError) {
+    return internalServerErrorResponse("Missing environment variables");
+  }
 
   const { path } = event;
   const allowedPaths = ["/issue", "/revoke"];

@@ -1,6 +1,6 @@
 import { APIGatewayProxyResult } from "aws-lambda";
 import { KeyLike } from "jose";
-import { ClientEntry } from "../functions/helper/clientRegistryFunctions";
+import { ClientEntry } from "../../functions/helper/clientRegistryFunctions";
 
 //Used for validation and returning values if successful
 export interface ValidationResult {

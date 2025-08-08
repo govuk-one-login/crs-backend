@@ -94,6 +94,11 @@ export class LogMessage implements LogAttributes {
     "Proxy encountered an error when making a request to the private apigw.",
     "N/A",
   );
+  static readonly PROXY_INVALID_CONFIG = new LogMessage(
+    "PROXY_INVALID_CONFIG",
+    "A required environment variable is missing or invalid.",
+    "N/A",
+  );
 
   private constructor(
     public readonly messageCode: string,
