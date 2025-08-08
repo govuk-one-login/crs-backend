@@ -17,7 +17,10 @@ import {
 import { logger } from "../common/logging/logger";
 import { LogMessage } from "../common/logging/LogMessages";
 import { decodeJwt, decodeProtectedHeader, exportJWK } from "jose";
-import { issueFailTXMAEvent, issueSuccessTXMAEvent } from "../common/types";
+import {
+  issueFailTXMAEvent,
+  issueSuccessTXMAEvent,
+} from "../common/types/types";
 import { badRequestResponse } from "../common/responses";
 import { getClientRegistryConfiguration } from "./helper/clientRegistryFunctions";
 import { validateIssuingJWT } from "./helper/jwtFunctions";

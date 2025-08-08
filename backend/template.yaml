@@ -50,24 +50,30 @@ Parameters:
 Mappings:
   EnvironmentVariables:
     dev:
+      CertificateArnV1EuWest2: arn:aws:acm:eu-west-2:537124944731:certificate/45d0b59a-aebc-4e86-a36a-63d0624168e7
       CertificateArnV1UsEast1: arn:aws:acm:us-east-1:537124944731:certificate/b0322e50-f75b-4fa3-ac65-4a42ac2380d3
+      CertificateWildcardArnV1EuWest2: arn:aws:acm:eu-west-2:537124944731:certificate/bb585ec1-0343-42bf-98bf-59153247adac
       CertificateWildcardArnV1UsEast1: arn:aws:acm:us-east-1:537124944731:certificate/c1f3daa3-fa88-4cb2-b3cc-0d5ca43d8d80
       dnsSuffix: crs.dev.account.gov.uk
       LambdaLogLevel: DEBUG
     build:
       CertificateArnV1UsEast1: arn:aws:acm:us-east-1:881490088364:certificate/e913c6e7-1b41-4d5a-8731-6f026ea12b62
+      CertificateArnV1EuWest2: arn:aws:acm:eu-west-2:881490088364:certificate/30e09d51-fe2f-451e-ab87-7bd8ffd5257a
       dnsSuffix: crs.build.account.gov.uk
       LambdaLogLevel: INFO
     staging:
       CertificateArnV1UsEast1: arn:aws:acm:us-east-1:253490791635:certificate/2a8b32c4-9893-476b-a57f-881029f00db0
+      CertificateArnV1EuWest2: arn:aws:acm:eu-west-2:253490791635:certificate/fe34d1d6-2253-4234-bfe6-b5578019187e
       dnsSuffix: crs.staging.account.gov.uk
       LambdaLogLevel: INFO
     integration:
       CertificateArnV1UsEast1: PLACEHOLDER
+      CertificateArnV1EuWest2: PLACEHOLDER
       dnsSuffix: crs.integration.account.gov.uk
       LambdaLogLevel: INFO
     production:
       CertificateArnV1UsEast1: PLACEHOLDER
+      CertificateArnV1EuWest2: PLACEHOLDER
       dnsSuffix: crs.account.gov.uk
       LambdaLogLevel: INFO
 
@@ -146,6 +152,23 @@ Mappings:
       ApiBurstLimit: 0
       ApiRateLimit: 0
 
+  ProxyApigw:
+    dev:
+      ApiBurstLimit: 10
+      ApiRateLimit: 10
+    build:
+      ApiBurstLimit: 10
+      ApiRateLimit: 10
+    staging:
+      ApiBurstLimit: 10
+      ApiRateLimit: 10
+    integration:
+      ApiBurstLimit: 0
+      ApiRateLimit: 0
+    production:
+      ApiBurstLimit: 0
+      ApiRateLimit: 0
+
   StaticVariables:
     urls:
       WarningAlarmsRunbook: https://govukverify.atlassian.net/wiki/spaces/DCMAW/pages/5435195529/Alarm+Runbook+Warnings+-+In+Progress
@@ -159,6 +182,25 @@ Conditions:
     - !Equals
       - !Ref DeployAlarmsInDev
       - true
+
+  ProxyApiDeployment: !Or
+    - !Equals
+      - !Ref Environment
+      - dev
+    - !Equals
+      - !Ref Environment
+      - build
+
+  DeployProxyAlarms: !And
+    - !Condition DeployAlarms
+    - !Condition ProxyApiDeployment
+
+  DeployProxyCsls: !And
+    - !Condition ProxyApiDeployment
+    - !Not
+      - !Equals
+        - !Ref Environment
+        - dev
 
   IsDevEnvironment: !Equals
     - !Ref Environment
@@ -1925,6 +1967,12 @@ Resources:
       Name: !Sub ${AWS::StackName}-private-api
       Description: Private API gateway for Index Issuance flow
       AlwaysDeploy: true
+      EndpointConfiguration:
+        Type: PRIVATE
+      Auth:
+        ResourcePolicy:
+          IntrinsicVpceWhitelist:
+            - !ImportValue devplatform-vpc-ExecuteApiGatewayEndpointId
       StageName: !Ref Environment
       OpenApiVersion: 3.0.0
       AccessLogSetting:
@@ -1972,6 +2020,268 @@ Resources:
         - LogRetention
         - !Ref Environment
         - RetentionPeriod
+
+  # Proxy API Gateway
+  ProxyApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub ${AWS::StackName}-proxy-api
+      Description: Proxy API gateway for Index Issuance flow
+      StageName: !Ref Environment
+      OpenApiVersion: 3.0.0
+      AccessLogSetting:
+        DestinationArn: !GetAtt CrsProxyApiAccessLogs.Arn
+        Format: '{ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "caller":"$context.identity.caller", "user":"$context.identity.user","requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath", "status":"$context.status","protocol":"$context.protocol", "responseLength":"$context.responseLength" }'
+      EndpointConfiguration:
+        Type: REGIONAL
+      Auth:
+        ApiKeyRequired: false
+        DefaultAuthorizer: AWS_IAM
+        ResourcePolicy:
+          CustomStatements:
+            - Action:
+                - execute-api:Invoke
+              Effect: Allow
+              Principal:
+                AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+              Resource: !Sub execute-api:/*
+              Sid: AllowAccountAccessToAllEndpoints
+      MethodSettings:
+        - LoggingLevel: INFO
+          ResourcePath: /*
+          HttpMethod: '*'
+          DataTraceEnabled: false
+          MetricsEnabled: true
+          ThrottlingBurstLimit: !FindInMap
+            - ProxyApigw
+            - !Ref Environment
+            - ApiBurstLimit
+          ThrottlingRateLimit: !FindInMap
+            - ProxyApigw
+            - !Ref Environment
+            - ApiRateLimit
+      DefinitionBody:
+        Fn::Transform:
+          Name: AWS::Include
+          Parameters:
+            Location: ./openApiSpecs/crs-proxy-private-spec.yaml
+    Condition: ProxyApiDeployment
+
+  CrsProxyApiAccessLogs:
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/apigateway/${AWS::StackName}-proxy-api-access-logs
+      RetentionInDays: !FindInMap
+        - LogRetention
+        - !Ref Environment
+        - RetentionPeriod
+
+  ProxyApiBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Properties:
+      DomainName: !Ref ProxyApiDomainName
+      RestApiId: !Ref ProxyApi
+      Stage: !Ref ProxyApi.Stage
+    Condition: ProxyApiDeployment
+
+  ProxyApiDomainName:
+    Type: AWS::ApiGateway::DomainName
+    Properties:
+      DomainName: !Sub
+        - ${dnsPrefix}${dnsSuffix}
+        - dnsPrefix: !If
+            - StackNameIsCrsBackend
+            - proxy.
+            - !Sub proxy-${AWS::StackName}.
+          dnsSuffix: !FindInMap
+            - EnvironmentVariables
+            - !Ref Environment
+            - dnsSuffix
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      RegionalCertificateArn: !If
+        - StackNameIsCrsBackend
+        - !FindInMap
+          - EnvironmentVariables
+          - !Ref Environment
+          - CertificateArnV1EuWest2
+        - !FindInMap
+          - EnvironmentVariables
+          - dev
+          - CertificateWildcardArnV1EuWest2
+      SecurityPolicy: TLS_1_2
+    Condition: ProxyApiDeployment
+
+  ProxyApiRecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        DNSName: !GetAtt ProxyApiDomainName.RegionalDomainName
+        HostedZoneId: !GetAtt ProxyApiDomainName.RegionalHostedZoneId
+      HostedZoneId: !Sub '{{resolve:ssm:/${Environment}/Platform/Route53/PrimaryZoneID}}'
+      Name: !Ref ProxyApiDomainName
+      Type: A
+    Condition: ProxyApiDeployment
+
+  ProxyApiSubscriptionFilter:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !FindInMap
+        - CslsConfiguration
+        - !Ref Environment
+        - CSLSEGRESS
+      FilterPattern: ""
+      LogGroupName: !Ref CrsProxyApiAccessLogs
+    Condition: DeployProxyCsls
+
+  ProxyLambda:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - ProxyLambdaLogGroup
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+          - src/functions/proxy/proxyHandler.ts
+        Minify: true
+        Sourcemap: false
+        Target: es2022
+    Properties:
+      Environment:
+        Variables:
+          PRIVATE_API_URL: !Sub https://${PrivateApi.RestApiId}.execute-api.eu-west-2.amazonaws.com/${Environment}
+      FunctionName: !Sub ${AWS::StackName}-proxy-lambda
+      Handler: src/functions/proxyHandler.handler
+      Role: !GetAtt ProxyLambdaRole.Arn
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref ProxyLambdaSecurityGroup
+        SubnetIds:
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-PrivateSubnetIdA
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-PrivateSubnetIdB
+          - !ImportValue
+            Fn::Sub: ${VpcStackName}-PrivateSubnetIdC
+    Condition: ProxyApiDeployment
+
+  ProxyLambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Lambda Security group ruleset.
+      GroupName: !Sub ${AWS::StackName}-proxy-sg
+      SecurityGroupEgress:
+        - CidrIp: !ImportValue devplatform-vpc-VpcCidr
+          Description: TCP HTTPS outbound to vpc.
+          FromPort: 443
+          IpProtocol: tcp
+          ToPort: 443
+      VpcId: !ImportValue devplatform-vpc-VpcId
+    Condition: ProxyApiDeployment
+
+  ProxyLambdaLogGroup:
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-proxy-lambda
+      RetentionInDays: !FindInMap
+        - LogRetention
+        - !Ref Environment
+        - RetentionPeriod
+    Condition: ProxyApiDeployment
+
+  ProxyLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt ProxyLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceAccount: !Sub ${AWS::AccountId}
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ProxyApi}/*/*/*
+    Condition: ProxyApiDeployment
+
+  ProxyLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+        Version: "2012-10-17"
+      PermissionsBoundary: !If
+        - UsePermissionsBoundary
+        - !Ref PermissionsBoundary
+        - !Ref AWS::NoValue
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Effect: Allow
+                Resource: !GetAtt ProxyLambdaLogGroup.Arn
+            Version: "2012-10-17"
+          PolicyName: ProxyFunctionLoggingPolicy
+        - PolicyDocument:
+            Statement:
+              - Action:
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:CreateNetworkInterface
+                  - ec2:DeleteNetworkInterface
+                Effect: Allow
+                Resource: '*'
+            Version: "2012-10-17"
+          PolicyName: VpcPolicy
+      RoleName: !Sub ${AWS::StackName}-proxy-lambda-role
+    Condition: ProxyApiDeployment
+
+  ProxyLambdaSubscriptionFilter:
+    Type: AWS::Logs::SubscriptionFilter
+    Properties:
+      DestinationArn: !FindInMap
+        - CslsConfiguration
+        - !Ref Environment
+        - CSLSEGRESS
+      FilterPattern: ""
+      LogGroupName: !Ref ProxyLambdaLogGroup
+    Condition: DeployProxyCsls
+
+  ProxyLambdaThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: true
+      AlarmActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
+      AlarmDescription: !Sub
+        - 'Trigger an alarm if the Proxy Lambda throttles. See runbook: ${RunbookUrl}'
+        - RunbookUrl: !FindInMap
+            - StaticVariables
+            - urls
+            - WarningAlarmsRunbook
+      AlarmName: !Sub ${AWS::StackName}-proxy-lambda-throttle
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      DatapointsToAlarm: 1
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ProxyLambda
+      EvaluationPeriods: 1
+      InsufficientDataActions: []
+      MetricName: Throttles
+      Namespace: AWS/Lambda
+      OKActions:
+        - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:platform-alarms-sns-warning
+      Period: 60
+      Statistic: Sum
+      Threshold: 1
+      TreatMissingData: notBreaching
+    Condition: DeployProxyAlarms
 
   # Available Slots SQS Queues (Bitstring and Token Status)
   BitstringAvailableSlotsEncryptionKey:

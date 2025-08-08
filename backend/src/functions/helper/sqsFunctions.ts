@@ -1,4 +1,4 @@
-import { TxmaEvent } from "../../common/types";
+import { TxmaEvent } from "../../common/types/types";
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 import { logger } from "../../common/logging/logger";
 import { LogMessage } from "../../common/logging/LogMessages";

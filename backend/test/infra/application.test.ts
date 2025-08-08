@@ -1,7 +1,8 @@
-import { Match, Template } from "aws-cdk-lib/assertions";
+import { Capture, Match, Template } from "aws-cdk-lib/assertions";
 import { readFileSync } from "fs";
 import { load } from "js-yaml";
 import { schema } from "yaml-cfn";
+import { Mappings } from "./helpers/mappings";
 
 interface CloudFormationTemplate {
   [key: string]: unknown;
@@ -103,7 +104,11 @@ describe("Backend application infrastructure", () => {
 
   describe("CloudWatch alarms", () => {
     test("All alarms are configured with a Condition", () => {
-      const conditionalNames = ["DeployAlarms", "DeployMetricFilters"];
+      const conditionalNames = [
+        "DeployAlarms",
+        "DeployMetricFilters",
+        "DeployProxyAlarms",
+      ];
       const alarms = Object.values(
         template.findResources("AWS::CloudWatch::Alarm"),
       );
@@ -181,7 +186,10 @@ describe("Backend application infrastructure", () => {
       const allFunctions = template.findResources("AWS::Serverless::Function");
 
       // Ensure new functions are tested for canary configuration by maintaining this list of exclusions
-      const canaryFunctionExclusionList = ["CheckAlarmStateFunction"];
+      const canaryFunctionExclusionList = [
+        "CheckAlarmStateFunction",
+        "ProxyLambda",
+      ];
 
       const canaryFunctions = Object.entries(allFunctions).filter(
         ([functionName, _]) => {
@@ -443,6 +451,116 @@ describe("Backend application infrastructure", () => {
             ]),
           },
         });
+      });
+    });
+  });
+
+  describe("Proxy APIgw", () => {
+    test("The endpoints are Regional", () => {
+      template.hasResourceProperties("AWS::Serverless::Api", {
+        Name: { "Fn::Sub": "${AWS::StackName}-proxy-api" },
+        EndpointConfiguration: {
+          Type: "REGIONAL",
+        },
+      });
+    });
+
+    test("It uses the proxy async OpenAPI Spec", () => {
+      template.hasResourceProperties("AWS::Serverless::Api", {
+        Name: { "Fn::Sub": "${AWS::StackName}-proxy-api" },
+        DefinitionBody: {
+          "Fn::Transform": {
+            Name: "AWS::Include",
+            Parameters: {
+              Location: "./openApiSpecs/crs-proxy-private-spec.yaml",
+            },
+          },
+        },
+      });
+    });
+
+    describe("APIgw method settings", () => {
+      test("Metrics are enabled", () => {
+        const methodSettings = new Capture();
+        template.hasResourceProperties("AWS::Serverless::Api", {
+          Name: { "Fn::Sub": "${AWS::StackName}-proxy-api" },
+          MethodSettings: methodSettings,
+        });
+        expect(methodSettings.asArray()[0].MetricsEnabled).toBe(true);
+      });
+
+      test("Rate and burst limit mappings are set", () => {
+        const expectedBurstLimits = {
+          dev: 10,
+          build: 10,
+          staging: 10,
+          integration: 0,
+          production: 0,
+        };
+        const expectedRateLimits = {
+          dev: 10,
+          build: 10,
+          staging: 10,
+          integration: 0,
+          production: 0,
+        };
+        const mappingHelper = new Mappings(template);
+        mappingHelper.validateProxyAPIMapping({
+          environmentFlags: expectedBurstLimits,
+          mappingBottomLevelKey: "ApiBurstLimit",
+        });
+        mappingHelper.validateProxyAPIMapping({
+          environmentFlags: expectedRateLimits,
+          mappingBottomLevelKey: "ApiRateLimit",
+        });
+      });
+
+      test("Rate limit and burst mappings are applied to the APIgw", () => {
+        const methodSettings = new Capture();
+        template.hasResourceProperties("AWS::Serverless::Api", {
+          Name: { "Fn::Sub": "${AWS::StackName}-proxy-api" },
+          MethodSettings: methodSettings,
+        });
+        expect(methodSettings.asArray()[0].ThrottlingBurstLimit).toStrictEqual({
+          "Fn::FindInMap": [
+            "ProxyApigw",
+            { Ref: "Environment" },
+            "ApiBurstLimit",
+          ],
+        });
+        expect(methodSettings.asArray()[0].ThrottlingRateLimit).toStrictEqual({
+          "Fn::FindInMap": [
+            "ProxyApigw",
+            { Ref: "Environment" },
+            "ApiRateLimit",
+          ],
+        });
+      });
+    });
+
+    test("Access log group is attached to APIgw", () => {
+      template.hasResourceProperties("AWS::Serverless::Api", {
+        Name: { "Fn::Sub": "${AWS::StackName}-proxy-api" },
+        AccessLogSetting: {
+          DestinationArn: {
+            "Fn::GetAtt": ["CrsProxyApiAccessLogs", "Arn"],
+          },
+        },
+      });
+    });
+
+    test("Access log group has a retention period", () => {
+      const LogRetention = {
+        dev: 30,
+        build: 30,
+        staging: 30,
+        integration: 30,
+        production: 30,
+      };
+      const mappingHelper = new Mappings(template);
+      mappingHelper.validateLogRetentionMapping({
+        environmentFlags: LogRetention,
+        mappingBottomLevelKey: "RetentionPeriod",
       });
     });
   });
