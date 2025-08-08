@@ -18,6 +18,7 @@ import {
   StatusListItem,
 } from "../common/types";
 import {
+  badRequestResponse,
   internalServerErrorResponse,
   notFoundResponse,
   revocationSuccessResponse,
@@ -50,7 +51,18 @@ export async function handler(
   setupLogger(context);
   logger.info(LogMessage.REVOKE_LAMBDA_STARTED);
 
-  const decodedJWTPromise = await decodeJWT(event);
+  if (event.body == null || event.headers == null) {
+    return badRequestResponse("No Event Body or Headers Found");
+  }
+
+  if (
+    !event.headers["Content-Type"] ||
+    event.headers["Content-Type"].toLowerCase() !== "application/jwt"
+  ) {
+    return badRequestResponse("Content-Type header must be application/jwt");
+  }
+
+  const decodedJWTPromise = await decodeJWT(event.body);
 
   if (decodedJWTPromise.error) {
     return decodedJWTPromise.error;
@@ -66,7 +78,7 @@ export async function handler(
 
   const validationResult = await validateRevokingJWT(
     dynamoDBClient,
-    <string>event.body,
+    event.body,
     jsonPayload,
     jsonHeader,
     config,
@@ -85,7 +97,7 @@ export async function handler(
       revokeFailTXMAEvent(
         jsonPayload.iss,
         signingKeyString,
-        <string>event.body,
+        event.body,
         validationResult.error,
         jsonHeader.kid,
       ),
@@ -111,7 +123,7 @@ export async function handler(
       revokeSuccessTXMAEvent(
         jsonPayload.iss,
         signingKeyString,
-        <string>event.body,
+        event.body,
         jsonHeader.kid,
       ),
     );
@@ -127,7 +139,7 @@ export async function handler(
       revokeFailTXMAEvent(
         jsonPayload.iss,
         signingKeyString,
-        <string>event.body,
+        event.body,
         revocationError,
         jsonHeader.kid,
       ),

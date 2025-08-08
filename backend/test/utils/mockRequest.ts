@@ -9,6 +9,7 @@ export function buildRequest(overrides?: any): APIGatewayProxyEvent {
     headers: {
       Host: "api.status-list.service.gov.uk",
       Accept: "application/json",
+      "Content-Type": "application/jwt",
     },
     body: ISSUE_GOLDEN_JWT,
   };
