@@ -2061,6 +2061,8 @@ Resources:
       AccessLogSetting:
         DestinationArn: !GetAtt CrsProxyApiAccessLogs.Arn
         Format: '{ "requestId":"$context.requestId", "ip": "$context.identity.sourceIp", "caller":"$context.identity.caller", "user":"$context.identity.user","requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath", "status":"$context.status","protocol":"$context.protocol", "responseLength":"$context.responseLength" }'
+      EndpointConfiguration:
+        Type: REGIONAL
       Auth:
         ApiKeyRequired: false
         DefaultAuthorizer: AWS_IAM
