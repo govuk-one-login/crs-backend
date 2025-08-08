@@ -187,7 +187,8 @@ describe("Backend application infrastructure", () => {
 
       // Ensure new functions are tested for canary configuration by maintaining this list of exclusions
       const canaryFunctionExclusionList = [
-        "CheckAlarmStateFunction", "ProxyLambda",
+        "CheckAlarmStateFunction",
+        "ProxyLambda",
       ];
 
       const canaryFunctions = Object.entries(allFunctions).filter(
