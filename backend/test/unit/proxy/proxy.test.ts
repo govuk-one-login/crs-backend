@@ -1,7 +1,6 @@
 import {LogMessage} from "../../../src/common/logging/LogMessages";
 
-process.env.BITSTRING_QUEUE_URL = "BitstringStatusList";
-process.env.TOKEN_STATUS_QUEUE_URL = "TokenStatusList";
+process.env.PRIVATE_API_URL = "https://mock-private-api.example.com";
 
 import {handler} from "../../../src/functions/proxyHandler";
 import {
