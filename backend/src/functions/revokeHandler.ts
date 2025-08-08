@@ -16,7 +16,7 @@ import {
   revokeFailTXMAEvent,
   revokeSuccessTXMAEvent,
   StatusListItem,
-} from "../common/types";
+} from "../common/types/types";
 import {
   internalServerErrorResponse,
   notFoundResponse,

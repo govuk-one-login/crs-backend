@@ -2,7 +2,7 @@ import { LogMessage } from "../../../src/common/logging/LogMessages";
 
 process.env.PRIVATE_API_URL = "https://mock-private-api.example.com";
 
-import { handler } from "../../../src/functions/proxyHandler";
+import { handler } from "../../../src/functions/proxy/proxyHandler";
 import {
   APIGatewayProxyEvent,
   APIGatewayProxyResult,
@@ -55,6 +55,37 @@ describe("Testing Proxy Lambda", () => {
   });
 
   describe("Error Paths", () => {
+    describe("Missing env variable", () => {
+      it("returns a error", async () => {
+        delete process.env.PRIVATE_API_URL;
+        result = await handler(event, context);
+
+        expect(loggerInfoSpy).toHaveBeenCalledWith(
+          LogMessage.PROXY_LAMBDA_STARTED,
+        );
+
+        expect(loggerErrorSpy).toHaveBeenCalledWith(
+          LogMessage.PROXY_INVALID_CONFIG,
+          {
+            data: {
+              missingEnvironmentVariables: ["PRIVATE_API_URL"],
+            },
+          },
+        );
+
+        expect(result).toEqual({
+          statusCode: 500,
+          body: JSON.stringify({
+            error: "INTERNAL_SERVER_ERROR",
+            error_description: "Missing environment variables",
+          }),
+          headers: { "Content-Type": "application/json" },
+        });
+
+        process.env.PRIVATE_API_URL = "https://mock-private-api.example.com";
+      });
+    });
+
     describe("Invalid path", () => {
       it("returns a error", async () => {
         await handler(buildProxyRequest({ path: "/invalidPath" }), context);
