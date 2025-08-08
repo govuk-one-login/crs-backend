@@ -38,7 +38,6 @@ import {
   TEST_CLIENT_ID_TOKEN,
   TEST_KID,
   TEST_NON_MATCHING_KID,
-  ISSUE_GOLDEN_JWT,
   REVOKE_JWT_WITH_NON_NUMERICAL_INDEX,
   REVOKE_JWT_WITH_NEGATIVE_INDEX,
 } from "../../utils/testConstants";
@@ -48,7 +47,6 @@ import { sdkStreamMixin } from "@smithy/util-stream-node";
 import { Readable } from "stream";
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 import https from "node:https";
-import { context } from "esbuild";
 import resetAllMocks = jest.resetAllMocks;
 
 jest.mock("../../../src/common/logging/logger", () => ({
