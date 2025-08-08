@@ -7,7 +7,7 @@ import {
 import { logger } from "../common/logging/logger";
 import { LogMessage } from "../common/logging/LogMessages";
 import axios, { AxiosResponseHeaders, RawAxiosResponseHeaders } from "axios";
-import {internalServerErrorResponse} from "../common/responses";
+import { internalServerErrorResponse } from "../common/responses";
 
 // TODO: Implement strong env var checking.
 const ENV = {
@@ -32,7 +32,9 @@ export async function handler(
     logger.error(LogMessage.PROXY_UNEXPECTED_PATH, {
       errorMessage: `Path is not one of the permitted values: ${path}`,
     });
-    return internalServerErrorResponse(`Path is not one of the permitted values: ${path}`);
+    return internalServerErrorResponse(
+      `Path is not one of the permitted values: ${path}`,
+    );
   }
 
   const httpMethod = event.httpMethod;
@@ -67,11 +69,13 @@ export async function handler(
       body: JSON.stringify(response.data),
       headers: standardiseAxiosHeaders(response.headers),
     };
-  } catch (error){
+  } catch (error) {
     logger.error(LogMessage.PROXY_REQUEST_ERROR, {
       errorMessage: `Error sending network request: ${error}`,
     });
-    return internalServerErrorResponse("An error occurred while processing the request.");
+    return internalServerErrorResponse(
+      "An error occurred while processing the request.",
+    );
   }
 }
 
@@ -118,4 +122,3 @@ const standardiseAxiosHeaders = (
 
   return standardisedHeaders;
 };
-

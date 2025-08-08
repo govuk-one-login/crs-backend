@@ -186,7 +186,9 @@ describe("Backend application infrastructure", () => {
       const allFunctions = template.findResources("AWS::Serverless::Function");
 
       // Ensure new functions are tested for canary configuration by maintaining this list of exclusions
-      const canaryFunctionExclusionList = ["CheckAlarmStateFunction, ProxyLambda"];
+      const canaryFunctionExclusionList = [
+        "CheckAlarmStateFunction, ProxyLambda",
+      ];
 
       const canaryFunctions = Object.entries(allFunctions).filter(
         ([functionName, _]) => {
