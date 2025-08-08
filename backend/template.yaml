@@ -206,15 +206,6 @@ Conditions:
     - !Ref Environment
     - dev
 
-  DevelopmentStack: !And
-    - !Equals
-      - !Ref Environment
-      - dev
-    - !Not
-      - !Equals
-        - !Ref AWS::StackName
-        - crs-backend
-
   UsePermissionsBoundary: !Not
     - !Equals
       - !Ref PermissionsBoundary
