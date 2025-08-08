@@ -186,7 +186,7 @@ describe("Backend application infrastructure", () => {
       const allFunctions = template.findResources("AWS::Serverless::Function");
 
       // Ensure new functions are tested for canary configuration by maintaining this list of exclusions
-      const canaryFunctionExclusionList = ["CheckAlarmStateFunction"];
+      const canaryFunctionExclusionList = ["CheckAlarmStateFunction, ProxyLambda"];
 
       const canaryFunctions = Object.entries(allFunctions).filter(
         ([functionName, _]) => {
@@ -194,139 +194,139 @@ describe("Backend application infrastructure", () => {
         },
       );
 
-      // describe.each(canaryFunctions)(
-      //   "Function definition - %s",
-      //   (canaryFunction: string, canaryFunctionDefinition) => {
-      //     it("correctly configures DeploymentPreference for canaries", () => {
-      //       // Note: retrieveCanaryAlarmNames() relies on the following structure. Endeavour to both if the structure is being altered.
-      //       expect(canaryFunctionDefinition).toMatchObject({
-      //         Properties: {
-      //           DeploymentPreference: {
-      //             Enabled: true,
-      //             Alarms: {
-      //               "Fn::If": [
-      //                 "UseCanaryDeployment",
-      //                 expect.any(Array),
-      //                 [{ Ref: "AWS::NoValue" }],
-      //               ],
-      //             },
-      //             Type: {
-      //               Ref: "LambdaDeploymentPreference",
-      //             },
-      //           },
-      //         },
-      //       });
-      //     });
+      describe.each(canaryFunctions)(
+        "Function definition - %s",
+        (canaryFunction: string, canaryFunctionDefinition) => {
+          it("correctly configures DeploymentPreference for canaries", () => {
+            // Note: retrieveCanaryAlarmNames() relies on the following structure. Endeavour to both if the structure is being altered.
+            expect(canaryFunctionDefinition).toMatchObject({
+              Properties: {
+                DeploymentPreference: {
+                  Enabled: true,
+                  Alarms: {
+                    "Fn::If": [
+                      "UseCanaryDeployment",
+                      expect.any(Array),
+                      [{ Ref: "AWS::NoValue" }],
+                    ],
+                  },
+                  Type: {
+                    Ref: "LambdaDeploymentPreference",
+                  },
+                },
+              },
+            });
+          });
 
-      //     const canaryFunctionAlarmNames = retrieveCanaryAlarmNames(
-      //       canaryFunctionDefinition as FunctionDefinition,
-      //     );
+          const canaryFunctionAlarmNames = retrieveCanaryAlarmNames(
+            canaryFunctionDefinition as FunctionDefinition,
+          );
 
-      //     const canaryFunctionAlarms = Object.entries(
-      //       template.findResources("AWS::CloudWatch::Alarm"),
-      //     ).filter(([alarmName, _]) => {
-      //       return canaryFunctionAlarmNames?.includes(alarmName) ?? false;
-      //     });
+          const canaryFunctionAlarms = Object.entries(
+            template.findResources("AWS::CloudWatch::Alarm"),
+          ).filter(([alarmName, _]) => {
+            return canaryFunctionAlarmNames?.includes(alarmName) ?? false;
+          });
 
-      //     // Each alarm used as for a canary deployment is required to reference the lambda function by lambda function version ensuring the alarm references the new version only.
-      //     // The following assertions have redundancy. This is kept in as reference and to provide a backstop incase more complex canary alarms are required.
-      //     if (canaryFunctionAlarms.length > 0) {
-      //       it.each(canaryFunctionAlarms)(
-      //         "Canary alarm %s references the function version",
-      //         (_, alarmDefinition) => {
-      //           alarmDefinition.Properties.Metrics.forEach(
-      //             (metricDataQuery: Record<string, unknown>) => {
-      //               const metricStat = metricDataQuery.MetricStat as Record<
-      //                 string,
-      //                 unknown
-      //               >;
-      //               if (metricStat) {
-      //                 expect(metricStat.Period as unknown).toEqual(60);
-      //                 expect(metricStat.Stat as unknown).toEqual("Sum");
-      //               }
+          // Each alarm used as for a canary deployment is required to reference the lambda function by lambda function version ensuring the alarm references the new version only.
+          // The following assertions have redundancy. This is kept in as reference and to provide a backstop incase more complex canary alarms are required.
+          if (canaryFunctionAlarms.length > 0) {
+            it.each(canaryFunctionAlarms)(
+              "Canary alarm %s references the function version",
+              (_, alarmDefinition) => {
+                alarmDefinition.Properties.Metrics.forEach(
+                  (metricDataQuery: Record<string, unknown>) => {
+                    const metricStat = metricDataQuery.MetricStat as Record<
+                      string,
+                      unknown
+                    >;
+                    if (metricStat) {
+                      expect(metricStat.Period as unknown).toEqual(60);
+                      expect(metricStat.Stat as unknown).toEqual("Sum");
+                    }
 
-      //               // Simple test checking at least one dimension in one metric references the lambda function version.
-      //               expect(alarmDefinition.Properties.Metrics).toMatchObject(
-      //                 expect.arrayContaining([
-      //                   expect.objectContaining({
-      //                     MetricStat: expect.objectContaining({
-      //                       Metric: expect.objectContaining({
-      //                         Dimensions: expect.arrayContaining([
-      //                           {
-      //                             Name: expect.any(String),
-      //                             Value: {
-      //                               "Fn::GetAtt": [
-      //                                 canaryFunction,
-      //                                 "Version.Version",
-      //                               ],
-      //                             },
-      //                           },
-      //                         ]),
-      //                       }),
-      //                     }),
-      //                   }),
-      //                 ]),
-      //               );
+                    // Simple test checking at least one dimension in one metric references the lambda function version.
+                    expect(alarmDefinition.Properties.Metrics).toMatchObject(
+                      expect.arrayContaining([
+                        expect.objectContaining({
+                          MetricStat: expect.objectContaining({
+                            Metric: expect.objectContaining({
+                              Dimensions: expect.arrayContaining([
+                                {
+                                  Name: expect.any(String),
+                                  Value: {
+                                    "Fn::GetAtt": [
+                                      canaryFunction,
+                                      "Version.Version",
+                                    ],
+                                  },
+                                },
+                              ]),
+                            }),
+                          }),
+                        }),
+                      ]),
+                    );
 
-      //               // Specific test asserting that every metric using our custom metric log filters follows the same definition.
-      //               const metric = metricStat?.Metric as Record<
-      //                 string,
-      //                 unknown
-      //               >;
-      //               if (
-      //                 metric &&
-      //                 metric.Namespace &&
-      //                 (metric.Namespace as Record<string, string>)["Fn::Sub"] ==
-      //                   "${AWS::StackName}/LogMessages"
-      //               ) {
-      //                 expect(metric.Dimensions).toEqual(
-      //                   expect.arrayContaining([
-      //                     {
-      //                       Name: "MessageCode",
-      //                       Value: expect.any(String),
-      //                     },
-      //                     {
-      //                       Name: "Version",
-      //                       Value: {
-      //                         "Fn::GetAtt": [canaryFunction, "Version.Version"],
-      //                       },
-      //                     },
-      //                   ]),
-      //                 );
-      //               }
+                    // Specific test asserting that every metric using our custom metric log filters follows the same definition.
+                    const metric = metricStat?.Metric as Record<
+                      string,
+                      unknown
+                    >;
+                    if (
+                      metric &&
+                      metric.Namespace &&
+                      (metric.Namespace as Record<string, string>)["Fn::Sub"] ==
+                        "${AWS::StackName}/LogMessages"
+                    ) {
+                      expect(metric.Dimensions).toEqual(
+                        expect.arrayContaining([
+                          {
+                            Name: "MessageCode",
+                            Value: expect.any(String),
+                          },
+                          {
+                            Name: "Version",
+                            Value: {
+                              "Fn::GetAtt": [canaryFunction, "Version.Version"],
+                            },
+                          },
+                        ]),
+                      );
+                    }
 
-      //               // Specific test asserting that every metric using the AWS metrics follows the same definition.
-      //               if (metric && metric.Namespace === "AWS/Lambda") {
-      //                 expect(metric.Dimensions).toEqual(
-      //                   expect.arrayContaining([
-      //                     {
-      //                       Name: "Resource",
-      //                       Value: {
-      //                         "Fn::Sub": "${" + canaryFunction + "}:live",
-      //                       },
-      //                     },
-      //                     {
-      //                       Name: "FunctionName",
-      //                       Value: {
-      //                         Ref: canaryFunction,
-      //                       },
-      //                     },
-      //                     {
-      //                       Name: "ExecutedVersion",
-      //                       Value: {
-      //                         "Fn::GetAtt": [canaryFunction, "Version.Version"],
-      //                       },
-      //                     },
-      //                   ]),
-      //                 );
-      //               }
-      //             },
-      //           );
-      //         },
-      //       );
-      //     }
-      //   },
-      // );
+                    // Specific test asserting that every metric using the AWS metrics follows the same definition.
+                    if (metric && metric.Namespace === "AWS/Lambda") {
+                      expect(metric.Dimensions).toEqual(
+                        expect.arrayContaining([
+                          {
+                            Name: "Resource",
+                            Value: {
+                              "Fn::Sub": "${" + canaryFunction + "}:live",
+                            },
+                          },
+                          {
+                            Name: "FunctionName",
+                            Value: {
+                              Ref: canaryFunction,
+                            },
+                          },
+                          {
+                            Name: "ExecutedVersion",
+                            Value: {
+                              "Fn::GetAtt": [canaryFunction, "Version.Version"],
+                            },
+                          },
+                        ]),
+                      );
+                    }
+                  },
+                );
+              },
+            );
+          }
+        },
+      );
     });
   });
 

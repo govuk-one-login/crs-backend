@@ -2170,14 +2170,6 @@ Resources:
         Sourcemap: false
         Target: es2022
     Properties:
-
-      # DeploymentPreference:
-      #   Alarms: !If
-      #     - UseCanaryDeployment
-      #     - - !Ref ProxyLambdaThrottleAlarm
-      #     - - !Ref AWS::NoValue
-      #   Enabled: true
-      #   Type: !Ref LambdaDeploymentPreference
       Environment:
         Variables:
           PRIVATE_API_URL: !Sub https://${PrivateApi.RestApiId}.execute-api.eu-west-2.amazonaws.com/${Environment}
